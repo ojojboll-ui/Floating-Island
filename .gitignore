@@ -1,0 +1,7 @@
+# Godot
+.godot/
+*.import
+override.cfg
+
+# renders from snap.sh and the tests
+shots/

@@ -1,0 +1,694 @@
+extends RefCounted
+## Scripted sessions for snapshots. They go through the real input path:
+## mouse events are injected at screen positions, so button clicks reach the
+## panel and drags reach the brush exactly as a user's would.
+
+const Brush := preload("res://scripts/brush.gd")
+
+
+static func run(main: Node, name: String) -> void:
+	await _frames(main, 20)
+	match name:
+		"sculpt":
+			await _sculpt(main)
+		"undo":
+			await _sculpt(main)
+			for k in 3:
+				main.brush.undo()
+				await _frames(main, 2)
+		"water":
+			main.view.profile = false
+			await _click(main, main.ui.buttons["Vatten"])
+			await _drag(main, [Vector3(2.2, 0.5, -0.6), Vector3(3.0, 0.5, -1.4), Vector3(2.4, 0.5, -1.6), Vector3(2.2, 0.5, -0.6)], 90)
+			await _drag(main, [Vector3(3.2, 0.5, -1.2), Vector3(5.0, 0.4, -1.6), Vector3(7.2, 0.2, -1.9)], 70)
+		"dry":
+			await run(main, "water")
+			await _click(main, main.ui.buttons["Torka"])
+			await _drag(main, [Vector3(2.0, 0.3, -0.5), Vector3(3.0, 0.3, -1.5), Vector3(2.4, 0.3, -1.7), Vector3(2.0, 0.3, -0.6)], 120)
+		"stones":
+			await _click(main, main.ui.buttons["Höj"])
+			await _drag(main, [Vector3(-3.5, 0.5, 2.5), Vector3(-3.3, 0.5, 2.7)], 120)
+			await _click(main, main.ui.buttons["Stenar"])
+			await _drag(main, [Vector3(1.0, 0.5, 2.0), Vector3(-1.0, 0.5, 4.0), Vector3(-2.5, 0.5, 4.5)], 60)
+		"plants":
+			await run(main, "water")
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Lövträd"])
+			await _tap(main, Vector3(-5.2, 0.4, -0.6))
+			await _tap(main, Vector3(0.8, 0.4, -4.6))
+			await _click(main, main.ui.buttons["Gran"])
+			await _tap(main, Vector3(-4.0, 0.4, -4.2))
+			await _click(main, main.ui.buttons["Buske"])
+			await _tap(main, Vector3(1.4, 0.4, 2.6))
+			await _tap(main, Vector3(-1.2, 0.6, -2.4))
+			await _click(main, main.ui.buttons["Blommor"])
+			await _drag(main, [Vector3(-1.0, 0.4, 2.0), Vector3(-2.8, 0.4, 3.6)], 70)
+			await _click(main, main.ui.buttons["Vass"])
+			await _drag(main, [Vector3(1.2, 0.3, -0.2), Vector3(1.7, 0.3, 0.5), Vector3(3.2, 0.3, 0.3)], 60)
+			await _click(main, main.ui.buttons["Näckros"])
+			await _drag(main, [Vector3(2.3, 0.2, -0.9), Vector3(2.9, 0.2, -1.4)], 50)
+			await _frames(main, 10)
+		"trees":
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			for pair in [["Lövträd", Vector3(-5.2, 0.4, -2.2)], ["Gran", Vector3(-2.2, 0.4, 3.9)], ["Höstträd", Vector3(2.2, 0.6, -4.6)], ["Torrträd", Vector3(4.2, 0.4, -2.6)],
+					["Buske", Vector3(0.6, 0.4, 2.4)], ["Blombuske", Vector3(-0.6, 0.4, 3.2)], ["Ormbunke", Vector3(-3.4, 0.4, 0.2)], ["Högt gräs", Vector3(-1.4, 0.4, 1.4)],
+					["Svamp", Vector3(-3.0, 0.5, -1.0)], ["Klöver", Vector3(1.8, 0.4, 1.0)], ["Stenblock", Vector3(2.6, 0.4, -0.8)], ["Trampstenar", Vector3(1.4, 0.4, 4.4)]]:
+				await _click(main, main.ui.buttons[pair[0]])
+				await _tap(main, pair[1])
+			await _click(main, main.ui.buttons["Blommor"])
+			await _drag(main, [Vector3(-3.0, 0.4, 2.0), Vector3(-4.0, 0.4, 3.0)], 50)
+			await _frames(main, 10)
+		"remove":
+			await run(main, "trees")
+			print("  props after placing: ", main.props.records.size())
+			await _click(main, main.ui.buttons["Ta bort"])
+			await _drag(main, [Vector3(-5.0, 0.4, -2.0), Vector3(-1.0, 0.6, -2.0)], 30)
+			print("  after erasing: ", main.props.records.size())
+			main.brush.undo()
+			await _frames(main, 3)
+			print("  after undo: ", main.props.records.size())
+			main.brush.redo()
+			await _frames(main, 3)
+			print("  after redo: ", main.props.records.size())
+		"paint":
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			main.brush.radius = 2.5
+			await _click(main, main.ui.buttons["Gran"])
+			await _drag(main, [Vector3(-5.0, 0.4, 1.0), Vector3(-3.0, 0.4, 4.5)], 40)
+			await _click(main, main.ui.buttons["Högt gräs"])
+			await _drag(main, [Vector3(0.0, 0.4, 1.5), Vector3(2.0, 0.4, 3.5)], 40)
+			await _click(main, main.ui.buttons["Buske"])
+			await _drag(main, [Vector3(3.0, 0.4, -2.0), Vector3(4.5, 0.4, -3.5)], 30)
+			print("  painted props: ", main.props.records.size())
+		"ruins", "ruins_new", "ruins_old", "ruins_cut":
+			main.view.profile = false
+			main.ui.tabs.current_tab = 2
+			await _frames(main, 3)
+			var t0 := Time.get_ticks_usec()
+			await _click(main, main.ui.buttons["Mur"])
+			await _drag(main, [Vector3(1.0, 0.5, -1.2), Vector3(2.6, 0.5, -2.2), Vector3(4.2, 0.5, -1.6), Vector3(5.0, 0.4, 0.0)], 50)
+			await _click(main, main.ui.buttons["Pelare"])
+			await _tap(main, Vector3(0.8, 0.5, -4.2))
+			await _click(main, main.ui.buttons["Valv"])
+			await _drag(main, [Vector3(1.9, 0.5, -4.6), Vector3(4.3, 0.5, -3.7)], 30)
+			await _click(main, main.ui.buttons["Trappa"])
+			await _drag(main, [Vector3(3.6, 0.4, 0.6), Vector3(4.9, 0.4, 1.5)], 30)
+			print("  ruins: ", main.ruins.records.size(), " pieces in ", (Time.get_ticks_usec() - t0) / 1000.0, " ms")
+			if name == "ruins_cut":
+				await _click(main, main.ui.buttons["Riv"])
+				await _drag(main, [Vector3(2.6, 0.5, -2.2), Vector3(2.7, 0.5, -2.2)], 6)
+				print("  after cutting the wall: ", main.ruins.records.size(), " pieces")
+				main.brush.undo()
+				await _frames(main, 3)
+				print("  after undo: ", main.ruins.records.size(), " pieces")
+				main.brush.redo()
+				await _frames(main, 3)
+			if name == "ruins_new":
+				main.ruins.set_age(0.0)
+			elif name == "ruins_old":
+				var a0 := Time.get_ticks_usec()
+				main.ruins.set_age(0.85)
+				print("  set_age rebuilt all in ", (Time.get_ticks_usec() - a0) / 1000.0, " ms")
+		"storey":
+			main.ui.tabs.current_tab = 2
+			await _frames(main, 3)
+			# a wall with an arch drawn along it
+			await _click(main, main.ui.buttons["Mur"])
+			await _drag(main, [Vector3(0.5, 0.5, -2.0), Vector3(3.0, 0.5, -2.6), Vector3(5.0, 0.5, -2.0)], 40)
+			await _click(main, main.ui.buttons["Valv"])
+			await _drag(main, [Vector3(2.0, 0.5, -2.45), Vector3(3.6, 0.5, -2.5)], 20)
+			# stairs up from the lawn, then a floor from their top step
+			await _click(main, main.ui.buttons["Trappa"])
+			await _drag(main, [Vector3(-1.0, 0.5, 1.6), Vector3(1.4, 0.5, 1.6)], 20)
+			var top: float = main.ruins.RuinBuilder.stairs_top(main.ruins.ground, Vector2(-1.0, 1.6), Vector2(1.4, 1.6))
+			await _click(main, main.ui.buttons["Golv"])
+			main.brush.radius = 1.2
+			await _drag(main, [Vector3(1.25, top, 1.6), Vector3(2.4, top, 2.2), Vector3(2.6, top, 3.2)], 40)
+			# and a wall standing on that floor
+			await _click(main, main.ui.buttons["Mur"])
+			await _drag(main, [Vector3(2.0, top, 3.4), Vector3(3.3, top, 2.6)], 20)
+			var kinds := []
+			for r in main.ruins.records:
+				kinds.append(r.kind + ("(in wall)" if r.has("wall") else "") + ("(raised %.2f)" % r.level if r.kind == "floor" and r.raised else ""))
+			print("  pieces: ", kinds)
+			if main.args_age >= 0.0:
+				main.ruins.set_age(main.args_age)
+		"storey2":
+			main.ui.tabs.current_tab = 2
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Mur"])
+			await _drag(main, [Vector3(0.5, 0.5, -2.0), Vector3(3.0, 0.5, -2.6), Vector3(5.0, 0.5, -2.0)], 40)
+			await _click(main, main.ui.buttons["Valv"])
+			await _drag(main, [Vector3(2.0, 0.5, -2.45), Vector3(3.6, 0.5, -2.5)], 20)
+			await _click(main, main.ui.buttons["Trappa"])
+			await _drag(main, [Vector3(-1.0, 0.5, 1.6), Vector3(1.4, 0.5, 1.6)], 20)
+			await _click(main, main.ui.buttons["Pelare"])
+			await _tap(main, Vector3(3.4, 0.5, 2.4))
+			main.ruins.set_age(0.8)
+			await _frames(main, 3)
+			# click the stair halfway up its flight, and the broken pillar's shaft
+			await _click(main, main.ui.buttons["Övervåning"])
+			main.brush.radius = 1.0
+			var g: float = main.data.sample_height(0.2, 1.6)
+			await _drag(main, [Vector3(0.2, g + 0.6, 1.6), Vector3(1.2, g + 0.9, 2.4)], 30)
+			var gp: float = main.data.sample_height(3.4, 2.4)
+			await _drag(main, [Vector3(3.4, gp + 0.6, 2.4), Vector3(3.0, gp + 0.6, 1.8)], 30)
+			var kinds := []
+			for r in main.ruins.records:
+				kinds.append(r.kind + ("(raised %.2f, %d cells)" % [r.level, r.cells.size()] if r.kind == "floor" else ""))
+			print("  pieces: ", kinds)
+			print("  stair top %.2f" % main.ruins._top(main.ruins.records[2]), "  pillar top %.2f" % main.ruins._top(main.ruins.records[3]))
+			if main.args_age >= 0.0:
+				main.ruins.set_age(main.args_age)
+		"openings":
+			# build from the default view, so every click lands on the island;
+			# the view asked for is put back afterwards
+			var view := [main.rig.goal_yaw, main.rig.goal_pitch, main.rig.goal_distance, main.rig.goal_target]
+			main.rig.goal_yaw = deg_to_rad(20.0)
+			main.rig.goal_pitch = deg_to_rad(50.0)
+			main.rig.goal_distance = 30.0
+			main.rig.goal_target = Vector3(1.5, 0.5, 0.0)
+			main.rig.settle()
+			main.ui.tabs.current_tab = 2
+			await _frames(main, 3)
+			main.brush.ruin_height = 3.4
+			await _click(main, main.ui.buttons["Mur"])
+			await _drag(main, [Vector3(-1.5, 0.5, -2.2), Vector3(2.5, 0.5, -2.8), Vector3(5.5, 0.5, -2.2)], 40)
+			await _click(main, main.ui.buttons["Valv"])
+			await _drag(main, [Vector3(2.4, 0.5, -2.75), Vector3(3.8, 0.5, -2.68)], 20)
+			var gw: float = main.data.sample_height(-0.4, -2.4)
+			await _click(main, main.ui.buttons["Dörr"])
+			await _tap(main, Vector3(-0.4, gw + 1.0, -2.4))
+			await _click(main, main.ui.buttons["Fönster"])
+			var gw2: float = main.data.sample_height(4.75, -2.42)
+			await _tap(main, Vector3(4.75, gw2 + 1.6, -2.42))
+			await _click(main, main.ui.buttons["Fönster"])
+			var gw3: float = main.data.sample_height(1.0, -2.6)
+			await _tap(main, Vector3(1.0, gw3 + 1.8, -2.6))
+			main.brush.ruin_height = 2.0
+			await _click(main, main.ui.buttons["Trappa"])
+			await _drag(main, [Vector3(-1.4, 0.5, 1.4), Vector3(1.0, 0.5, 1.4)], 20)
+			await _click(main, main.ui.buttons["Övervåning"])
+			main.brush.radius = 0.9
+			var gs: float = main.data.sample_height(0.6, 1.4)
+			await _drag(main, [Vector3(0.8, gs + 1.0, 1.4), Vector3(1.8, gs + 1.0, 1.8), Vector3(2.2, gs + 1.0, 2.6)], 30)
+			var kinds := []
+			for r in main.ruins.records:
+				kinds.append(r.kind + ("(%d holes)" % r.get("holes", []).size() if r.kind == "wall" else "") + ("(in wall)" if r.has("wall") else ""))
+			print("  pieces: ", kinds)
+			if main.args_age >= 0.0:
+				main.ruins.set_age(main.args_age)
+			main.rig.goal_yaw = view[0]
+			main.rig.goal_pitch = view[1]
+			main.rig.goal_distance = view[2]
+			main.rig.goal_target = view[3]
+			main.rig.settle()
+		"holes":
+			main.rig.goal_yaw = deg_to_rad(20.0)
+			main.rig.goal_pitch = deg_to_rad(50.0)
+			main.rig.goal_distance = 30.0
+			main.rig.goal_target = Vector3(1.5, 0.5, 0.0)
+			var view := [deg_to_rad(float(main.args_yaw)), deg_to_rad(8.0), float(main.args_dist), main.args_target]
+			main.rig.settle()
+			main.ui.tabs.current_tab = 2
+			await _frames(main, 3)
+			main.brush.ruin_height = 3.2
+			await _click(main, main.ui.buttons["Mur"])
+			await _drag(main, [Vector3(-1.5, 0.5, -2.2), Vector3(2.5, 0.5, -2.8), Vector3(5.5, 0.5, -2.2)], 40)
+			main.brush.ruin_height = 2.0
+			await _click(main, main.ui.buttons["Valv"])
+			await _drag(main, [Vector3(2.4, 0.5, -2.75), Vector3(3.8, 0.5, -2.68)], 20)
+			await _click(main, main.ui.buttons["Dörr"])
+			await _tap(main, Vector3(-0.4, main.data.sample_height(-0.4, -2.4) + 1.0, -2.4))
+			main.brush.ruin_height = 1.2
+			await _click(main, main.ui.buttons["Fönster"])
+			await _tap(main, Vector3(1.45, main.data.sample_height(1.45, -2.65) + 1.8, -2.65))
+			await _tap(main, Vector3(4.75, main.data.sample_height(4.75, -2.42) + 1.6, -2.42))
+			var kinds := []
+			for r in main.ruins.records:
+				kinds.append(r.kind + ("(%d holes)" % r.get("holes", []).size() if r.kind == "wall" else ""))
+			print("  pieces: ", kinds)
+			if main.args_age >= 0.0:
+				main.ruins.set_age(main.args_age)
+			main.rig.goal_yaw = view[0]
+			main.rig.goal_pitch = view[1]
+			main.rig.goal_distance = view[2]
+			main.rig.goal_target = view[3]
+			main.rig.settle()
+		"age_undo":
+			await run(main, "holes")
+			var slider: HSlider
+			for s in main.ui.find_children("*", "HSlider", true, false):
+				if s.get_meta("unit", "") == "%" and s.get_parent().get_child(0).text == "Ålder":
+					slider = s
+			slider.drag_started.emit()
+			slider.value = 0.9
+			slider.drag_ended.emit(true)
+			await _frames(main, 3)
+			print("  age after dial: ", main.ruins.age, " shown ", slider.value)
+			main.brush.undo()
+			await _frames(main, 3)
+			print("  age after undo: ", main.ruins.age, " shown ", slider.value)
+			main.brush.redo()
+			await _frames(main, 3)
+			print("  age after redo: ", main.ruins.age, " shown ", slider.value)
+		"weather":
+			await run(main, "plants")
+			main.weather.settle()
+			main.ui.tabs.current_tab = 3
+			await _frames(main, 3)
+		"light":
+			main.weather.hour = 17.8
+			main.weather.tint_clouds = Color(1.0, 0.72, 0.85)
+			main.weather.tint_top = Color(0.85, 0.75, 1.0)
+			main.weather.sun_strength = 1.4
+			main.weather.clouds = 0.8
+			main.rebuild_ui()
+			await _frames(main, 2)
+			main.ui.tabs.current_tab = 4
+			await _frames(main, 3)
+		"camera":
+			main.rig.spin_speed = 8.0
+			main.rig.bob = 2.0
+			main.rig.spin_shape[2] = 1.0
+			main.rig.spin_shape[6] = 0.6
+			main.rig.bob_period = 8.0
+			main.rig.focal_mm = 110.0
+			main.rig.aperture = 0.8
+			main.rebuild_ui()
+			await _frames(main, 2)
+			main.ui.tabs.current_tab = 5
+			await _frames(main, 40)
+		"files":
+			await run(main, "storey2")
+			main.weather.snow = 0.6
+			main.weather.settle()
+			var path := OS.get_user_data_dir().path_join("test.island")
+			var t0 := Time.get_ticks_msec()
+			print("  save: ", error_string(main.IslandFile.save(main, path)), " in ", Time.get_ticks_msec() - t0, " ms, ", FileAccess.get_file_as_bytes(path).size() / 1024, " kB")
+			var before := [main.props.records.size(), main.ruins.records.size(), main.data.height[8000]]
+			# wreck the island, then open it again
+			main.data.generate_default(99)
+			main.props.restore([])
+			main.ruins.restore([[], 0.0])
+			main.weather.snow = 0.0
+			t0 = Time.get_ticks_msec()
+			print("  open: ", error_string(main.IslandFile.open(main, path)), " in ", Time.get_ticks_msec() - t0, " ms")
+			var after := [main.props.records.size(), main.ruins.records.size(), main.data.height[8000]]
+			print("  before ", before, " after ", after, " snow ", main.weather.snow)
+			var still: String = await main.IslandFile.still(main, Vector2i(1920, 1080))
+			print("  still: ", still, " ", Image.load_from_file(still).get_size())
+		"export":
+			main.ui.tabs.current_tab = 5
+			await _frames(main, 3)
+			var out: String = main.IslandFile.film(main, 2.0, Vector2i(1280, 720), true)
+			print("  film: ", out)
+		"ff_live":
+			main.weather.hour = 23.0
+			main.weather.fireflies = 0.05
+			await _frames(main, 300)
+			main.weather.fireflies = 1.0
+			await _frames(main, 300)
+		"bigisland":
+			for k in 10:
+				var a := k * 0.55 - 1.2
+				main.data.edit_land(Vector2(cos(a), sin(a)) * 10.0 + Vector2(-2.0, 2.0), 4.5, true)
+			main.view.rebuild(main.data.full_rect(), main.data.full_rect())
+			main.view.flush()
+			main.data.dirty = Rect2i()
+			main.data.dirty_shape = Rect2i()
+			main._on_ground_changed(main.data.full_rect())
+			print("  island centre ", main.rig.island_center, " radius ", main.rig.island_radius)
+			await _frames(main, 90)
+		"loopmath":
+			var r = main.rig
+			r.spin_speed = 8.0
+			r.spin_vary = 0.5
+			r.spin_period = 13.0
+			r.spin_shape[2] = 1.0
+			r.bob = 1.5
+			r.bob_period = 7.0
+			var live: Dictionary = r.state()
+			var loop: float = r.fit_loop(12.0)
+			# integrate the spin over the loop the way _process does
+			var turned := 0.0
+			var dt := 1.0 / 30.0
+			for k in int(round(loop * 30.0)):
+				turned += r.spin_now() * dt
+				r.spin_phase = fmod(r.spin_phase + dt / r.spin_period, 1.0)
+			print("  loop %.2f s, spin period %.2f, bob period %.2f, turned %.2f deg" % [loop, r.spin_period, r.bob_period, turned])
+			r.set_state(live)
+			var path := OS.get_user_data_dir().path_join("test2.island")
+			main.IslandFile.save(main, path)
+			r.spin_shape[2] = 0.0
+			main.IslandFile.open(main, path)
+			print("  shape after open ", main.rig.spin_shape[2], " speed ", main.rig.spin_speed, " clockwise ", main.rig.spin_clockwise)
+		"post":
+			# fold and unfold the panel by its buttons, then a round trip of the effects through a file
+			await _click(main, main.ui.buttons["Göm"])
+			await _frames(main, 30)
+			print("  folded: ", main.ui.collapsed, " handle ", main.ui.buttons["Visa"].visible, " shift ", main.rig.frame_shift)
+			await _click(main, main.ui.buttons["Visa"])
+			await _frames(main, 30)
+			print("  unfolded: ", not main.ui.collapsed, " shift %.3f" % main.rig.frame_shift)
+			var p = main.post
+			p.rays = 0.8
+			p.volume = 0.4
+			p.temperature = 0.5
+			p.shadow_tint = Color(0.6, 0.7, 1.0)
+			var path := OS.get_user_data_dir().path_join("test3.island")
+			main.IslandFile.save(main, path)
+			p.reset()
+			main.IslandFile.open(main, path)
+			print("  after open rays ", p.rays, " volume ", p.volume, " temperature ", p.temperature, " shadow ", p.shadow_tint)
+			main.rebuild_ui()
+			await _frames(main, 2)
+			main.ui.tabs.current_tab = 6
+			await _frames(main, 3)
+			var still: String = await main.IslandFile.still(main, Vector2i(1280, 720))
+			print("  still: ", still)
+		"underside", "underside_side", "underside_before":
+			# from below: wear the hanging tip away, then draw roots near the coast
+			var M = preload("res://scripts/island_mesher.gd")
+			var d = main.data
+			main.rig.goal_pitch = deg_to_rad(-38.0)
+			main.rig.goal_yaw = deg_to_rad(40.0)
+			main.rig.settle()
+			await _frames(main, 5)
+			if name == "underside_before":
+				return
+			var under := func(x: float, z: float) -> Vector3: return Vector3(x, M.underside(d, x, z), z)
+			await _click(main, main.ui.buttons["Sudda under"])
+			main.brush.strength = 1.0
+			main.brush.radius = 2.6
+			var t0 := Time.get_ticks_msec()
+			for pass_i in 3:
+				await _drag(main, [under.call(-2.0, -1.0), under.call(1.5, 1.0), under.call(-1.0, 1.5), under.call(1.0, -1.5)], 70)
+			print("  carve took ", Time.get_ticks_msec() - t0, " ms, deepest underside now %.2f" % M.underside(d, 0.0, 0.0))
+			await _click(main, main.ui.buttons["Rötter"])
+			main.brush.strength = 0.55
+			main.brush.radius = 1.4
+			t0 = Time.get_ticks_msec()
+			await _drag(main, [under.call(4.0, 3.5), under.call(2.0, 4.8)], 30)
+			await _drag(main, [under.call(-3.5, 3.0), under.call(-4.5, 0.5)], 30)
+			await _drag(main, [under.call(5.5, 0.5), under.call(5.0, -1.5)], 30)
+			print("  roots took ", Time.get_ticks_msec() - t0, " ms, records ", main.roots.records.size(), " anchors ", main.roots.records.map(func(r): return r.anchors.size()))
+			var saved: Array = main.roots.snapshot()
+			main.roots.restore([])
+			var tb := Time.get_ticks_usec()
+			main.roots.restore(saved)
+			print("  regrowing all %d records: %.1f ms" % [saved.size(), (Time.get_ticks_usec() - tb) / 1000.0])
+			if name == "underside_side":
+				main.rig.goal_pitch = deg_to_rad(6.0)
+				main.rig.settle()
+				await _frames(main, 5)
+		"roots_ground", "roots_bold", "roots_tangle":
+			# roots round the old tree's foot, and some by the coast that tip over
+			var d = main.data
+			if name == "roots_bold":
+				for kv in [["thickness", 2.2], ["length", 4.5], ["bark", 0.8], ["fork_angle", 55.0], ["fork_gap", 0.9], ["max_kids", 2], ["fork_depth", 3]]:
+					main.roots.style[kv[0]] = kv[1]
+			elif name == "roots_tangle":
+				for kv in [["thickness", 1.4], ["length", 4.5], ["branching", 0.8], ["fork_angle", 25.0], ["fork_gap", 0.2], ["max_kids", 3], ["fork_depth", 8]]:
+					main.roots.style[kv[0]] = kv[1]
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			await _click(main, main.ui.buttons["Rötter"])
+			main.brush.radius = 1.0
+			var t0 := Time.get_ticks_msec()
+			await _drag(main, [on.call(-2.0, -1.5), on.call(-2.9, -1.4), on.call(-2.5, -2.3)], 25)
+			await _drag(main, [on.call(4.6, 3.6), on.call(5.4, 2.4)], 20)
+			print("  ground roots took ", Time.get_ticks_msec() - t0, " ms, records ", main.roots.records.size(), " starts ", main.roots.records.map(func(r): return r.anchors.map(func(a): return a[3])))
+			if name == "roots_bold":
+				var cleared := func() -> int: return Array(main.data.root_mask).filter(func(v): return v > 0.5).size()
+				print("  grass cleared on %d grid points" % cleared.call())
+				main.brush.undo()
+				main.brush.undo()
+				print("  after undoing both strokes: %d" % cleared.call())
+				main.brush.redo()
+				main.brush.redo()
+				print("  after redo: %d" % cleared.call())
+			if name == "roots_ground":
+				var tb := Time.get_ticks_usec()
+				main.roots.set_style("thickness", 2.0)
+				print("  restyling the last roots: %.1f ms" % ((Time.get_ticks_usec() - tb) / 1000.0))
+		"roots_ruins", "roots_climb":
+			# ruins first, then roots drawn beside the wall and the pillar
+			await run(main, "ruins")
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			main.ui.tabs.current_tab = 0
+			await _frames(main, 3)
+			var tr := Time.get_ticks_usec()
+			main.roots._take_raster()
+			print("  raster of the ruins: %.1f ms, wall top at (2.6, -2.2): %.2f" % [(Time.get_ticks_usec() - tr) / 1000.0, main.roots.ruin_top(2.6, -2.2)])
+			main.roots.style.thickness = 1.5
+			main.roots.style.length = 4.0
+			main.roots.style.curl = 0.6
+			await _click(main, main.ui.buttons["Rötter"])
+			main.brush.radius = 1.0
+			if name == "roots_climb":
+				main.roots.style.length = 3.0
+				await _drag(main, [on.call(1.4, -0.95), on.call(2.3, -1.45)], 20)
+			else:
+				await _drag(main, [on.call(2.3, -0.6), on.call(3.4, -0.4)], 20)
+				await _drag(main, [on.call(0.2, -3.2), on.call(0.4, -3.6)], 10)
+			print("  roots: ", main.roots.records.size())
+			for seed in main.roots._nodes:
+				var bb: AABB = main.roots._nodes[seed].mesh.get_aabb()
+				print("  roots reach from %s to %s, anchors %s" % [bb.position, bb.end, main.roots.records[0].anchors])
+			if name == "roots_climb":
+				for size in [0.5, 2.0]:
+					var t0 := Time.get_ticks_usec()
+					main.roots.set_style("size", size)
+					var bs: AABB = main.roots._nodes.values()[0].mesh.get_aabb()
+					print("  size %.1f: spans %.1f x %.1f m, %.0f ms" % [size, bs.size.x, bs.size.z, (Time.get_ticks_usec() - t0) / 1000.0])
+				main.roots.set_style("size", 1.0)
+		"roots_sizes":
+			# three root systems, small, medium and large, then the panel folded away
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			await _click(main, main.ui.buttons["Rötter"])
+			main.brush.radius = 0.8
+			main.roots.style.thickness = 1.4
+			for spec in [[2.0, [-2.2, -1.6], [-2.6, -1.9]], [1.0, [3.6, -0.6], [3.9, -0.9]], [0.5, [1.2, 3.0], [1.35, 2.85]], [0.5, [-2.6, 2.4], [-2.75, 2.25]]]:
+				main.roots.style.size = spec[0]
+				await _drag(main, [on.call(spec[1][0], spec[1][1]), on.call(spec[2][0], spec[2][1])], 12)
+			print("  sizes drawn: ", main.roots.records.map(func(r): return r.style.size))
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
+		"roots_stones", "roots_climb0", "roots_climb1":
+			# ruins, the island's boulders and a paved patch, with roots of four
+			# sizes drawn beside them
+			await run(main, "ruins")
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			main.ui.tabs.current_tab = 0
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Plattor"])
+			main.brush.radius = 1.3
+			main.brush.strength = 1.0
+			await _drag(main, [on.call(2.4, 1.0), on.call(3.6, 1.6)], 25)
+			await _click(main, main.ui.buttons["Rötter"])
+			main.brush.radius = 0.8
+			main.roots.style.thickness = 1.3
+			if name != "roots_stones":
+				main.roots.style.climb = 0.0 if name == "roots_climb0" else 1.0
+			for spec in [[1.6, [1.3, -0.9], [1.7, -1.05]], [1.0, [4.2, 2.7], [4.4, 2.5]], [0.8, [2.8, 1.2], [3.1, 1.3]], [0.5, [-0.3, -2.8], [-0.45, -2.95]], [0.6, [0.3, -3.8], [0.4, -3.65]], [1.2, [2.4, -1.65], [2.8, -1.8]]]:
+				main.roots.style.size = spec[0]
+				await _drag(main, [on.call(spec[1][0], spec[1][1]), on.call(spec[2][0], spec[2][1])], 12)
+			await _frames(main, 10)
+			print("  sizes drawn: ", main.roots.records.map(func(r): return r.style.size), " stones rev ", main.props.revision)
+			# which root nodes end up inside a ruin or stone, and what were they doing
+			var r0 = main.roots
+			for rec in r0.records:
+				var g: Dictionary = r0.RootBuilder.grow(r0._resolve(rec.anchors), r0._style_of(rec), rec.seed, r0.inside, r0.ground, r0.bare_ground)
+				var bad := []
+				var ns: PackedVector3Array = g.nodes
+				for k in ns.size():
+					var p := ns[k]
+					var top: float = r0.ruin_top(p.x, p.z)
+					var terrain: float = d.sample_height(p.x, p.z)
+					if top > terrain + 0.2 and p.y < top - 0.05:
+						bad.append("%d y%.2f top%.2f lie%d climb%d r%.2f" % [k, p.y, top, g.lies[k], g.climbs[k], g.radius[k]])
+				var up := 0
+				for p in ns:
+					if r0.ruin_top(p.x, p.z) > d.sample_height(p.x, p.z) + 0.3 and p.y > d.sample_height(p.x, p.z) + 0.3:
+						up += 1
+				var climbing := 0
+				for c in g.climbs:
+					climbing += c
+				print("  on walls and stones: %d of %d nodes, climbing %d" % [up, ns.size(), climbing])
+				print("  size %.1f: %d nodes, %d inside: %s" % [rec.style.size, ns.size(), bad.size(), bad.slice(0, 6)])
+				var deep := 0
+				var vs: PackedVector3Array = g.v
+				for v in vs:
+					var top: float = r0.ruin_top(v.x, v.z)
+					if top > d.sample_height(v.x, v.z) + 0.2 and v.y < top - 0.05:
+						# the real depth: the shortest way out, up or sideways
+						var depth: float = top - v.y
+						for ring in range(1, 9):
+							var out := false
+							for s in 16:
+								var q := v + Vector3(cos(TAU * s / 16.0), 0.0, sin(TAU * s / 16.0)) * ring * 0.025
+								if r0.ruin_top(q.x, q.z) < v.y:
+									out = true
+							if out:
+								depth = minf(depth, ring * 0.025)
+								break
+						if depth > 0.12:
+							deep += 1
+				print("    surface points more than 12 cm into stone: %d of %d" % [deep, vs.size()])
+				var gaps := []
+				for k in ns.size():
+					if g.climbs[k] == 1:
+						var off: Vector3 = r0.RootBuilder._hug(ns[k], r0.ground, 0.0) - ns[k]
+						gaps.append(snappedf(off.length() - g.radius[k], 0.01))
+				if not gaps.is_empty():
+					print("    climbing nodes, gap between root surface and face: ", gaps.slice(0, 10))
+			for rec in main.roots.records:
+				print("  starts ", rec.anchors.map(func(a): return "(%.2f %.2f %.2f on %s)" % [a[0], a[1], a[2], a[3]]), " resolved y ", main.roots._resolve(rec.anchors).map(func(r): return snappedf(r[0].y, 0.01)), " terrain ", rec.anchors.map(func(a): return snappedf(d.sample_height(a[0], a[2]), 0.01)))
+			for seed in main.roots._nodes:
+				var bb: AABB = main.roots._nodes[seed].mesh.get_aabb()
+				print("  reaches up to %.2f m" % bb.end.y)
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
+		"boulders":
+			# boulders, pebbles gathered round them, and stepping stones along the path
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Stenblock"])
+			for at in [[-1.2, 1.6], [0.6, 2.2], [-3.4, -0.6]]:
+				await _tap(main, on.call(at[0], at[1]))
+			await _click(main, main.ui.buttons["Småsten"])
+			main.brush.radius = 1.8
+			main.brush.density = 0.8
+			main.brush.clumping = 0.85
+			var t0 := Time.get_ticks_msec()
+			await _drag(main, [on.call(-1.4, 1.2), on.call(0.4, 2.4), on.call(-0.6, 1.6)], 60)
+			print("  pebbles: ", main.props.records.filter(func(r): return r.kind == "smasten").size(), " in ", Time.get_ticks_msec() - t0, " ms")
+			await _click(main, main.ui.buttons["Trampstenar"])
+			main.brush.radius = 0.6
+			main.brush.density = 0.8
+			main.brush.clumping = 0.0
+			await _drag(main, [on.call(2.6, 5.0), on.call(2.4, 2.4), on.call(1.2, 0.2)], 50)
+			print("  stepping stones: ", main.props.records.filter(func(r): return r.kind == "trampsten").size())
+			for r in main.props.records.filter(func(r): return r.kind == "trampsten"):
+				var bb: AABB = main.props._nodes[r.id].mesh.get_aabb()
+				print("    slab mesh %s, size %.2f" % [bb.size, r.size])
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
+		"stone_gallery":
+			# one boulder per setting, in a row
+			var d = main.data
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 4
+			var looks := [
+				{"angular": 0.0, "flat": 0.2, "long": 0.1, "moss": 0.1, "texture": 0.2},
+				{"angular": 0.5, "flat": 0.25, "long": 0.2, "moss": 0.5, "texture": 0.5},
+				{"angular": 1.0, "flat": 0.2, "long": 0.3, "moss": 0.3, "texture": 0.8},
+				{"angular": 0.6, "flat": 0.85, "long": 0.4, "moss": 0.6, "texture": 0.6},
+				{"angular": 0.7, "flat": 0.0, "long": 1.0, "moss": 0.9, "texture": 1.0},
+			]
+			for k in looks.size():
+				main.props.begin_stroke()
+				for key in looks[k]:
+					main.props.style_for("stenblock")[key] = looks[k][key]
+				var x := -4.0 + k * 2.0
+				main.props.add("stenblock", x, 1.0, rng, 1.4)
+			await _frames(main, 5)
+		"hover":
+			await _click(main, main.ui.buttons["Mossa"])
+			_mouse_move(main.rig.camera.unproject_position(Vector3(1.5, 0.6, 1.5)))
+			await _frames(main, 5)
+		_:
+			push_error("unknown test " + name)
+	# park the pointer in the sky so the brush ring stays out of the picture
+	if name != "hover":
+		_mouse_move(Vector2(8, 8))
+		await _frames(main, 2)
+
+
+static func _sculpt(main: Node) -> void:
+	main.view.profile = true
+	var t0 := Time.get_ticks_usec()
+	# draw a peninsula out into the air
+	await _click(main, main.ui.buttons["Rita land"])
+	await _drag(main, [Vector3(5.5, 0, -4.5), Vector3(8.0, 0, -6.5), Vector3(10.0, 0, -6.0)], 50)
+	# raise a hill on it
+	await _click(main, main.ui.buttons["Höj"])
+	await _drag(main, [Vector3(8.2, 0.2, -6.2), Vector3(8.6, 0.2, -6.0)], 90)
+	# a sandy cove and a stone patch
+	await _click(main, main.ui.buttons["Sand"])
+	await _drag(main, [Vector3(0.5, 0.5, 4.0), Vector3(-2.0, 0.5, 5.0)], 50)
+	await _click(main, main.ui.buttons["Plattor"])
+	await _drag(main, [Vector3(2.0, 0.8, -3.0), Vector3(3.5, 0.8, -2.5)], 40)
+	# bite a notch out of the far coast
+	await _click(main, main.ui.buttons["Sudda land"])
+	await _drag(main, [Vector3(-6.5, 0, -2.0), Vector3(-5.2, 0, -3.5)], 30)
+	print("test strokes took ", (Time.get_ticks_usec() - t0) / 1000.0, " ms")
+
+
+## A single click on the island at a world point.
+static func _tap(main: Node, at: Vector3) -> void:
+	await _drag(main, [at, at], 2)
+
+
+static func _frames(main: Node, n: int) -> void:
+	for k in n:
+		await main.get_tree().process_frame
+
+
+static func _click(main: Node, control: Control) -> void:
+	var at := control.get_global_rect().get_center()
+	_mouse_move(at)
+	await _frames(main, 2)
+	_mouse_button(at, true)
+	_mouse_button(at, false)
+	await _frames(main, 2)
+
+
+## Press at the first point, move through the rest over `frames` frames,
+## release. Points are world positions projected to the screen.
+static func _drag(main: Node, points: Array, frames: int) -> void:
+	var cam: Camera3D = main.rig.camera
+	var screen: Array[Vector2] = []
+	for p in points:
+		screen.append(cam.unproject_position(p))
+	_mouse_move(screen[0])
+	await _frames(main, 2)
+	_mouse_button(screen[0], true)
+	var worst := 0.0
+	for f in frames:
+		var t := float(f) / maxf(frames - 1, 1) * (screen.size() - 1)
+		var seg := mini(int(t), screen.size() - 2)
+		var at := screen[seg].lerp(screen[seg + 1], t - seg)
+		_mouse_move(at)
+		var before := Time.get_ticks_usec()
+		await main.get_tree().process_frame
+		worst = maxf(worst, (Time.get_ticks_usec() - before) / 1000.0)
+	_mouse_button(screen[-1], false)
+	await _frames(main, 3)
+	print("  stroke worst frame ", worst, " ms")
+
+
+static func _mouse_move(at: Vector2) -> void:
+	var e := InputEventMouseMotion.new()
+	e.position = at
+	e.global_position = at
+	Input.parse_input_event(e)
+
+
+static func _mouse_button(at: Vector2, pressed: bool) -> void:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = pressed
+	e.position = at
+	e.global_position = at
+	Input.parse_input_event(e)

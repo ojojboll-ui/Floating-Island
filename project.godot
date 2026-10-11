@@ -1,0 +1,41 @@
+; Engine configuration file.
+
+config_version=5
+
+[application]
+
+config/name="Floating Island"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2
+lights_and_shadows/directional_shadow/size=8192
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=4
+camera/depth_of_field/depth_of_field_bokeh_shape=2
+camera/depth_of_field/depth_of_field_bokeh_quality=3
+
+[shader_globals]
+
+snow_cover={
+"type": "float",
+"value": 0.0
+}
+wetness={
+"type": "float",
+"value": 0.0
+}
+wind_strength={
+"type": "float",
+"value": 0.35
+}
+rain_amount={
+"type": "float",
+"value": 0.0
+}
