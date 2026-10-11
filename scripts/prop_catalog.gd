@@ -27,19 +27,35 @@ const PlantBuilder := preload("res://scripts/plant_builder.gd")
 const MODELS := "res://assets/quaternius/"
 
 const KINDS := {
-	"lovtrad": {"label": "Lövträd", "models": ["CommonTree_1", "CommonTree_2", "CommonTree_3", "CommonTree_4", "CommonTree_5"],
-		"height": [4.6, 6.4], "spacing": 2.6, "layer": "big", "where": "land",
-		"mark": [Color(0, 0, 0.45, 0.3), 1.9], "occupied": 0.55, "sink": 0.0, "sway": 0.35},
-	"gran": {"label": "Gran", "models": ["Pine_1", "Pine_2", "Pine_3", "Pine_4", "Pine_5"],
-		"height": [5.0, 7.2], "spacing": 2.4, "layer": "big", "where": "land",
-		"mark": [Color(0, 0, 0.3, 0.45), 1.7], "occupied": 0.5, "sink": 0.0, "sway": 0.2},
-	"krokigt": {"label": "Höstträd", "models": ["TwistedTree_1", "TwistedTree_2", "TwistedTree_3", "TwistedTree_4", "TwistedTree_5"],
-		"height": [6.5, 8.0], "spacing": 4.0, "layer": "big", "where": "land",
-		"mark": [Color(0, 0, 0.5, 0.3), 2.4], "occupied": 0.8, "sink": 0.0, "sway": 0.25},
-	"torrtrad": {"label": "Torrträd", "models": ["DeadTree_1", "DeadTree_2", "DeadTree_3", "DeadTree_4", "DeadTree_5"],
-		"height": [4.0, 5.5], "spacing": 3.0, "layer": "big", "where": "land",
-		"mark": [Color(0, 0, 0.2, 0.55), 1.5], "occupied": 0.45, "sink": 0.0, "sway": 0.0},
-	"sagotrad": {"label": "Sagoträd", "builder": "tree", "height": [5.5, 6.5], "spacing": 3.0, "layer": "big", "where": "land",
+	"lovtrad": {"label": "Lövträd", "builder": "tree", "dials": "tree", "variants": 1000,
+		"style": {"size": 5.5, "variation": 0.15, "trunk": 0.3, "bend": 0.3, "branches": 5, "levels": 3, "branch_len": 0.6,
+			"angle": 45.0, "crown": 0.5, "branch_start": 0.35, "leaves": 0.75, "leaf_size": 1.0,
+			"leaf_color": [0.46, 0.66, 0.2], "bark_color": [0.4, 0.29, 0.21]},
+		"spacing": 2.6, "layer": "big", "where": "land",
+		"mark": [Color(0, 0, 0.45, 0.3), 1.9], "occupied": 0.55, "sink": 0.0},
+	"gran": {"label": "Gran", "builder": "tree", "dials": "tree", "variants": 1000,
+		"style": {"size": 6.2, "variation": 0.15, "trunk": 0.16, "bend": 0.05, "branches": 18, "levels": 1, "branch_len": 0.7,
+			"angle": 78.0, "crown": 0.0, "branch_start": 0.1, "leaves": 0.85, "leaf_size": 1.0, "needles": true,
+			"leaf_color": [0.2, 0.4, 0.17], "bark_color": [0.36, 0.24, 0.17]},
+		"spacing": 2.4, "layer": "big", "where": "land",
+		"mark": [Color(0, 0, 0.3, 0.45), 1.7], "occupied": 0.5, "sink": 0.0},
+	"krokigt": {"label": "Höstträd", "builder": "tree", "dials": "tree", "variants": 1000,
+		"style": {"size": 6.5, "variation": 0.15, "trunk": 0.32, "bend": 0.75, "branches": 4, "levels": 3, "branch_len": 0.65,
+			"angle": 50.0, "crown": 0.6, "branch_start": 0.4, "leaves": 0.65, "leaf_size": 1.1,
+			"leaf_color": [0.85, 0.24, 0.12], "bark_color": [0.3, 0.24, 0.22]},
+		"spacing": 4.0, "layer": "big", "where": "land",
+		"mark": [Color(0, 0, 0.5, 0.3), 2.4], "occupied": 0.8, "sink": 0.0},
+	"torrtrad": {"label": "Torrträd", "builder": "tree", "dials": "tree", "variants": 1000,
+		"style": {"size": 4.8, "variation": 0.15, "trunk": 0.28, "bend": 0.65, "branches": 5, "levels": 3, "branch_len": 0.6,
+			"angle": 40.0, "crown": 0.5, "branch_start": 0.3, "leaves": 0.0, "leaf_size": 1.0,
+			"leaf_color": [0.5, 0.45, 0.25], "bark_color": [0.47, 0.42, 0.37]},
+		"spacing": 3.0, "layer": "big", "where": "land",
+		"mark": [Color(0, 0, 0.2, 0.55), 1.5], "occupied": 0.45, "sink": 0.0},
+	"sagotrad": {"label": "Sagoträd", "builder": "tree", "dials": "tree", "variants": 1000,
+		"style": {"size": 6.0, "variation": 0.1, "trunk": 0.42, "bend": 0.4, "branches": 3, "levels": 3, "branch_len": 0.72,
+			"angle": 52.0, "crown": 0.8, "branch_start": 0.48, "leaves": 0.85, "leaf_size": 1.3,
+			"leaf_color": [0.46, 0.66, 0.2], "bark_color": [0.42, 0.3, 0.22]},
+		"spacing": 3.0, "layer": "big", "where": "land",
 		"mark": [Color(0, 0, 0.5, 0.35), 2.0], "occupied": 0.7, "sink": 0.0},
 	"buske": {"label": "Buske", "models": ["Bush_Common"], "recolor": Color(0.36, 0.56, 0.17), "height": [0.9, 1.3], "spacing": 1.1, "layer": "big", "where": "land",
 		"mark": [Color(0, 0, 0.35, 0.15), 0.9], "occupied": 0.55, "sink": 0.05, "sway": 0.4},
@@ -81,6 +97,25 @@ const STONE_DIALS := [
 	["Mossa", "moss", 0.0, 1.0, "%", "Hur mycket mossa; mer nära vatten och under träd"],
 	["Textur", "texture", 0.0, 1.0, "%", "Sprickor och skikt i stenen"],
 ]
+const TREE_DIALS := [
+	["Höjd", "size", 1.5, 12.0, "m", "Hur högt trädet är"],
+	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket träden skiljer sig i höjd"],
+	["Stam", "trunk", 0.08, 0.8, "m", "Stammens tjocklek vid roten"],
+	["Krokighet", "bend", 0.0, 1.0, "%", "Raka stammar och grenar, eller vridna och knotiga"],
+	["Grenar", "branches", 2.0, 18.0, "count", "Hur många huvudgrenar som går ut från stammen"],
+	["Förgrening", "levels", 1.0, 4.0, "count", "Hur många led grenarna delar sig i"],
+	["Grenlängd", "branch_len", 0.2, 1.0, "%", "Hur långa grenarna är"],
+	["Grenvinkel", "angle", 15.0, 95.0, "deg", "Vinkeln grenarna växer ut i från stammen"],
+	["Kronform", "crown", 0.0, 1.0, "%", "Spetsig som en gran, rund, eller bred som ett paraply"],
+	["Stambas", "branch_start", 0.05, 0.75, "%", "Hur högt upp de första grenarna sitter"],
+	["Lövmängd", "leaves", 0.0, 1.0, "%", "Hur tät kronan är; noll ger ett kalt träd"],
+	["Lövstorlek", "leaf_size", 0.3, 2.0, "x", "Hur stora lövklungorna är"],
+]
+## The colours a kind's dials can set: label and style key.
+const DIAL_COLORS := {"stone": [["Färg", "tint"]], "tree": [["Löv", "leaf_color"], ["Bark", "bark_color"]]}
+const DIALS := {"stone": STONE_DIALS, "tree": TREE_DIALS}
+
+
 const TREES := ["lovtrad", "gran", "krokigt", "torrtrad", "sagotrad"]
 static var _rock_mat: ShaderMaterial
 
@@ -127,9 +162,16 @@ static func build(rec: Dictionary) -> Node3D:
 			mi.set_meta("shaded", mi)
 			return mi
 		"tree":
-			node = TreeBuilder.build(Vector3.ZERO, int(rec.variant) + 100)
-			node.scale = Vector3.ONE * size / 6.0
-			shaded = node.get_child(0)
+			var st := RockBuilder.style_of(k.style, rec.get("style"))
+			var lc: Array = st.leaf_color
+			var hue: float = rec.hue
+			# each tree a touch lighter or darker than its neighbours
+			st.leaf_color = [lc[0] * (0.92 + 0.16 * hue), lc[1] * (0.94 + 0.12 * hue), lc[2]]
+			node = TreeBuilder.build(st, size, int(rec.variant))
+			node.set_meta("tall", size)
+			node.rotation.y = rec.rot
+			node.set_meta("shaded", node.get_child(0))
+			return node
 		"reeds", "lily":
 			var key := "%s|%d" % [rec.kind, rec.variant]
 			if not _procedural.has(key):

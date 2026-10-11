@@ -258,32 +258,36 @@ func _kind_box(kind: String) -> Control:
 	var box := _column(Catalog.KINDS[kind].label)
 	var st: Dictionary = p.style_for(kind)
 	var dials := []
-	for spec in Catalog.STONE_DIALS:
+	var set_name: String = Catalog.KINDS[kind].get("dials", "stone")
+	for spec in Catalog.DIALS[set_name]:
 		var key: String = spec[1]
 		var lo: float = spec[2]
 		var hi: float = spec[3]
 		if key == "size":
 			hi = maxf(hi, float(st.size) * 3.0)
 			lo = minf(lo, float(st.size) * 0.3)
-		var sl := _slider(spec[0], lo, hi, st[key], func(v: float) -> void: p.set_style(kind, key, v), spec[4])
+		var sl := _slider(spec[0], lo, hi, st[key], func(v: float) -> void: p.set_style(kind, key, v), spec[4], 1.0 if spec[4] in ["count", "deg"] else 0.01)
 		sl.drag_started.connect(func() -> void: brush.push_undo())
 		(sl.get_parent() as Control).tooltip_text = spec[5] + ". Ändrar också det senast målade"
 		box.add_child(sl.get_parent())
 		dials.append([sl, key])
 	var line := HBoxContainer.new()
 	line.add_theme_constant_override("separation", 8)
-	var l := Label.new()
-	l.text = "Färg"
-	l.custom_minimum_size.x = 86
-	line.add_child(l)
-	var pick := ColorPickerButton.new()
-	var t: Array = st.tint
-	pick.color = Color(t[0], t[1], t[2])
-	pick.edit_alpha = false
-	pick.custom_minimum_size = Vector2(54, 26)
-	pick.focus_mode = Control.FOCUS_NONE
-	pick.color_changed.connect(func(c: Color) -> void: p.set_style(kind, "tint", [c.r, c.g, c.b]))
-	line.add_child(pick)
+	var picks := []
+	for pair in Catalog.DIAL_COLORS[set_name]:
+		var l := Label.new()
+		l.text = pair[0]
+		line.add_child(l)
+		var ckey: String = pair[1]
+		var pick := ColorPickerButton.new()
+		var t: Array = st[ckey]
+		pick.color = Color(t[0], t[1], t[2])
+		pick.edit_alpha = false
+		pick.custom_minimum_size = Vector2(46, 26)
+		pick.focus_mode = Control.FOCUS_NONE
+		pick.color_changed.connect(func(c: Color) -> void: p.set_style(kind, ckey, [c.r, c.g, c.b]))
+		line.add_child(pick)
+		picks.append([pick, ckey])
 	var reset := Button.new()
 	reset.text = "Grundstil"
 	reset.focus_mode = Control.FOCUS_NONE
@@ -296,7 +300,9 @@ func _kind_box(kind: String) -> Control:
 		for d in dials:
 			(d[0] as HSlider).set_value_no_signal(fresh[d[1]])
 			_show(d[0])
-		pick.color = Color(fresh.tint[0], fresh.tint[1], fresh.tint[2]))
+		for pk in picks:
+			var f: Array = fresh[pk[1]]
+			(pk[0] as ColorPickerButton).color = Color(f[0], f[1], f[2]))
 	line.add_child(reset)
 	box.add_child(line)
 	return box

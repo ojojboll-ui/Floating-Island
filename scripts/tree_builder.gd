@@ -1,115 +1,190 @@
 extends RefCounted
-## A broadleaf tree grown from a seed: a flared, curving trunk that forks
-## twice, and fluffy leaf clouds at the branch tips. The leaves are many small
-## alpha-cut cards whose normals point out from their cloud's centre, which is
-## what makes the canopy light like one soft shape instead of a thousand flat
-## quads.
+## Trees, generated from a style, after the parametric model of Weber and
+## Penn ("Creation and Rendering of Realistic Trees", 1995), the model
+## behind Blender's Sapling add-on, simplified for a stylized look:
+##
+##   the trunk rises with a little lean and as crooked as Krokighet asks;
+##   main branches leave it from Stambas up, spaced round it by the golden
+##   angle (137.5 degrees), each at Grenvinkel from the trunk;
+##   how long a main branch is depends on where it sits, after the crown
+##   shape: long low down for a spruce, long in the middle for a round
+##   crown, long high up for an umbrella;
+##   every branch splits again, Förgrening times over, each generation
+##   Grenlängd as long as the one it grows from.
+##
+## Leaves are clouds of small alpha-cut cards round the branch tips, their
+## normals pointing out from the cloud and the crown, which is what makes a
+## crown light like one soft shape (the Quaternius look). A spruce gets
+## flat, drooping tiers of needles along its branches instead.
 
 const MeshUtil := preload("res://scripts/mesh_util.gd")
+const RockBuilder := preload("res://scripts/rock_builder.gd")
+
+const GOLDEN := 2.39996   # radians
 
 static var _bark_normal: ImageTexture
 
 
-static func build(ground: Vector3, seed: int) -> Node3D:
+## The tree for a style, `height` metres tall, its foot at the origin.
+static func build(style: Dictionary, height: float, seed: int) -> Node3D:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = seed
-	var bark := {"v": PackedVector3Array(), "n": PackedVector3Array(), "uv": PackedVector2Array(), "i": PackedInt32Array()}
-	var tips := []
-	_branch(bark, rng, Vector3(0.0, -0.45, 0.0), Vector3(0.08, 1.0, 0.03).normalized(), 2.5, 0.4, 0, tips)
-	_fill_canopy(tips)
+	rng.seed = seed * 7349 + 3
+	var g := {"rng": rng, "st": style, "needles": bool(style.get("needles", false)),
+		"bark": {"v": PackedVector3Array(), "n": PackedVector3Array(), "uv": PackedVector2Array(), "i": PackedInt32Array()},
+		"clusters": [], "height": height}
+	var trunk_len := height * (0.92 if g.needles else 0.6)
+	var lean := Vector3(rng.randfn(), 0.0, rng.randfn()) * 0.08 * (1.0 - float(style.crown) * 0.5)
+	_branch(g, 0, Vector3(0.0, -0.3, 0.0), (Vector3.UP + lean).normalized(), trunk_len + 0.3, float(style.trunk) * height / 6.0)
+	if g.needles and float(style.leaves) > 0.01:
+		# the spire: a last tuft at the very top
+		g.clusters.append([Vector3(0.0, trunk_len + 0.1, 0.0), float(style.leaf_size) * 0.4, Vector3.UP, 1.6])
 
 	var root := Node3D.new()
-	root.position = ground
-
-	var trunk_mesh := ArrayMesh.new()
-	MeshUtil.add_surface(trunk_mesh, bark.v, bark.n, bark.uv, PackedColorArray(), bark.i)
 	var trunk := MeshInstance3D.new()
-	trunk.mesh = trunk_mesh
-	var bark_mat := ShaderMaterial.new()
-	bark_mat.shader = load("res://shaders/bark.gdshader")
+	var bm := ArrayMesh.new()
+	MeshUtil.add_surface(bm, g.bark.v, g.bark.n, g.bark.uv, PackedColorArray(), g.bark.i)
+	trunk.mesh = bm
+	trunk.material_override = _bark_material()
+	var b: Array = style.bark_color
+	trunk.set_instance_shader_parameter("bark", Vector3(b[0], b[1], b[2]))
+	root.add_child(trunk)
+
+	if float(style.leaves) > 0.01 and not (g.clusters as Array).is_empty():
+		var leaves := MeshInstance3D.new()
+		leaves.mesh = _leaf_mesh(g)
+		var lm := ShaderMaterial.new()
+		lm.shader = load("res://shaders/leaves.gdshader")
+		leaves.material_override = lm
+		var c: Array = style.leaf_color
+		leaves.set_instance_shader_parameter("leaf_color", Vector3(c[0], c[1], c[2]))
+		leaves.set_instance_shader_parameter("needles", 1.0 if g.needles else 0.0)
+		root.add_child(leaves)
+		# a dark heart in each leaf cloud, so the gaps between cards show
+		# shade instead of sky (a spruce's tiers are open enough without)
+	if float(style.leaves) > 0.01 and not (g.clusters as Array).is_empty() and not g.needles:
+		var c: Array = style.leaf_color
+		var core := MeshInstance3D.new()
+		core.mesh = _cores(g)
+		var cm := StandardMaterial3D.new()
+		cm.albedo_color = Color(c[0] * 0.42, c[1] * 0.46, c[2] * 0.42)
+		cm.roughness = 1.0
+		core.material_override = cm
+		core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(core)
+	return root
+
+
+static func _bark_material() -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/bark.gdshader")
 	if _bark_normal == null:
 		var img := Image.load_from_file(ProjectSettings.globalize_path("res://assets/quaternius/Bark_NormalTree_Normal.png"))
 		if img:
 			img.generate_mipmaps()
 			_bark_normal = ImageTexture.create_from_image(img)
 	if _bark_normal:
-		bark_mat.set_shader_parameter("normal_tex", _bark_normal)
-		bark_mat.set_shader_parameter("has_normal", true)
-	trunk.material_override = bark_mat
-	root.add_child(trunk)
-	trunk.set_instance_shader_parameter("ground_y", ground.y)
-
-	var leaves := MeshInstance3D.new()
-	leaves.mesh = _leaf_mesh(rng, tips)
-	var leaf_mat := ShaderMaterial.new()
-	leaf_mat.shader = load("res://shaders/leaves.gdshader")
-	leaves.material_override = leaf_mat
-	root.add_child(leaves)
-
-	# a dark core in each leaf cloud, so gaps between cards show shade
-	# instead of sky
-	var core_mat := StandardMaterial3D.new()
-	core_mat.albedo_color = Color(0.1, 0.2, 0.07)
-	core_mat.roughness = 1.0
-	for tip in tips:
-		var sphere := SphereMesh.new()
-		sphere.radius = tip[1] * 0.62
-		sphere.height = tip[1] * 1.1
-		sphere.radial_segments = 16
-		sphere.rings = 8
-		var core := MeshInstance3D.new()
-		core.mesh = sphere
-		core.material_override = core_mat
-		core.position = tip[0]
-		root.add_child(core)
-	return root
+		mat.set_shader_parameter("normal_tex", _bark_normal)
+		mat.set_shader_parameter("has_normal", true)
+	return mat
 
 
-static func _branch(b: Dictionary, rng: RandomNumberGenerator, start: Vector3, dir: Vector3,
-		length: float, radius: float, depth: int, tips: Array) -> void:
-	var segs := 6
+## How long a main branch is at height t (0 at the trunk's foot, 1 at its
+## top), after the crown shape: 0 a spruce's cone, 0.5 round, 1 an umbrella.
+static func _crown(t: float, crown: float) -> float:
+	var x := clampf(t, 0.0, 1.0)
+	var cone := 1.0 - x * 0.9
+	var round := 0.3 + 0.7 * sin(PI * x)
+	var umbrella := 0.2 + 0.8 * pow(x, 0.6)
+	if crown < 0.5:
+		return lerpf(cone, round, crown * 2.0)
+	return lerpf(round, umbrella, (crown - 0.5) * 2.0)
+
+
+static func _branch(g: Dictionary, level: int, start: Vector3, dir: Vector3, length: float, radius: float) -> void:
+	var rng: RandomNumberGenerator = g.rng
+	var st: Dictionary = g.st
+	var bend: float = st.bend
+	var levels: int = int(st.levels)
+	var segs := 10 if level == 0 else maxi(3, 7 - level * 2)
 	var pts: Array[Vector3] = [start]
 	var radii: Array[float] = [radius]
 	var p := start
 	var d := dir
+	var tip_ratio := 0.15 if level == 0 else 0.3
 	for s in segs:
-		var wander := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-0.2, 0.5), rng.randf_range(-1.0, 1.0))
-		d = (d + wander * 0.09).normalized()
+		var wander := Vector3(rng.randfn(), rng.randfn() * 0.4, rng.randfn()) * (0.03 + 0.22 * bend)
+		if level == 0:
+			d = (d + wander * (0.15 if g.needles else 0.6) + Vector3.UP * 0.06).normalized()
+		elif g.needles:
+			# spruce boughs droop toward their tips
+			d = (d + wander * 0.3 + Vector3.DOWN * 0.07).normalized()
+		else:
+			# branches reach up toward the light as they grow
+			d = (d + wander + Vector3.UP * (0.09 - bend * 0.05)).normalized()
 		p += d * length / segs
 		pts.append(p)
-		radii.append(radius * lerpf(1.0, 0.6, float(s + 1) / segs))
-	_tube(b, pts, radii, depth == 0)
-	if depth >= 3:
-		tips.append([p + d * 0.2, rng.randf_range(1.0, 1.3)])
+		radii.append(radius * lerpf(1.0, tip_ratio, float(s + 1) / segs))
+	_tube(g.bark, pts, radii, level == 0)
+
+	var leafy := float(st.leaves) > 0.01
+	if g.needles and level == 1 and leafy:
+		# a tier of needles along the bough, smaller toward its tip
+		var count := maxi(2, int(length / (0.22 * float(st.leaf_size))))
+		for k in count:
+			var u := (k + 0.5) / count
+			g.clusters.append([_along(pts, u) + Vector3.DOWN * 0.05, float(st.leaf_size) * 0.7 * lerpf(1.1, 0.6, u), d, 0.5])
+	if level >= levels:
+		if leafy and not g.needles:
+			var r := float(st.leaf_size) * (0.55 + 0.25 * rng.randf()) * clampf(length / 1.2, 0.7, 1.3)
+			g.clusters.append([p + d * 0.15, r, d, 1.0])
 		return
-	var kids := 3 if depth == 0 else 2
+
+	var kids := int(st.branches) if level == 0 else maxi(2, int(round(float(st.branches) * 0.5)))
+	var from: float = float(st.branch_start) if level == 0 else 0.3
 	var spin := rng.randf() * TAU
-	for c in kids:
-		var a := spin + TAU * c / kids + rng.randf_range(-0.3, 0.3)
-		var out := Vector3(cos(a), 0.0, sin(a))
-		var cd := (d * 0.5 + out * 0.75 + Vector3(0.0, 0.35, 0.0)).normalized()
-		_branch(b, rng, pts[-1] - d * 0.08, cd, length * rng.randf_range(0.6, 0.75), radii[-1] * 0.9, depth + 1, tips)
-	if depth == 2:
-		tips.append([p + Vector3(0.0, 0.3, 0.0), rng.randf_range(0.8, 1.0)])
+	var height: float = g.height
+	for k in kids:
+		var t := lerpf(from, 0.97, (k + rng.randf_range(0.2, 0.8)) / kids)
+		var at := _along(pts, t)
+		var r_at := lerpf(radius, radius * tip_ratio, t)
+		var az := spin + k * GOLDEN + rng.randf_range(-0.3, 0.3)
+		var down := deg_to_rad(float(st.angle) + rng.randf_range(-8.0, 8.0))
+		if g.needles and level == 0:
+			# low boughs spread flatter, high ones point up a little
+			down = deg_to_rad(float(st.angle) + (0.4 - t) * 25.0)
+		var cd := (d * cos(down) + _perpendicular(d, az) * sin(down)).normalized()
+		var cl: float
+		if level == 0:
+			# main branches measured against the whole height
+			cl = height * 0.62 * float(st.branch_len) * _crown(t, float(st.crown))
+		else:
+			cl = length * float(st.branch_len) * (1.0 - 0.5 * t)
+		cl *= rng.randf_range(0.85, 1.1)
+		if cl < 0.12:
+			continue
+		var cr := r_at * lerpf(0.72, 0.45, t)
+		_branch(g, level + 1, at - d * 0.04, cd, cl, cr)
+	if leafy and not g.needles and level == levels - 1 and float(st.leaves) > 0.55:
+		# fuller crowns: leaves on the branch itself as well as its twigs
+		g.clusters.append([_along(pts, 0.8), float(st.leaf_size) * 0.6, d, 0.8])
 
 
-## Branch tips alone leave a dent in the middle of the crown. Add leaf clouds
-## at the centre and just above it, so the crown reads as one rounded mass.
-static func _fill_canopy(tips: Array) -> void:
-	var centre := Vector3.ZERO
-	var r := 0.0
-	for tip in tips:
-		centre += tip[0]
-		r += tip[1]
-	centre /= tips.size()
-	r /= tips.size()
-	tips.append([centre + Vector3(0.0, 0.7, 0.0), r * 1.35])
-	tips.append([centre + Vector3(0.0, -0.1, 0.0), r * 1.2])
+static func _along(pts: Array[Vector3], t: float) -> Vector3:
+	var x := clampf(t, 0.0, 1.0) * (pts.size() - 1)
+	var i := mini(int(x), pts.size() - 2)
+	return pts[i].lerp(pts[i + 1], x - i)
+
+
+## A unit vector at right angles to d, turned `az` round it.
+static func _perpendicular(d: Vector3, az: float) -> Vector3:
+	var u := d.cross(Vector3.RIGHT if absf(d.x) < 0.9 else Vector3.FORWARD).normalized()
+	var v := d.cross(u)
+	return (u * cos(az) + v * sin(az)).normalized()
 
 
 ## Rings along a polyline. The trunk's lowest rings flare into root buttresses.
 static func _tube(b: Dictionary, pts: Array[Vector3], radii: Array[float], flare: bool) -> void:
-	var sides := 10
+	var sides := 10 if flare else 7
 	var n := pts.size()
 	var base: int = b.v.size()
 	var t0 := (pts[1] - pts[0]).normalized()
@@ -137,38 +212,55 @@ static func _tube(b: Dictionary, pts: Array[Vector3], radii: Array[float], flare
 			b.i.append_array([i0, i2, i1, i1, i2, i3])
 
 
-static func _leaf_mesh(rng: RandomNumberGenerator, tips: Array) -> ArrayMesh:
+## Leaf cards round every cluster: [centre, radius, branch direction, roundness].
+static func _leaf_mesh(g: Dictionary) -> ArrayMesh:
+	var rng: RandomNumberGenerator = g.rng
+	var st: Dictionary = g.st
+	var clusters: Array = g.clusters
 	var centre := Vector3.ZERO
-	for tip in tips:
-		centre += tip[0]
-	centre /= tips.size()
-	var reach := 0.0
-	for tip in tips:
-		reach = maxf(reach, (tip[0] as Vector3).distance_to(centre) + tip[1])
+	for c in clusters:
+		centre += c[0]
+	centre /= clusters.size()
+	var reach := 0.01
+	for c in clusters:
+		reach = maxf(reach, (c[0] as Vector3).distance_to(centre) + float(c[1]))
+	# as many cards as Lövmängd asks for, at most a few thousand a tree
+	var want := 0.0
+	for c in clusters:
+		want += 130.0 * float(c[1]) * float(c[1])
+	var per := float(st.leaves) * minf(1.0, 3500.0 / maxf(want * float(st.leaves), 1.0))
 
 	var verts := PackedVector3Array()
 	var nrm := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var colors := PackedColorArray()
 	var idx := PackedInt32Array()
-	for tip in tips:
-		var c: Vector3 = tip[0]
-		var r: float = tip[1]
-		var count := int(130.0 * r * r)
+	for cl in clusters:
+		var c: Vector3 = cl[0]
+		var r: float = cl[1]
+		var flat: float = cl[3]
+		var count := int(130.0 * r * r * per) + 1
 		for n in count:
 			var dir := Vector3(rng.randfn(), rng.randfn(), rng.randfn()).normalized()
 			var p := c + dir * r * sqrt(rng.randf_range(0.3, 1.0))
-			p.y = c.y + (p.y - c.y) * 0.8
-			var size := rng.randf_range(0.5, 0.75)
+			p.y = c.y + (p.y - c.y) * 0.8 * flat
+			var size := rng.randf_range(0.7, 1.0) * clampf(r * 1.3, 0.5, 1.3)
 			var q := Basis(Quaternion(Vector3(rng.randfn(), rng.randfn(), rng.randfn()).normalized(), rng.randf() * TAU))
+			if g.needles:
+				# needle sprays lie flat along the bough
+				q = Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(0.5, 1.2) * (1.0 if rng.randf() < 0.5 else -1.0))
 			var ax := q.x * size * 0.5
 			var ay := q.y * size * 0.5
 			var n_local := (p - c).normalized()
 			var n_canopy := (p - centre).normalized()
 			var normal := (n_local + n_canopy).normalized()
-			# 0 deep inside the canopy, 1 at its sunny outer skin
-			var outer := clampf((p.distance_to(centre)) / reach, 0.0, 1.0)
+			if g.needles:
+				normal = (normal + Vector3.UP * 1.5).normalized()
+			# 0 deep inside the crown, 1 at its sunny outer skin
+			var outer := clampf(p.distance_to(centre) / reach, 0.0, 1.0)
 			outer *= 0.6 + 0.4 * smoothstep(-1.0, 1.0, (p.y - centre.y) / reach)
+			if g.needles:
+				outer = clampf(0.35 + (p.y - c.y) * 2.0 + n_local.length() * 0.3, 0.0, 1.0)
 			var col := Color(outer, rng.randf(), 0.0, 1.0)
 			var base := verts.size()
 			verts.append_array([p - ax - ay, p + ax - ay, p + ax + ay, p - ax + ay])
@@ -179,4 +271,27 @@ static func _leaf_mesh(rng: RandomNumberGenerator, tips: Array) -> ArrayMesh:
 			idx.append_array([base, base + 1, base + 2, base, base + 2, base + 3])
 	var mesh := ArrayMesh.new()
 	MeshUtil.add_surface(mesh, verts, nrm, uvs, colors, idx)
+	return mesh
+
+
+## Low, dark balls inside the leaf clouds, all in one mesh.
+static func _cores(g: Dictionary) -> ArrayMesh:
+	var ico: Array = RockBuilder._icosphere(1)
+	var unit: PackedVector3Array = ico[0]
+	var tri: PackedInt32Array = ico[1]
+	var verts := PackedVector3Array()
+	var nrm := PackedVector3Array()
+	var idx := PackedInt32Array()
+	for cl in g.clusters:
+		var c: Vector3 = cl[0]
+		var r: float = float(cl[1]) * 0.3
+		var flat: float = cl[3]
+		var base := verts.size()
+		for v in unit:
+			verts.append(c + Vector3(v.x, v.y * 0.85 * minf(flat, 1.0), v.z) * r)
+			nrm.append(v)
+		for i in tri:
+			idx.append(base + i)
+	var mesh := ArrayMesh.new()
+	MeshUtil.add_surface(mesh, verts, nrm, PackedVector2Array(), PackedColorArray(), idx)
 	return mesh

@@ -603,6 +603,46 @@ static func run(main: Node, name: String) -> void:
 				var x := -4.0 + k * 2.0
 				main.props.add("stenblock", x, 1.0, rng, 1.4)
 			await _frames(main, 5)
+		"tree_gallery":
+			# the five tree kinds in a row, the island's own tree taken away
+			main.props.remove_near(-2.4, -1.8, 1.0)
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 11
+			var t0 := Time.get_ticks_msec()
+			var x := -5.6
+			for kind in ["lovtrad", "gran", "krokigt", "torrtrad", "sagotrad"]:
+				main.props.add(kind, x, -1.0, rng)
+				x += 2.8
+			print("  five trees built in ", Time.get_ticks_msec() - t0, " ms")
+			await _frames(main, 5)
+		"spruce":
+			main.props.remove_near(-2.4, -1.8, 1.0)
+			var TB = preload("res://scripts/tree_builder.gd")
+			var st: Dictionary = main.props.style_for("gran")
+			var n: Node3D = TB.build(st, 6.2, 7)
+			for c in n.get_children():
+				var mi := c as MeshInstance3D
+				print("  ", mi.mesh.get_class(), " aabb ", mi.mesh.get_aabb(), " verts ", mi.mesh.surface_get_array_len(0))
+			n.free()
+			var rng := RandomNumberGenerator.new()
+			main.props.add("gran", 0.0, -1.0, rng, 6.2, 7)
+			await _frames(main, 5)
+		"tree_dials":
+			# paint a broadleaf, then drag its dials: the tree just painted follows
+			main.props.remove_near(-2.4, -1.8, 1.0)
+			var d = main.data
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Lövträd"])
+			await _tap(main, Vector3(-1.0, d.sample_height(-1.0, -1.0), -1.0))
+			var box: Control = main.ui._kind_dials["lovtrad"]
+			print("  tree dials shown: ", box.visible, ", ", box.find_children("*", "HSlider", true, false).size(), " sliders")
+			var t0 := Time.get_ticks_usec()
+			for kv in [["size", 8.0], ["crown", 1.0], ["angle", 70.0], ["branch_len", 0.8], ["leaf_color", [0.9, 0.55, 0.75]], ["leaves", 0.9]]:
+				main.props.set_style("lovtrad", kv[0], kv[1])
+			print("  restyled six times in %.0f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
 		"hover":
 			await _click(main, main.ui.buttons["Mossa"])
 			_mouse_move(main.rig.camera.unproject_position(Vector3(1.5, 0.6, 1.5)))

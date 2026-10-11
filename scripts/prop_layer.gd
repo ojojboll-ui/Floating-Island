@@ -141,6 +141,9 @@ func set_style(kind: String, key: String, value) -> void:
 			_spawn(rec)
 	if kind in STONES:
 		revision += 1
+	if kind in Catalog.TREES:
+		for rec in stroke_records(kind):
+			_shade_changed(Vector2(rec.x, rec.z))
 
 
 ## Things placed by the last stroke of `kind`.

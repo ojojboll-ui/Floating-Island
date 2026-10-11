@@ -24,6 +24,8 @@ Fliken **Växter**: Lövträd, Gran, Höstträd, Torrträd, Sagoträd · Buske, 
 
 Klicka för en, håll och dra för att strö ut fler (Styrka = hur tätt). Shift tar bort den valda sorten, Ta bort tar allt under penseln. Träd, buskar och stenar märker marken runt sig och trycker undan gräset. Vass växer i strandkanten, näckrosor flyter på dammar. Koi dyker upp av sig själva i dammar som är stora och djupa nog.
 
+**Träd genereras** (`scripts/tree_builder.gd`) efter Weber & Penns parametriska modell (samma som Blenders Sapling): stam, huvudgrenar runt stammen i gyllene vinkeln, grenarnas längd efter kronformen och förgrening i flera led; lövkronan är klungor av lövkort, granen får barrsjok längs grenarna. Reglage per trädsort: Höjd, Variation, Stam, Krokighet, Grenar, Förgrening, Grenlängd, Grenvinkel, Kronform (spetsig, rund, paraply), Stambas, Lövmängd, Lövstorlek, Löv- och Barkfärg. Stenar under träd får mer mossa.
+
 **Stenar genereras** (`scripts/rock_builder.gd`): en sten är det som blir kvar när 6–16 slumpade plan skär bort bitar av en boll, med mjukt rundade kanter (idén bakom Rock Forge). Varje stensort har reglage som visas när den är vald: Storlek, Variation, Kantighet, Platthet, Avlånghet, Mossa, Textur (sprickor och skikt, efter Quaternius-texturen) och Färg. De gäller nästa stenar och ändrar också det senast målade. Stenar nära vatten och under träd får mer mossa. Penseln har **Täthet** och **Klungor** när man målar ut saker; med Klungor uppe samlas småsten kring stenblockens fot.
 
 Modellerna kommer från Quaternius Stylized Nature MegaKit (CC0, `assets/quaternius`), laddas som glTF när programmet startar och får våra egna shaders.

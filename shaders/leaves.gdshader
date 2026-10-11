@@ -7,6 +7,9 @@ render_mode cull_disabled, world_vertex_coords, diffuse_lambert_wrap, alpha_to_c
 
 #include "res://shaders/noise.gdshaderinc"
 
+instance uniform vec3 leaf_color = vec3(0.46, 0.66, 0.20);
+instance uniform float needles = 0.0;
+
 varying float outer;
 varying float rnd;
 varying vec3 wnormal;
@@ -35,19 +38,29 @@ void vertex() {
 
 void fragment() {
 	float a = -1.0;
-	for (int k = 0; k < 5; k++) {
-		float ang = float(k) * 1.2566 + rnd * 6.28;
-		vec2 at = vec2(0.5) + vec2(sin(ang), -cos(ang)) * 0.2;
-		a = max(a, leaf(UV, at, ang, vec2(0.11, 0.24)));
+	if (needles > 0.5) {
+		// a spray of needles: thin blades fanning from the card's middle
+		for (int k = 0; k < 9; k++) {
+			float ang = float(k) * 0.698 + rnd * 6.28;
+			vec2 at = vec2(0.5) + vec2(sin(ang), -cos(ang)) * 0.24;
+			a = max(a, leaf(UV, at, ang, vec2(0.035, 0.27)));
+		}
+	} else {
+		for (int k = 0; k < 5; k++) {
+			float ang = float(k) * 1.2566 + rnd * 6.28;
+			vec2 at = vec2(0.5) + vec2(sin(ang), -cos(ang)) * 0.2;
+			a = max(a, leaf(UV, at, ang, vec2(0.11, 0.24)));
+		}
+		a = max(a, leaf(UV, vec2(0.5), rnd * 3.0, vec2(0.12, 0.22)));
 	}
-	a = max(a, leaf(UV, vec2(0.5), rnd * 3.0, vec2(0.12, 0.22)));
 	ALPHA = clamp(a * 6.0 + 0.5, 0.0, 1.0);
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
 	ALPHA_ANTIALIASING_EDGE = 0.3;
 
-	vec3 dark = srgb(vec3(0.12, 0.26, 0.10));
-	vec3 light = srgb(vec3(0.46, 0.66, 0.20));
-	vec3 warm = srgb(vec3(0.62, 0.68, 0.22));
+	// the tree's own colour: sunlit at the crown's skin, deep and cool inside
+	vec3 light = srgb(leaf_color);
+	vec3 dark = light * vec3(0.22, 0.34, 0.42);
+	vec3 warm = light * vec3(1.3, 1.08, 0.8) + vec3(0.04, 0.03, 0.0);
 	vec3 col = mix(dark, light, smoothstep(0.15, 0.95, outer));
 	col = mix(col, warm, rnd * rnd * 0.35 * outer);
 	ALBEDO = weathered(col, normalize(wnormal).y * 0.8 + outer * 0.3, wleaf);
@@ -55,5 +68,5 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(normalize(wnormal), 0.0)).xyz);
 	ROUGHNESS = weathered_rough(0.75, 0.0, wleaf);
 	SPECULAR = weathered_spec(0.3, 0.0, wleaf);
-	BACKLIGHT = srgb(vec3(0.4, 0.5, 0.12)) * (0.3 + 0.7 * outer);
+	BACKLIGHT = light * 0.8 * (0.3 + 0.7 * outer);
 }
