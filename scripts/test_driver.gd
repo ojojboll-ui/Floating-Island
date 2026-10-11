@@ -755,6 +755,8 @@ static func run(main: Node, name: String) -> void:
 			_mouse_move(main.rig.camera.unproject_position(on.call(-1.6, -0.6)))
 			await _frames(main, 20)
 			print("  ghost shown: ", main.brush._ghost != null and main.brush._ghost.visible)
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
 		"hover":
 			await _click(main, main.ui.buttons["Mossa"])
 			_mouse_move(main.rig.camera.unproject_position(Vector3(1.5, 0.6, 1.5)))

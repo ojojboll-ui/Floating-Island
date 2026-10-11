@@ -111,6 +111,7 @@ func _ruin_under(x: float, z: float) -> bool:
 ## rot and jit, when given, are the ghost's, so what lands is what was shown.
 func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -1.0, variant := -1, rot := NAN, jit := NAN) -> Dictionary:
 	var k: Dictionary = Catalog.KINDS[kind]
+	var stones_moved := false
 	var rec := {
 		"id": _next_id, "kind": kind, "x": x, "z": z,
 		"rot": rng.randf() * TAU if is_nan(rot) else rot,
@@ -126,6 +127,7 @@ func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -
 			rec.size = _styled_size(rec)
 	if kind in STONES:
 		rec.lift = stone_lift(x, z)
+		stones_moved = true
 	records.append(rec)
 	last_stroke.append(rec.id)
 	if kind in Catalog.TREES:
@@ -134,10 +136,43 @@ func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -
 		_woody_rev += 1
 	_mark(rec)
 	_spawn(rec)
+	if stones_moved:
+		# the stones it now touches learn about it too
+		for r in records:
+			if r.kind in STONES and r.id != rec.id and Vector2(r.x, r.z).distance_to(Vector2(x, z)) < 4.0:
+				_place(r)
 	return rec
 
 
 ## Remove things of `kind` (or of any kind, if empty) within `radius`.
+## The two stones nearest `rec` that overlap it, as centre and radius
+## (vec4, w 0 for none), for the shader's seams.
+func _stack_mates(rec: Dictionary) -> Array:
+	var found: Array = []
+	var me := _stone_sphere(rec)
+	for r in records:
+		if r.id == rec.id or not r.kind in STONES or not _nodes.has(r.id):
+			continue
+		var other := _stone_sphere(r)
+		var gap := Vector3(me.x, me.y, me.z).distance_to(Vector3(other.x, other.y, other.z)) - me.w - other.w
+		if gap < 0.05:
+			found.append([gap, other])
+	found.sort_custom(func(a, b): return a[0] < b[0])
+	var out: Array = [Vector4.ZERO, Vector4.ZERO]
+	for k in mini(2, found.size()):
+		out[k] = found[k][1]
+	return out
+
+
+## A stone as a ball: centre and radius, in the world.
+func _stone_sphere(rec: Dictionary) -> Vector4:
+	var node: Node3D = _nodes.get(rec.id)
+	var tall: float = node.get_meta("tall", float(rec.size)) if node else float(rec.size) * 0.6
+	var base := node.global_position if node else Vector3(rec.x, ground_at(rec.x, rec.z), rec.z)
+	var r := (float(rec.size) * 0.5 + tall * 0.5) * 0.5
+	return Vector4(base.x, base.y + tall * 0.5, base.z, r)
+
+
 ## How high a stone set down at (x, z) rests: on the ground, or, set on
 ## another stone (or a wall), sunk halfway into its top so the two read as
 ## one rock.
@@ -393,6 +428,9 @@ func _place(rec: Dictionary) -> void:
 		var at := Vector3(x, gy - float(k.sink) * tall + float(rec.get("lift", 0.0)), z)
 		if rec.kind in STONES:
 			(node as GeometryInstance3D).set_instance_shader_parameter("moss_boost", _damp(rec))
+			var mates := _stack_mates(rec)
+			(node as GeometryInstance3D).set_instance_shader_parameter("touch_a", mates[0])
+			(node as GeometryInstance3D).set_instance_shader_parameter("touch_b", mates[1])
 		if rec.kind in STONES and not node.position.is_equal_approx(at):
 			revision += 1
 		node.position = at

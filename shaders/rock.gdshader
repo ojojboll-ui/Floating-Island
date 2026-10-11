@@ -22,6 +22,10 @@ instance uniform vec3 stone = vec3(0.56, 0.55, 0.52);
 instance uniform float moss_amount = 0.5;
 instance uniform float moss_boost = 0.0;
 instance uniform float texture_amount = 0.5;
+// stones this one is stacked with: centre and radius, w 0 for none, so the
+// seam where they meet fills with moss and soil and sits in shade
+instance uniform vec4 touch_a = vec4(0.0);
+instance uniform vec4 touch_b = vec4(0.0);
 
 varying vec3 wpos;
 varying vec3 opos;
@@ -65,8 +69,8 @@ float ridged(vec3 p) {
 // The relief of the stone, in metres, in its own space so it stays on it:
 // broad knobbly ridges, finer ones on them, and pitting. Textur scales it.
 float relief(vec3 p) {
-	float broad = ridged(p * 2.0) * 0.08 + ridged(p * 4.6 + 7.0) * 0.045 + ridged(p * 9.0 + 2.0) * 0.018;
-	float fine = vnoise3(p * 16.0) * 0.012 + vnoise3(p * 34.0) * 0.005;
+	float broad = ridged(p * 3.2) * 0.07 + ridged(p * 7.5 + 7.0) * 0.035 + ridged(p * 15.0 + 2.0) * 0.014;
+	float fine = vnoise3(p * 30.0) * 0.008 + vnoise3(p * 60.0) * 0.004;
 	return (broad + fine) * (0.4 + 1.2 * texture_amount);
 }
 
@@ -80,7 +84,7 @@ void fragment() {
 	g /= e;
 	mat3 turn = mat3(normalize(MODEL_MATRIX[0].xyz), normalize(MODEL_MATRIX[1].xyz), normalize(MODEL_MATRIX[2].xyz));
 	vec3 gw = turn * g;
-	vec3 bn = normalize(wn - (gw - wn * dot(gw, wn)) * 2.6);
+	vec3 bn = normalize(wn - (gw - wn * dot(gw, wn)) * 3.2);
 
 	// the cracks between plates, from a 3D Voronoi pattern in the stone's space
 	vec2 cell = voronoi(opos * 2.6);
@@ -91,10 +95,12 @@ void fragment() {
 	vec3 base = srgb(stone);
 	// each plate a slightly different grey, cooler or warmer
 	float plate = hash13(floor(opos * 2.6 + 0.5));
-	vec3 col = base * mix(vec3(0.88, 0.92, 1.03), vec3(1.07, 1.02, 0.95), plate) * (0.8 + 0.35 * fbm3(opos * 1.7));
+	vec3 col = base * mix(vec3(0.96, 0.96, 0.97), vec3(1.06, 1.02, 0.95), plate) * (0.82 + 0.3 * fbm3(opos * 1.7));
 	// hollows dark, crests and worn edges lighter: the relief read as light
 	float lift = clamp((h0 / (0.06 * (0.4 + 1.2 * texture_amount))) - 0.35, -1.0, 1.0);
-	col *= 0.8 + 0.4 * lift;
+	col *= 0.8 + 0.32 * lift;
+	// a touch warm, so the sky's blue in the shade does not turn it slate
+	col *= vec3(1.05, 1.0, 0.92);
 	// the cracks dark in their depth
 	col *= 1.0 - crack * 0.55;
 	if (use_tex) {
@@ -102,15 +108,31 @@ void fragment() {
 	}
 	col *= tint;
 
-	// moss: on the tops and in the cracks, more the damper the stone lies
+	// the seam with a stone stacked on or under this one
+	float seam = 0.0;
+	for (int k = 0; k < 2; k++) {
+		vec4 t = k == 0 ? touch_a : touch_b;
+		if (t.w > 0.0) {
+			float dist = length(wpos - t.xyz) - t.w * 0.8;
+			seam = max(seam, 1.0 - smoothstep(0.0, 0.14 + 0.08 * fbm3(wpos * 5.0), dist));
+		}
+	}
+
+	// moss: in broad drifts over the tops, gathered in the seams and cracks,
+	// more the damper the stone lies
 	float wet_moss = clamp(moss_amount + moss_boost * 0.45, 0.0, 1.2);
 	float field = moss_field(wpos);
-	float on_top = smoothstep(0.95 - wet_moss * 0.9, 1.1 - wet_moss * 0.6, bn.y + (field - 0.5) * 0.7);
-	float in_cracks = crack * smoothstep(0.3, 0.9, wet_moss) * 0.6;
-	// broken into patches, never a cap
-	float patches = smoothstep(0.32, 0.62, fbm3(wpos * 3.5) + (field - 0.5) * 0.5 + wet_moss * 0.25);
-	float moss = clamp(on_top * patches + in_cracks, 0.0, 1.0) * step(0.01, wet_moss);
-	col = mix(col, moss_tint(wpos) * (0.65 + 0.45 * fbm3(wpos * 9.0)), moss * 0.92);
+	float drift = fbm3(wpos * 1.1 + 4.0) * 0.7 + field * 0.3;
+	// by the stone's own shape, not its bumps, so the moss lies in sheets
+	float on_top = smoothstep(0.9 - wet_moss * 0.55, 1.05 - wet_moss * 0.4, wn.y * 0.8 + drift * 0.5);
+	float in_cracks = crack * smoothstep(0.3, 0.9, wet_moss) * 0.7;
+	float moss = clamp(on_top + in_cracks + seam * (0.3 + wet_moss * 0.6), 0.0, 1.0) * step(0.01, wet_moss + seam);
+	// a soft, slightly fuzzy edge, not speckles
+	moss = smoothstep(0.3, 0.6, moss + (vnoise3(wpos * 6.0) - 0.5) * 0.12);
+	col = mix(col, moss_tint(wpos) * (0.75 + 0.3 * fbm3(wpos * 6.0)), moss * 0.92);
+	// soil and shade down in the seam
+	col = mix(col, srgb(vec3(0.3, 0.24, 0.17)), seam * seam * 0.45);
+	col *= 1.0 - seam * 0.35;
 
 	float foot = smoothstep(0.12, -0.02, wpos.y - ground_y + (fbm3(wpos * 4.0) - 0.5) * 0.1);
 	col = mix(col, mix(grass_tint(wpos.xz) * 0.55, srgb(vec3(0.36, 0.27, 0.19)), 0.4), foot);
