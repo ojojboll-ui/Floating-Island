@@ -304,7 +304,7 @@ func _build_environment() -> void:
 
 func _build_lights() -> void:
 	sun = DirectionalLight3D.new()
-	sun.light_angular_distance = 1.0
+	sun.light_angular_distance = 0.4
 	sun.shadow_enabled = true
 	sun.shadow_blur = 1.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS

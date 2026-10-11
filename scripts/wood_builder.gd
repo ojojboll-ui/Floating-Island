@@ -8,7 +8,7 @@ extends RefCounted
 ## Everything goes into one Wood accumulator drawn with wood.gdshader.
 ## Vertex colour carries what the shader needs:
 ##   r  how deep in a groove (darker)
-##   g  what surface: 0 bark, 0.5 the bark rim round a cut, 0.75 a split
+##   g  what surface: 0 bark, 0.3 a knot's eye, 0.5 the bark rim round a cut, 0.75 a split
 ##      face, 1 a cut end
 ##   b  a random shade per bark plate
 ## UV is round-and-along for bark and split faces (grain), and centred polar
@@ -17,6 +17,7 @@ extends RefCounted
 const MeshUtil := preload("res://scripts/mesh_util.gd")
 
 const BARK := 0.0
+const EYE := 0.3
 const RIM := 0.5
 const SPLIT := 0.75
 const CUT := 1.0
@@ -135,26 +136,76 @@ class Wood:
 		var plane := centre + axis * minf(low, 0.0)
 		var side := axis.cross(Vector3.UP if absf(axis.y) < 0.9 else Vector3.RIGHT).normalized()
 		var other := axis.cross(side)
+		# each band has vertices of its own, so the rim's top, its inner wall
+		# and the cut meet in sharp edges instead of smoothed ones (smoothed
+		# normals across a sharp edge speckle the shadows)
 		var outer := []
-		var inner_top := []
-		var inner_low := []
+		var lip_top := []
+		var lip_wall := []
+		var wall_low := []
+		var cut_edge := []
 		for p in ring:
 			var q: Vector3 = p
 			var flat := q - axis * (q - centre).dot(axis)
 			var rel := flat - centre
-			outer.append(put(q, Vector2.ZERO, Color(0.2, RIM, 0.5, 1.0)))
 			var lip := centre + rel * (1.0 - rim) + axis * (plane - centre).dot(axis)
-			inner_top.append(put(lip, Vector2.ZERO, Color(0.35, RIM, 0.5, 1.0)))
 			var sunk := lip - axis * inset
 			var polar := Vector2(rel.dot(side), rel.dot(other)) / maxf(radius * (1.0 - rim), 0.001)
-			inner_low.append(put(sunk, polar, Color(0.0, CUT, 0.5, 1.0)))
+			outer.append(put(q, Vector2.ZERO, Color(0.2, RIM, 0.5, 1.0)))
+			lip_top.append(put(lip, Vector2.ZERO, Color(0.35, RIM, 0.5, 1.0)))
+			lip_wall.append(put(lip, Vector2.ZERO, Color(0.35, RIM, 0.5, 1.0)))
+			wall_low.append(put(sunk, Vector2.ZERO, Color(0.5, RIM, 0.5, 1.0)))
+			cut_edge.append(put(sunk, polar, Color(0.0, CUT, 0.5, 1.0)))
 		for s in n:
 			var s2 := (s + 1) % n
-			i.append_array([outer[s], inner_top[s], outer[s2], outer[s2], inner_top[s], inner_top[s2]])
-			i.append_array([inner_top[s], inner_low[s], inner_top[s2], inner_top[s2], inner_low[s], inner_low[s2]])
+			i.append_array([outer[s], lip_top[s], outer[s2], outer[s2], lip_top[s], lip_top[s2]])
+			i.append_array([lip_wall[s], wall_low[s], lip_wall[s2], lip_wall[s2], wall_low[s], wall_low[s2]])
 		var mid := put(plane - axis * inset, Vector2.ZERO, Color(0.0, CUT, 0.5, 1.0))
 		for s in n:
-			i.append_array([mid, inner_low[(s + 1) % n], inner_low[s]])
+			i.append_array([mid, cut_edge[(s + 1) % n], cut_edge[s]])
+
+	## A knot's eye: an oval swelling in the bark, `r` across and longer
+	## along the grain, ringed round a dark sunken heart, where a branch
+	## once grew and the bark closed over it.
+	func eye(at: Vector3, out: Vector3, along: Vector3, r: float) -> void:
+		out = out.normalized()
+		along = (along - out * along.dot(out)).normalized()
+		var across := out.cross(along)
+		var first_i := i.size()
+		var sides := 16
+		# rings from the heart out: [reach, height above the bark]
+		var rings := [[0.0, -0.1], [0.22, 0.08], [0.5, 0.32], [0.8, 0.3], [1.0, 0.14], [1.4, 0.0]]
+		var ids := []
+		for k in rings.size():
+			var reach: float = rings[k][0]
+			var hgt: float = rings[k][1]
+			var ring := []
+			var count := 1 if k == 0 else sides
+			for s in count:
+				var a := TAU * s / sides
+				var d := along * cos(a) * 1.5 + across * sin(a)
+				var p := at + d * r * reach + out * r * hgt
+				var polar := Vector2(cos(a), sin(a)) * reach / 1.4
+				# the outermost ring is plain bark, so the eye grows out of it
+				var col := Color(0.0, BARK, 0.5, 1.0) if k == rings.size() - 1 else Color(0.0, EYE, 0.5, 1.0)
+				ring.append(put(p, polar, col))
+			ids.append(ring)
+		for s in sides:
+			var s2 := (s + 1) % sides
+			i.append_array([ids[0][0], ids[1][s], ids[1][s2]])
+		for k in range(1, rings.size() - 1):
+			for s in sides:
+				var s2 := (s + 1) % sides
+				i.append_array([ids[k][s], ids[k + 1][s], ids[k][s2], ids[k][s2], ids[k + 1][s], ids[k + 1][s2]])
+		# every face turned to look out of the bark
+		for t in range(first_i, i.size(), 3):
+			var p0 := v[i[t]]
+			var p1 := v[i[t + 1]]
+			var p2 := v[i[t + 2]]
+			if MeshUtil.face_normal(p0, p1, p2).dot(out) < 0.0:
+				var keep := i[t + 1]
+				i[t + 1] = i[t + 2]
+				i[t + 2] = keep
 
 	## A knot: a short broken stub out of the bark, its end cut and ringed.
 	func knot(at: Vector3, out: Vector3, r: float) -> void:
@@ -237,6 +288,9 @@ static func instance(w: Wood, bark: Array, wood: Array, moss: float) -> MeshInst
 	var mi := MeshInstance3D.new()
 	mi.mesh = w.mesh()
 	mi.material_override = material()
+	# thin bark edges (a broken rim, splinters) shadow themselves in speckles
+	# when only their front faces cast
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
 	mi.set_instance_shader_parameter("bark_color", Vector3(bark[0], bark[1], bark[2]))
 	mi.set_instance_shader_parameter("wood_color", Vector3(wood[0], wood[1], wood[2]))
 	mi.set_instance_shader_parameter("moss", moss)

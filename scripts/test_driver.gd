@@ -880,21 +880,21 @@ static func run(main: Node, name: String) -> void:
 			p.add("vedtrave", -1.2, -2.2, rng, 1.0, 1, 0.0)
 			p.add("stockhog", 1.6, -2.2, rng, 1.0, 1, 0.0)
 			await _frames(main, 10)
-		"wood_stump", "wood_log", "wood_block", "wood_pile", "wood_logs":
+		"wood_stump", "wood_log", "wood_block", "wood_pile", "wood_logs", "wood_stumptop":
 			# one wood thing alone in front of the camera, everything sharp
 			main.props.remove_near(0.0, 0.0, 9.0)
 			main.rig.aperture = 0.0
 			main.weather.hour = 15.0
 			var IB = preload("res://scripts/item_builder.gd")
-			var kind: String = {"wood_stump": "stubbe", "wood_log": "stock", "wood_block": "huggkubbe", "wood_pile": "vedtrave", "wood_logs": "stockhog"}[name]
-			var gen: String = {"wood_stump": "stump", "wood_log": "log", "wood_block": "block", "wood_pile": "woodpile", "wood_logs": "logpile"}[name]
-			var dist: float = {"wood_stump": 2.6, "wood_log": 3.4, "wood_block": 2.0, "wood_pile": 2.6, "wood_logs": 2.0}[name]
+			var kind: String = {"wood_stumptop": "stubbe", "wood_stump": "stubbe", "wood_log": "stock", "wood_block": "huggkubbe", "wood_pile": "vedtrave", "wood_logs": "stockhog"}[name]
+			var gen: String = {"wood_stumptop": "stump", "wood_stump": "stump", "wood_log": "log", "wood_block": "block", "wood_pile": "woodpile", "wood_logs": "logpile"}[name]
+			var dist: float = {"wood_stumptop": 1.4, "wood_stump": 2.6, "wood_log": 3.4, "wood_block": 2.0, "wood_pile": 2.6, "wood_logs": 2.0}[name]
 			var n: Node3D = IB.build(gen, main.props.style_for(kind), 4)
 			main.add_child(n)
 			var cam: Camera3D = main.rig.camera
 			var fwd := -cam.global_basis.z
 			var at := cam.global_position + fwd * dist
-			n.global_position = at - Vector3(0, 0.35, 0)
+			n.global_position = at - Vector3(0, 0.35 if name != "wood_stumptop" else 0.75, 0)
 			n.rotation.y = cam.global_rotation.y + 0.5
 			await _frames(main, 10)
 		"paint_over":

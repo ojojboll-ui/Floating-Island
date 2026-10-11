@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_back, diffuse_lambert_wrap;
+render_mode cull_back;
 
 // Stylized wood (wood_builder.gd): bark in long plates with dark grooves
 // and a fine grain along them, a lighter worn rim round each cut, cut ends
@@ -25,7 +25,7 @@ void fragment() {
 	float kind = vcol.g;
 	vec3 col;
 	float groove = vcol.r;
-	if (kind < 0.25) {
+	if (kind < 0.15) {
 		// bark: each plate its own shade, darker into the grooves, a fine
 		// grain of lines along it, its crest a touch lighter
 		col = srgb(bark_color) * mix(0.82, 1.12, vcol.b);
@@ -35,6 +35,14 @@ void fragment() {
 		float crack = vnoise2(vec2(UV.x * 160.0, UV.y * 0.6));
 		col *= 1.0 - 0.35 * (1.0 - smoothstep(0.06, 0.12, crack));
 		col *= mix(1.08, 0.38, smoothstep(0.1, 0.9, groove));
+	} else if (kind < 0.4) {
+		// a knot's eye: rings round a dark sunken heart, the bark a touch
+		// lighter on its swell
+		float r = length(UV);
+		float s = fract(r * 4.5 + vnoise2(UV * 4.0) * 0.2);
+		float line = 1.0 - smoothstep(0.0, 0.14, min(s, 1.0 - s));
+		col = srgb(mix(bark_color, wood_color, 0.25)) * 1.1 * (1.0 - line * 0.55);
+		col *= mix(0.35, 1.0, smoothstep(0.08, 0.2, r));
 	} else if (kind < 0.62) {
 		// the rim round a cut: bark worn pale at its edge
 		col = srgb(mix(bark_color, wood_color, 0.35)) * mix(1.05, 0.8, groove);
@@ -58,7 +66,7 @@ void fragment() {
 		col *= 1.0 - (1.0 - smoothstep(0.0, 0.012 + r * 0.01, check)) * step(0.25, r) * step(r, 0.8) * 0.4;
 	}
 	// moss on top of bark and in its grooves
-	if (kind < 0.25) {
+	if (kind < 0.15) {
 		float field = moss_field(wpos);
 		float up = smoothstep(0.35, 0.9, wn.y + (field - 0.5) * 0.6);
 		float patches = smoothstep(0.5, 0.7, fbm3(wpos * 2.4) + moss * 0.3);

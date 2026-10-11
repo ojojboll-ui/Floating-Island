@@ -655,6 +655,8 @@ static func _block(k: Kit, w: WoodBuilder.Wood, rng: RandomNumberGenerator) -> v
 		radii.append(r * (1.0 + 0.1 * (1.0 - smoothstep(0.0, 0.35, t))))
 	var ring := w.trunk(path, radii, 9, 0.13)
 	w.cap(ring, path[4], Vector3.UP, 0.09, 0.015)
+	var ea := rng.randf() * TAU
+	w.eye(Vector3(0, h * 0.4, 0) + Vector3(cos(ea), 0, sin(ea)) * r * 1.0, Vector3(cos(ea), 0, sin(ea)), Vector3.UP, r * 0.2)
 	# the axe, struck into the top: its edge driven in at a slant, the handle
 	# reaching up and out the other way, 35 degrees above level
 	var up := deg_to_rad(35.0)
@@ -754,6 +756,13 @@ static func _log(k: Kit, w: WoodBuilder.Wood, st: Dictionary, rng: RandomNumberG
 		var a := rng.randf_range(0.6, 2.4)
 		var out := Vector3(0, sin(a), cos(a) * (1.0 if rng.randf() < 0.5 else -1.0)).normalized()
 		w.knot(at + out * radii[int(t * (n - 1))] * 0.85, out, r0 * 0.22)
+	# knot eyes down its sides
+	for e in 3:
+		var t := rng.randf_range(0.15, 0.85)
+		var at := TreeBuilder._along(path, t)
+		var a := rng.randf_range(-0.9, 0.9) + (PI if e % 2 == 1 else 0.0)
+		var out := Vector3(0, sin(a) * 0.6 + 0.3, cos(a)).normalized()
+		w.eye(at + out * radii[int(t * (n - 1))] * 0.96, out, Vector3.RIGHT, r0 * rng.randf_range(0.3, 0.4))
 	var fungi := int(round(float(st.fungi) * 8.0))
 	_fungi(k, rng, fungi, func(g: RandomNumberGenerator) -> Array:
 		var t := g.randf_range(0.1, 0.9)
@@ -790,6 +799,8 @@ static func _stump(k: Kit, w: WoodBuilder.Wood, st: Dictionary, rng: RandomNumbe
 	var ka := rng.randf() * TAU
 	var kout := Vector3(cos(ka), 0.25, sin(ka)).normalized()
 	w.knot(Vector3(0, h * 0.7, 0) + Vector3(cos(ka), 0, sin(ka)) * r0 * 0.95, kout, r0 * 0.12)
+	var ea := ka + PI * rng.randf_range(0.7, 1.3)
+	w.eye(Vector3(0, h * 0.45, 0) + Vector3(cos(ea), 0, sin(ea)) * r0 * 1.02, Vector3(cos(ea), 0, sin(ea)), Vector3.UP, r0 * 0.22)
 	var fungi := int(round(float(st.fungi) * 6.0))
 	_fungi(k, rng, fungi, func(g: RandomNumberGenerator) -> Array:
 		var fa := g.randf() * TAU
