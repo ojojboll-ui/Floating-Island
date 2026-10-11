@@ -74,6 +74,10 @@ var _ghost: Node3D
 var _ghost_key := ""
 var _ghost_variant := 0
 var _ghost_rot := 0.0
+## How a clicked thing is turned, in degrees, on top of the camera's own
+## turn: it keeps facing the same way to the viewer as the camera circles.
+## Q and E turn it.
+var turn := 0.0
 var _ghost_jit := 0.0
 var _ghost_mat: ShaderMaterial
 var _ghost_leaf_mat: ShaderMaterial
@@ -140,6 +144,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				undo()
 		elif key.ctrl_pressed and key.keycode == KEY_Y:
 			redo()
+		elif key.keycode == KEY_Q and not key.ctrl_pressed:
+			turn = fposmod(turn - 15.0, 360.0)
+		elif key.keycode == KEY_E and not key.ctrl_pressed:
+			turn = fposmod(turn + 15.0, 360.0)
 		elif key.keycode == KEY_BRACKETLEFT:
 			radius = maxf(0.4, radius / 1.15)
 			tool_changed.emit()
@@ -163,7 +171,7 @@ func _begin_stroke(screen: Vector2) -> void:
 	var p: Vector3 = hit.pos
 	props.begin_stroke()
 	if tool == Tool.PLACE and not Input.is_key_pressed(KEY_SHIFT):
-		if not props.place_over(place_kind, p.x, p.z, _rng, 1.0, true, false, _ghost_variant, _ghost_rot, _ghost_jit).is_empty():
+		if not props.place_over(place_kind, p.x, p.z, _rng, 1.0, true, false, _ghost_variant, place_rot(), _ghost_jit).is_empty():
 			_reroll_ghost()
 	# ruins: a pillar goes down at once; walls, arches and stairs are drawn.
 	# Started on a storey, they stand on that storey.
@@ -563,6 +571,11 @@ func _update_cursor() -> void:
 	_ring.scale = Vector3(radius, 1.0, radius)
 
 
+## The turn a click gives what it places: the camera's, plus `turn`.
+func place_rot() -> float:
+	return camera.global_rotation.y + deg_to_rad(turn)
+
+
 func _reroll_ghost() -> void:
 	_ghost_variant = _rng.randi() % maxi(1, Catalog.variants(place_kind)) if place_kind != "" else 0
 	_ghost_rot = _rng.randf() * TAU
@@ -588,7 +601,7 @@ func _update_ghost(over_ui: bool) -> void:
 	if fire != null:
 		p = Vector3(fire.x, p.y, fire.z)
 	var woody: bool = place_kind in props.WOODY
-	var key := "%s|%s|%d|%.2f|%.2f|%s" % [place_kind, str(st), _ghost_variant, _ghost_rot, _ghost_jit, fire != null]
+	var key := "%s|%s|%d|%.2f|%s" % [place_kind, str(st), _ghost_variant, _ghost_jit, fire != null]
 	if woody:
 		# a tree's shape depends on what stands round it
 		key += "|%.1f,%.1f" % [snappedf(p.x, 0.5), snappedf(p.z, 0.5)]
@@ -596,7 +609,7 @@ func _update_ghost(over_ui: bool) -> void:
 		_ghost_key = key
 		if _ghost:
 			_ghost.queue_free()
-		var rec := {"id": -1, "kind": place_kind, "x": p.x, "z": p.z, "rot": _ghost_rot, "variant": _ghost_variant,
+		var rec := {"id": -1, "kind": place_kind, "x": p.x, "z": p.z, "rot": 0.0, "variant": _ghost_variant,
 			"hue": 0.5, "jit": _ghost_jit, "over_fire": fire != null}
 		if st != null:
 			rec.style = (st as Dictionary).duplicate(true)
@@ -610,6 +623,7 @@ func _update_ghost(over_ui: bool) -> void:
 	var lift: float = 0.0 if fire != null else props.lift_for(place_kind, p.x, p.z)
 	var tall: float = _ghost.get_meta("tall", 1.0)
 	_ghost.global_position = Vector3(p.x, data.sample_height(p.x, p.z) - float(k.sink) * tall + lift, p.z)
+	_ghost.rotation.y = place_rot()
 	# green: it fits; red: it will take away what is in its way; grey: it
 	# cannot go there at all
 	var check: int = props.place_check(place_kind, p.x, p.z, 1.0, true)

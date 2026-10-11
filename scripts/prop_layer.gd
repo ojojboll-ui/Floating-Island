@@ -117,13 +117,17 @@ func _check(kind: String, x: float, z: float, spread := 1.0, merge := false) -> 
 	if k.where != "water" and data.sample_occupied(x, z) > 0.6 and _ruin_under(x, z):
 		return [false, blockers]
 	var here := Vector2(x, z)
+	# a click sets one thing down by hand: it may stand right up against
+	# others, and only what it would actually sit on is in its way. A brush
+	# keeps the kinds' own spacing, so a scatter does not clump.
+	var tight := 0.3 if merge else 1.0
 	for r in records:
 		var other: Dictionary = Catalog.KINDS[r.kind]
 		var dist := here.distance_to(Vector2(r.x, r.z))
 		if kind == "gryta" and r.kind == "eldstad":
 			continue
 		if other.layer == k.layer:
-			var need := (float(k.spacing) + float(other.spacing)) * 0.5 * spread
+			var need := (float(k.spacing) + float(other.spacing)) * 0.5 * spread * tight
 			if merge and r.kind == kind and kind in WOODY:
 				# on top of one of its own kind: the two grow into one
 				need = 0.3
@@ -132,9 +136,9 @@ func _check(kind: String, x: float, z: float, spread := 1.0, merge := false) -> 
 				need = 0.12
 			elif kind in WOODY and r.kind in STONES:
 				# right beside a boulder: the tree will bend round it
-				need = float(r.size) * 0.5 + 0.2
+				need = (float(r.size) * 0.5 + 0.2) * maxf(tight, 0.6)
 			elif kind in STONES and r.kind in WOODY:
-				need = float(style_for(kind).size) * 0.5 + 0.2
+				need = (float(style_for(kind).size) * 0.5 + 0.2) * maxf(tight, 0.6)
 			if dist < need:
 				blockers.append([r, dist / maxf(need, 0.01)])
 		elif merge and kind in STONES and r.kind in STONES:
@@ -143,11 +147,13 @@ func _check(kind: String, x: float, z: float, spread := 1.0, merge := false) -> 
 		elif other.layer == "big" and k.layer == "small":
 			# small things may nestle against a boulder, right up to its side
 			var keep: float = float(r.size) * 0.42 + 0.04 if r.kind in STONES else float(other.occupied) * _ratio(r) + 0.15
+			keep *= maxf(tight, 0.5) if r.kind in STONES else tight
 			if dist < keep:
 				blockers.append([r, dist / maxf(keep, 0.01)])
 		elif k.layer == "big" and other.layer == "small":
-			if dist < float(k.occupied) + 0.1:
-				blockers.append([r, dist / (float(k.occupied) + 0.1)])
+			var room := (float(k.occupied) + 0.1) * tight
+			if dist < room:
+				blockers.append([r, dist / room])
 	return [true, blockers]
 
 

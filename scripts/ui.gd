@@ -221,7 +221,7 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	root.add_child(_toast)
 
 	var hint := Label.new()
-	hint.text = "Vänster: verktyg   Shift: omvänt   Höger: rotera   Mitten: panorera   Hjul: zooma   [ ]: storlek   Tab: göm panelen"
+	hint.text = "Vänster: verktyg   Shift: omvänt   Höger: rotera   Mitten: panorera   Hjul: zooma   [ ]: storlek   Q E: vrid   Tab: göm panelen"
 	hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
 	hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.35))
 	hint.add_theme_constant_override("shadow_offset_y", 1)

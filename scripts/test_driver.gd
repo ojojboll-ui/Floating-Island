@@ -925,6 +925,24 @@ static func run(main: Node, name: String) -> void:
 			_mouse_move(main.rig.camera.unproject_position(on.call(-2.0, -1.0)))
 			await _frames(main, 10)
 			print("  ghost over the tree says: ", ["fits", "replaces", "impossible"][p.place_check("stenblock", -2.0, -1.0, 1.0, true)])
+		"close_click":
+			# logs clicked down close round a stump, turned with Q and E
+			main.props.remove_near(0.0, 0.0, 9.0)
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Stubbe"])
+			await _tap(main, on.call(0.0, 0.0))
+			await _click(main, main.ui.buttons["Stock"])
+			var spots := [[0.75, 0.0, 0.0], [-0.2, 0.8, 60.0], [-0.6, -0.7, 120.0]]
+			for sp in spots:
+				main.brush.turn = sp[2]
+				await _tap(main, on.call(sp[0], sp[1]))
+			var cam_yaw := rad_to_deg(main.rig.camera.global_rotation.y)
+			print("  placed: ", main.props.records.map(func(r): return "%s rot %.0f" % [r.kind, fposmod(rad_to_deg(r.rot) - cam_yaw, 360.0)]))
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
 		"hover":
 			await _click(main, main.ui.buttons["Mossa"])
 			_mouse_move(main.rig.camera.unproject_position(Vector3(1.5, 0.6, 1.5)))
