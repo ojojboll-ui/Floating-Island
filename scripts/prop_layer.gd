@@ -53,27 +53,69 @@ static func _ratio(rec: Dictionary) -> float:
 ## kind's own spacing, more is sparser.
 ## merge: a single click, which may plant a tree on top of one of its kind.
 func can_place(kind: String, x: float, z: float, spread := 1.0, merge := false) -> bool:
+	var c := _check(kind, x, z, spread, merge)
+	return c[0] and (c[1] as Array).is_empty()
+
+
+## What placing `kind` at (x, z) would mean: 0 it fits, 1 it fits once the
+## things in its way are taken away, 2 it cannot go there at all (water,
+## a wall, off the island).
+func place_check(kind: String, x: float, z: float, spread := 1.0, merge := false) -> int:
+	var c := _check(kind, x, z, spread, merge)
+	if not c[0]:
+		return 2
+	return 0 if (c[1] as Array).is_empty() else 1
+
+
+## Put `kind` down at (x, z), painting over whatever is in its way: those
+## things are taken away first. Things the same stroke put down, and things
+## of the same kind when scattering, are never painted over, so a stroke
+## does not eat its own work. Returns the new record, or {}.
+func place_over(kind: String, x: float, z: float, rng: RandomNumberGenerator, spread := 1.0, merge := false,
+		scatter := false, variant := -1, rot := NAN, jit := NAN) -> Dictionary:
+	var c := _check(kind, x, z, spread, merge)
+	if not c[0]:
+		return {}
+	var gone: Array = []
+	for b in c[1]:
+		var r: Dictionary = b[0]
+		if r.id in last_stroke or (scatter and r.kind == kind):
+			return {}
+		# a brush scattering small things never takes away something bigger
+		# (pebbles round a boulder keep the boulder); a click does
+		var bigger: bool = Catalog.KINDS[r.kind].layer == "big" and Catalog.KINDS[kind].layer != "big"
+		if scatter and bigger:
+			return {}
+		gone.append(r)
+	if not gone.is_empty():
+		_remove(gone, Vector2(x, z), 1.5)
+	return add(kind, x, z, rng, -1.0, variant, rot, jit)
+
+
+## [whether the ground allows it, the things standing in its way]
+func _check(kind: String, x: float, z: float, spread := 1.0, merge := false) -> Array:
 	var k: Dictionary = Catalog.KINDS[kind]
+	var blockers: Array = []
 	if not data.in_bounds(x, z):
-		return false
+		return [false, blockers]
 	var d: float = data.sample_sdf(x, z)
 	var w: float = data.sample_water(x, z)
 	match k.where:
 		"land":
 			if d < 0.3 or w > 0.12:
-				return false
+				return [false, blockers]
 		"shore":
 			if d < 0.1 or w < 0.04 or w > 0.75:
-				return false
+				return [false, blockers]
 		"water":
 			if w < 0.6 or data.sample_wlevel(x, z) - data.sample_height(x, z) < 0.1:
-				return false
+				return [false, blockers]
 		_:
 			if d < 0.2:
-				return false
+				return [false, blockers]
 	# nothing grows out of a wall or a stair
 	if k.where != "water" and data.sample_occupied(x, z) > 0.6 and _ruin_under(x, z):
-		return false
+		return [false, blockers]
 	var here := Vector2(x, z)
 	for r in records:
 		var other: Dictionary = Catalog.KINDS[r.kind]
@@ -94,19 +136,19 @@ func can_place(kind: String, x: float, z: float, spread := 1.0, merge := false) 
 			elif kind in STONES and r.kind in WOODY:
 				need = float(style_for(kind).size) * 0.5 + 0.2
 			if dist < need:
-				return false
+				blockers.append([r, dist / maxf(need, 0.01)])
 		elif merge and kind in STONES and r.kind in STONES:
 			if dist < 0.08:
-				return false
+				blockers.append([r, dist / 0.08])
 		elif other.layer == "big" and k.layer == "small":
 			# small things may nestle against a boulder, right up to its side
-			var keep: float = float(r.size) * 0.42 + 0.04 if other.has("style") else float(other.occupied) * _ratio(r) + 0.15
+			var keep: float = float(r.size) * 0.42 + 0.04 if r.kind in STONES else float(other.occupied) * _ratio(r) + 0.15
 			if dist < keep:
-				return false
+				blockers.append([r, dist / maxf(keep, 0.01)])
 		elif k.layer == "big" and other.layer == "small":
 			if dist < float(k.occupied) + 0.1:
-				return false
-	return true
+				blockers.append([r, dist / (float(k.occupied) + 0.1)])
+	return [true, blockers]
 
 
 func _ruin_under(x: float, z: float) -> bool:
@@ -376,6 +418,12 @@ func remove_near(x: float, z: float, radius: float, kind := "") -> int:
 			gone.append(r)
 	if gone.is_empty():
 		return 0
+	_remove(gone, here, radius)
+	return gone.size()
+
+
+## Take `gone` away, and let the ground round `here` grow back.
+func _remove(gone: Array, here: Vector2, radius: float) -> void:
 	var trees_gone := false
 	for r in gone:
 		if r.kind in STONES:
@@ -397,7 +445,6 @@ func remove_near(x: float, z: float, radius: float, kind := "") -> int:
 	reclaim(here, reach)
 	if ruins:
 		ruins.reclaim(here, reach)
-	return gone.size()
 
 
 ## Let things near `here` claim their ground again after it was cleared.

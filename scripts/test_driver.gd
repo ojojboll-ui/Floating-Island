@@ -568,6 +568,7 @@ static func run(main: Node, name: String) -> void:
 			main.brush.radius = 1.8
 			main.brush.density = 0.8
 			main.brush.clumping = 0.85
+			print("  boulders before pebbles: ", main.props.records.filter(func(r): return r.kind == "stenblock").size())
 			var t0 := Time.get_ticks_msec()
 			await _drag(main, [on.call(-1.4, 1.2), on.call(0.4, 2.4), on.call(-0.6, 1.6)], 60)
 			print("  pebbles: ", main.props.records.filter(func(r): return r.kind == "smasten").size(), " in ", Time.get_ticks_msec() - t0, " ms")
@@ -577,6 +578,7 @@ static func run(main: Node, name: String) -> void:
 			main.brush.clumping = 0.0
 			await _drag(main, [on.call(2.6, 5.0), on.call(2.4, 2.4), on.call(1.2, 0.2)], 50)
 			print("  stepping stones: ", main.props.records.filter(func(r): return r.kind == "trampsten").size())
+			print("  boulders left: ", main.props.records.filter(func(r): return r.kind == "stenblock").size())
 			for r in main.props.records.filter(func(r): return r.kind == "trampsten"):
 				var bb: AABB = main.props._nodes[r.id].mesh.get_aabb()
 				print("    slab mesh %s, size %.2f" % [bb.size, r.size])
@@ -867,6 +869,62 @@ static func run(main: Node, name: String) -> void:
 				n.rotation = Vector3(float(spec[2]) if spec[0] != "spade" and spec[0] != "block" else 0.0, cam.global_rotation.y, 0)
 				x += 0.65
 			await _frames(main, 10)
+		"wood_row":
+			main.props.remove_near(0.0, 0.0, 9.0)
+			var p = main.props
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 5
+			p.add("stubbe", -2.2, 0.0, rng, 1.6, 2, 0.3)
+			p.add("stock", 0.6, -0.4, rng, 1.0, 2, 0.15)
+			p.add("huggkubbe", 2.8, 0.3, rng, 1.0, 1, 0.0)
+			p.add("vedtrave", -1.2, -2.2, rng, 1.0, 1, 0.0)
+			p.add("stockhog", 1.6, -2.2, rng, 1.0, 1, 0.0)
+			await _frames(main, 10)
+		"wood_stump", "wood_log", "wood_block", "wood_pile", "wood_logs":
+			# one wood thing alone in front of the camera, everything sharp
+			main.props.remove_near(0.0, 0.0, 9.0)
+			main.rig.aperture = 0.0
+			main.weather.hour = 15.0
+			var IB = preload("res://scripts/item_builder.gd")
+			var kind: String = {"wood_stump": "stubbe", "wood_log": "stock", "wood_block": "huggkubbe", "wood_pile": "vedtrave", "wood_logs": "stockhog"}[name]
+			var gen: String = {"wood_stump": "stump", "wood_log": "log", "wood_block": "block", "wood_pile": "woodpile", "wood_logs": "logpile"}[name]
+			var dist: float = {"wood_stump": 2.6, "wood_log": 3.4, "wood_block": 2.0, "wood_pile": 2.6, "wood_logs": 2.0}[name]
+			var n: Node3D = IB.build(gen, main.props.style_for(kind), 4)
+			main.add_child(n)
+			var cam: Camera3D = main.rig.camera
+			var fwd := -cam.global_basis.z
+			var at := cam.global_position + fwd * dist
+			n.global_position = at - Vector3(0, 0.35, 0)
+			n.rotation.y = cam.global_rotation.y + 0.5
+			await _frames(main, 10)
+		"paint_over":
+			# flowers painted over a bush and stones: they are taken away, flowers
+			# stay where they were; then the ghost of a boulder over a tree
+			main.props.remove_near(0.0, 0.0, 9.0)
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			var p = main.props
+			var rng := RandomNumberGenerator.new()
+			p.add("buske", 0.0, 1.0, rng)
+			p.add("stenblock", 1.2, 1.4, rng)
+			p.add("lovtrad", -2.0, -1.0, rng)
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			print("  before: ", p.records.map(func(r): return r.kind))
+			# a click puts a boulder over the bush; a brush of ferns runs past the stone
+			await _click(main, main.ui.buttons["Stenblock"])
+			await _tap(main, on.call(0.0, 1.0))
+			await _click(main, main.ui.buttons["Ormbunke"])
+			main.brush.radius = 1.0
+			await _drag(main, [on.call(1.2, 0.6), on.call(1.8, 1.9)], 40)
+			var kinds := {}
+			for r in p.records:
+				kinds[r.kind] = kinds.get(r.kind, 0) + 1
+			print("  after painting flowers over: ", kinds)
+			await _click(main, main.ui.buttons["Stenblock"])
+			_mouse_move(main.rig.camera.unproject_position(on.call(-2.0, -1.0)))
+			await _frames(main, 10)
+			print("  ghost over the tree says: ", ["fits", "replaces", "impossible"][p.place_check("stenblock", -2.0, -1.0, 1.0, true)])
 		"hover":
 			await _click(main, main.ui.buttons["Mossa"])
 			_mouse_move(main.rig.camera.unproject_position(Vector3(1.5, 0.6, 1.5)))
@@ -874,7 +932,7 @@ static func run(main: Node, name: String) -> void:
 		_:
 			push_error("unknown test " + name)
 	# park the pointer in the sky so the brush ring stays out of the picture
-	if name != "hover" and name != "stack_ghost":
+	if name != "hover" and name != "stack_ghost" and name != "paint_over":
 		_mouse_move(Vector2(8, 8))
 		await _frames(main, 2)
 

@@ -163,8 +163,7 @@ func _begin_stroke(screen: Vector2) -> void:
 	var p: Vector3 = hit.pos
 	props.begin_stroke()
 	if tool == Tool.PLACE and not Input.is_key_pressed(KEY_SHIFT):
-		if props.can_place(place_kind, p.x, p.z, 1.0, true):
-			props.add(place_kind, p.x, p.z, _rng, -1.0, _ghost_variant, _ghost_rot, _ghost_jit)
+		if not props.place_over(place_kind, p.x, p.z, _rng, 1.0, true, false, _ghost_variant, _ghost_rot, _ghost_jit).is_empty():
 			_reroll_ghost()
 	# ruins: a pillar goes down at once; walls, arches and stairs are drawn.
 	# Started on a storey, they stand on that storey.
@@ -360,8 +359,8 @@ func _apply(hit: Dictionary, dt: float) -> void:
 				var spread := lerpf(2.6, 0.8, density)
 				for attempt in 14:
 					var q := _scatter_point(c)
-					if props.can_place(place_kind, q.x, q.y, spread):
-						props.add(place_kind, q.x, q.y, _rng)
+					# paints over what is there, but not over its own kind
+					props.place_over(place_kind, q.x, q.y, _rng, spread, false, true)
 		Tool.WALL:
 			if _draw.is_empty() or _draw[_draw.size() - 1].distance_to(c) > 0.25:
 				_draw.append(c)
@@ -611,8 +610,10 @@ func _update_ghost(over_ui: bool) -> void:
 	var lift: float = 0.0 if fire != null else props.lift_for(place_kind, p.x, p.z)
 	var tall: float = _ghost.get_meta("tall", 1.0)
 	_ghost.global_position = Vector3(p.x, data.sample_height(p.x, p.z) - float(k.sink) * tall + lift, p.z)
-	var ok: bool = props.can_place(place_kind, p.x, p.z, 1.0, true)
-	var tint := Color(0.8, 1.0, 0.78) if ok else Color(1.0, 0.45, 0.4)
+	# green: it fits; red: it will take away what is in its way; grey: it
+	# cannot go there at all
+	var check: int = props.place_check(place_kind, p.x, p.z, 1.0, true)
+	var tint: Color = [Color(0.8, 1.0, 0.78), Color(1.0, 0.42, 0.38), Color(0.55, 0.55, 0.58)][check]
 	_ghost_mat.set_shader_parameter("tint", tint)
 	_ghost_leaf_mat.set_shader_parameter("tint", tint)
 

@@ -15,6 +15,7 @@ extends RefCounted
 
 const MeshUtil := preload("res://scripts/mesh_util.gd")
 const TreeBuilder := preload("res://scripts/tree_builder.gd")
+const WoodBuilder := preload("res://scripts/wood_builder.gd")
 
 ## Vertex alpha: which colour a part takes.
 const FIXED := 1.0
@@ -209,6 +210,9 @@ static func build(gen: String, st: Dictionary, seed: int, extra := {}) -> Node3D
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed * 6151 + gen.hash()
 	var k := Kit.new()
+	# stylized wood (stumps, logs, blocks, piles) goes to its own mesh
+	var w := WoodBuilder.Wood.new()
+	w.rng.seed = rng.seed + 11
 	var root := Node3D.new()
 	var flames: Array = []   # [position, height]
 	var light := Vector3.INF
@@ -248,7 +252,7 @@ static func build(gen: String, st: Dictionary, seed: int, extra := {}) -> Node3D
 			# lying flat in the grass: edge to the side, handle along the ground
 			_axe(k, Transform3D(Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0)), Vector3(0, 0.03, 0)))
 		"block":
-			return _block(st, rng)
+			_block(k, w, rng)
 		"bottles":
 			_bottles(k, rng)
 		"books":
@@ -258,15 +262,15 @@ static func build(gen: String, st: Dictionary, seed: int, extra := {}) -> Node3D
 		"barrel":
 			_barrel(k)
 		"woodpile":
-			_woodpile(k, rng)
+			_woodpile(k, w, rng)
 		"logpile":
-			_logpile(k, rng)
+			_logpile(k, w, rng)
 		"sign":
 			_sign(k)
 		"log":
-			return _log(st, rng)
+			_log(k, w, st, rng)
 		"stump":
-			return _stump(st, rng)
+			_stump(k, w, st, rng)
 	var body := MeshInstance3D.new()
 	body.mesh = k.mesh()
 	body.material_override = item_material()
@@ -286,7 +290,18 @@ static func build(gen: String, st: Dictionary, seed: int, extra := {}) -> Node3D
 		l.shadow_enabled = gen == "firepit"
 		l.set_meta("flicker", l.light_energy)
 		root.add_child(l)
-	root.set_meta("tall", body.mesh.get_aabb().end.y if body.mesh.get_surface_count() > 0 else 0.3)
+	var tall := body.mesh.get_aabb().end.y if body.mesh.get_surface_count() > 0 else 0.0
+	if not w.empty():
+		# dead wood: bark is the first colour, fungi the second; the camp's wood
+		# things: cut wood first, bark second
+		var dead := gen in ["log", "stump"]
+		var bark: Array = st.get("color_a" if dead else "color_b", [0.42, 0.32, 0.24])
+		var wood: Array = st.get("wood_color", [0.86, 0.68, 0.45]) if dead else st.get("color_a", [0.86, 0.68, 0.45])
+		var wm := WoodBuilder.instance(w, bark, wood, float(st.get("moss", 0.15)))
+		root.add_child(wm)
+		root.set_meta("shaded", wm)
+		tall = maxf(tall, wm.mesh.get_aabb().end.y)
+	root.set_meta("tall", maxf(tall, 0.05))
 	return root
 
 
@@ -533,104 +548,6 @@ static func _axe(k: Kit, xf: Transform3D) -> void:
 	k.slab(bevel, 0.024, 0.0, Transform3D(xf.basis, xf * Vector3(0, 0, 0)), bright)
 
 
-## A split log: a slice of a round, `angle` wide, `r` from the heart to the
-## bark, along z. Pale split faces, bark round its back, end grain at both
-## ends. xf places the heart; the bark faces +y at its middle.
-static func _split(k: Kit, xf: Transform3D, len: float, r: float, angle := PI * 0.5) -> void:
-	var arc := 7
-	var wood := _a()
-	var face := _a(0.92)
-	var end_col := _a(1.12)
-	var bark := _b()
-	var hz := len * 0.5
-	var pts: Array[Vector2] = []
-	for s in arc + 1:
-		var a := PI * 0.5 - angle * 0.5 + angle * s / arc
-		pts.append(Vector2(cos(a), sin(a)) * r)
-	var nb := xf.basis.inverse().transposed()
-	var put := func(p: Vector3, nrm: Vector3, col: Color) -> int:
-		k.v.append(xf * p)
-		k.n.append((nb * nrm).normalized())
-		k.c.append(col)
-		return k.v.size() - 1
-	# the two end faces: fans from the heart
-	for z in [-hz, hz]:
-		var nz := Vector3(0, 0, signf(z))
-		var c0: int = put.call(Vector3(0, 0, z), nz, _a(1.2))
-		var ring := []
-		for p in pts:
-			# darker toward the bark: the sapwood and the bark's edge
-			ring.append(put.call(Vector3(p.x, p.y, z), nz, _a(0.78)))
-		for s in arc:
-			if z > 0.0:
-				k.i.append_array([c0, ring[s + 1], ring[s]])
-			else:
-				k.i.append_array([c0, ring[s], ring[s + 1]])
-	# the bark round the back
-	for s in arc:
-		var a0 := Vector3(pts[s].x, pts[s].y, 0).normalized()
-		var a1 := Vector3(pts[s + 1].x, pts[s + 1].y, 0).normalized()
-		var q0: int = put.call(Vector3(pts[s].x, pts[s].y, -hz), a0, bark)
-		var q1: int = put.call(Vector3(pts[s + 1].x, pts[s + 1].y, -hz), a1, bark)
-		var q2: int = put.call(Vector3(pts[s + 1].x, pts[s + 1].y, hz), a1, bark)
-		var q3: int = put.call(Vector3(pts[s].x, pts[s].y, hz), a0, bark)
-		k.i.append_array([q0, q2, q1, q0, q3, q2])
-	# the two split faces from the heart out to the bark
-	for side in [0, arc]:
-		var p: Vector2 = pts[side]
-		var nrm := Vector3(-p.y, p.x, 0).normalized() * (-1.0 if side == 0 else 1.0)
-		var f0: int = put.call(Vector3(0, 0, -hz), nrm, face)
-		var f1: int = put.call(Vector3(p.x, p.y, -hz), nrm, face)
-		var f2: int = put.call(Vector3(p.x, p.y, hz), nrm, face)
-		var f3: int = put.call(Vector3(0, 0, hz), nrm, face)
-		if side == 0:
-			k.i.append_array([f0, f1, f2, f0, f2, f3])
-		else:
-			k.i.append_array([f0, f2, f1, f0, f3, f2])
-
-
-## A chopping block: a short round of trunk, bark round it, its top cut
-## pale and ringed, an axe struck into it, split wood lying round its foot.
-static func _block(st: Dictionary, rng: RandomNumberGenerator) -> Node3D:
-	var root := Node3D.new()
-	var bark := {"v": PackedVector3Array(), "n": PackedVector3Array(), "uv": PackedVector2Array(), "i": PackedInt32Array()}
-	var r := 0.24
-	var h := 0.5
-	var pts: Array[Vector3] = [Vector3(0, -0.05, 0), Vector3(0, h * 0.5, 0), Vector3(0, h, 0)]
-	TreeBuilder._tube(bark, pts, [r * 1.05, r * 1.0, r * 0.98] as Array[float], false)
-	var bst := st.duplicate()
-	bst.color_a = st.get("color_b", [0.4, 0.32, 0.26])
-	bst.moss = 0.1
-	root.add_child(_dead_bark(bst, bark))
-	var k := Kit.new()
-	k.rings(Vector3(0, h + 0.003, 0), Vector3.UP, r * 0.96, Color(0.86, 0.72, 0.52), Color(0.62, 0.47, 0.32), 5)
-	# the axe, struck into the top: its edge driven in at a slant, the handle
-	# reaching up and out the other way, 35 degrees above level
-	var up := deg_to_rad(35.0)
-	var handle := Vector3(cos(up), sin(up), 0.0)
-	var edge := Vector3(sin(up), -cos(up), 0.0)
-	var ab := Basis(edge, handle, edge.cross(handle)).rotated(Vector3.UP, 0.6)
-	var at := Vector3(-0.02, h, 0.0) - ab.x * 0.085
-	_axe(k, Transform3D(ab, at))
-	# split wood round the foot
-	for s in 6:
-		var a := rng.randf_range(-0.8, 1.6)
-		var d := rng.randf_range(0.36, 0.62)
-		var lie := Basis.from_euler(Vector3(0, a + rng.randf_range(-0.6, 0.6), rng.randf_range(-0.3, 0.3)))
-		var rr := rng.randf_range(0.1, 0.14)
-		# lying on one split face: turn the slice so that face is down
-		var flat := lie * Basis(Vector3.BACK, PI * 0.5 + 0.9)
-		_split(k, Transform3D(flat, Vector3(cos(a) * d, 0.0, sin(a) * d)), rng.randf_range(0.32, 0.42), rr, 1.8)
-	var mi := MeshInstance3D.new()
-	mi.mesh = k.mesh()
-	mi.material_override = item_material()
-	_colours(mi, st)
-	root.add_child(mi)
-	root.set_meta("shaded", mi)
-	root.set_meta("tall", h + 0.5)
-	return root
-
-
 # --- odds and ends -------------------------------------------------------------
 
 static func _bottles(k: Kit, rng: RandomNumberGenerator) -> void:
@@ -678,64 +595,6 @@ static func _barrel(k: Kit) -> void:
 	k.rings(Vector3(0, 0.721, 0), Vector3.UP, 0.25, Color(0.6, 0.45, 0.3), Color(0.4, 0.28, 0.18), 3)
 
 
-## A woodpile: split logs stacked in rows between two posts, ends out, the
-## wedges turned this way and that as they were thrown on.
-## A woodpile: split logs packed tight in rows on two bearers between two
-## posts, ends out, each wedge lying point up, point down or on its side
-## as it was thrown on, under a slab roof.
-## A woodpile: split logs packed tight in rows on two bearers between two
-## posts, ends out, each lying bark up, bark down or on its side as it was
-## thrown on, under a slab roof.
-static func _woodpile(k: Kit, rng: RandomNumberGenerator) -> void:
-	var width := 1.2
-	var rows := 5
-	var per := 7
-	var len := 0.42
-	var step := width / per
-	var r := step * 1.08
-	var row_h := step * 0.9
-	var base := 0.08
-	for z in [-len * 0.3, len * 0.3]:
-		k.rod(Vector3(-width * 0.55, base * 0.5, z), Vector3(width * 0.55, base * 0.5, z), 0.045, _b(0.8), 6)
-	var top := base + rows * row_h
-	for x in [-width * 0.5 - 0.05, width * 0.5 + 0.05]:
-		k.rod(Vector3(x, -0.1, 0), Vector3(x, top + 0.05, 0), 0.035, _b(0.8), 6)
-	for row in rows:
-		for p in per:
-			var x := (p - (per - 1) * 0.5) * step + rng.randf_range(-0.01, 0.01)
-			var spin: float = [0.0, PI, PI * 0.5, -PI * 0.5][rng.randi() % 4] + rng.randf_range(-0.25, 0.25)
-			var turn := Basis.from_euler(Vector3(0, rng.randf_range(-0.05, 0.05), 0)) * Basis(Vector3.BACK, spin)
-			var centre := Vector3(x, base + row * row_h + row_h * 0.5, rng.randf_range(-0.02, 0.02))
-			# the slice's own middle lies half its radius out from the heart
-			var at := centre - turn * Vector3(0, r * 0.5, 0)
-			_split(k, Transform3D(turn, at), len + rng.randf_range(-0.04, 0.04), r * rng.randf_range(0.95, 1.05), rng.randf_range(1.6, 2.2))
-	# a roof of bark slabs over the top
-	k.box(Vector3(width + 0.25, 0.03, len + 0.2), _at(Vector3(0, top + 0.07, 0), Vector3(0.1, 0, 0)), _b(0.85))
-
-
-## A pile of round logs stacked in a triangle, each row resting in the
-## hollows of the one below: bark along their length, rings at their ends,
-## a little uneven in thickness and length.
-static func _logpile(k: Kit, rng: RandomNumberGenerator) -> void:
-	var rows := 4
-	var r := 0.09
-	var len := 0.75
-	for row in rows:
-		var n := rows - row
-		for p in n:
-			var rr := r * rng.randf_range(0.9, 1.05)
-			var x := (p - (n - 1) * 0.5) * r * 2.02
-			var y := r + row * r * 1.74
-			var l := len + rng.randf_range(-0.06, 0.06)
-			var dz := rng.randf_range(-0.03, 0.03)
-			k.cyl(rr, rr, l, _at(Vector3(x, y, dz), Vector3(PI * 0.5, 0, 0)), _b(), 10)
-			k.rings(Vector3(x, y, dz + l * 0.5 + 0.002), Vector3.BACK, rr * 0.93, Color(0.86, 0.68, 0.45), Color(0.6, 0.44, 0.28), 3)
-			k.rings(Vector3(x, y, dz - l * 0.5 - 0.002), Vector3.FORWARD, rr * 0.93, Color(0.86, 0.68, 0.45), Color(0.6, 0.44, 0.28), 3)
-	# two stakes keep the bottom row from rolling
-	for x in [-(rows * r * 1.01) - 0.03, rows * r * 1.01 + 0.03]:
-		k.rod(Vector3(x, -0.1, 0), Vector3(x, r * 1.6, 0), 0.025, _b(0.7), 6)
-
-
 static func _sign(k: Kit) -> void:
 	k.rod(Vector3(0, -0.15, 0), Vector3(0, 1.05, 0), 0.035, _a(0.85))
 	k.box(Vector3(0.55, 0.22, 0.04), _at(Vector3(0.12, 0.88, 0.04), Vector3(0, 0, 0.06)), _a())
@@ -761,19 +620,6 @@ static func _boxm(size: Vector3) -> BoxMesh:
 
 # --- dead wood -----------------------------------------------------------------
 
-## The bark of dead wood: the tree bark shader, mossier and greyer.
-static func _dead_bark(st: Dictionary, bark: Dictionary) -> MeshInstance3D:
-	var mesh := ArrayMesh.new()
-	MeshUtil.add_surface(mesh, bark.v, bark.n, bark.uv, PackedColorArray(), bark.i)
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = TreeBuilder._bark_material()
-	var c: Array = st.color_a
-	mi.set_instance_shader_parameter("bark", Vector3(c[0], c[1], c[2]))
-	mi.set_instance_shader_parameter("moss_more", float(st.moss))
-	return mi
-
-
 ## Shelf fungi along a log's side or up a stump.
 static func _fungi(k: Kit, rng: RandomNumberGenerator, count: int, place: Callable) -> void:
 	for f in count:
@@ -795,82 +641,157 @@ static func _half_disc(r: float) -> CylinderMesh:
 	return m
 
 
-## A fallen log, rotting: a bent, tapering trunk lying in the grass, broken
-## branch stubs, end grain at both ends, moss on top and shelf fungi down
-## its side.
-static func _log(st: Dictionary, rng: RandomNumberGenerator) -> Node3D:
-	var root := Node3D.new()
-	var bark := {"v": PackedVector3Array(), "n": PackedVector3Array(), "uv": PackedVector2Array(), "i": PackedInt32Array()}
-	var length := 2.2
-	var r0 := 0.22 * float(st.thick)
-	var pts: Array[Vector3] = []
+## A chopping block: a short round of trunk in bark plates, its top cut
+## pale and ringed inside a bark rim, an axe struck into it, split wood
+## lying round its foot.
+static func _block(k: Kit, w: WoodBuilder.Wood, rng: RandomNumberGenerator) -> void:
+	var r := 0.24
+	var h := 0.5
+	var path: Array[Vector3] = []
 	var radii: Array[float] = []
-	var bend := Vector3(0, 0, rng.randf_range(-0.2, 0.2))
-	for s in 9:
-		var t := float(s) / 8.0
-		pts.append(Vector3(lerpf(-length * 0.5, length * 0.5, t), r0 * 0.75, 0) + bend * sin(t * PI) + Vector3(0, 0.02 * sin(t * 7.0), 0))
-		radii.append(r0 * lerpf(1.0, 0.75, t) * (1.0 + 0.06 * sin(t * 11.0)))
-	TreeBuilder._tube(bark, pts, radii, false)
-	# broken branch stubs
-	for b in 3:
-		var at := TreeBuilder._along(pts, rng.randf_range(0.2, 0.85))
-		var a := rng.randf_range(-0.6, 0.6) + (PI if rng.randf() < 0.5 else 0.0)
-		var d := Vector3(rng.randf_range(-0.3, 0.3), 0.6, sin(a)).normalized()
-		var stub: Array[Vector3] = [at, at + d * r0 * 1.6, at + d * r0 * 2.4]
-		var sr := r0 * 0.3
-		TreeBuilder._tube(bark, stub, [sr, sr * 0.7, sr * 0.3] as Array[float], false)
-	root.add_child(_dead_bark(st, bark))
-	var k := Kit.new()
-	k.rings(pts[0] + Vector3(-0.005, 0, 0), Vector3.LEFT, radii[0] * 0.97, Color(0.62, 0.48, 0.32), Color(0.38, 0.28, 0.2))
-	k.rings(pts[8] + Vector3(0.005, 0, 0), Vector3.RIGHT, radii[8] * 0.97, Color(0.62, 0.48, 0.32), Color(0.38, 0.28, 0.2))
+	for s in 5:
+		var t := s / 4.0
+		path.append(Vector3(0, lerpf(-0.06, h, t), 0))
+		radii.append(r * (1.0 + 0.1 * (1.0 - smoothstep(0.0, 0.35, t))))
+	var ring := w.trunk(path, radii, 9, 0.13)
+	w.cap(ring, path[4], Vector3.UP, 0.09, 0.015)
+	# the axe, struck into the top: its edge driven in at a slant, the handle
+	# reaching up and out the other way, 35 degrees above level
+	var up := deg_to_rad(35.0)
+	var handle := Vector3(cos(up), sin(up), 0.0)
+	var edge := Vector3(sin(up), -cos(up), 0.0)
+	var ab := Basis(edge, handle, edge.cross(handle)).rotated(Vector3.UP, 0.6)
+	var at := Vector3(-0.02, h - 0.015, 0.0) - ab.x * 0.085
+	_axe(k, Transform3D(ab, at))
+	# split wood round its foot, lying on a split face
+	for s in 6:
+		var a := rng.randf_range(-0.8, 1.6)
+		var d := rng.randf_range(0.38, 0.62)
+		var lie := Basis.from_euler(Vector3(0, a + rng.randf_range(-0.6, 0.6), 0)) * Basis(Vector3.BACK, PI * 0.5 + 0.9)
+		w.split(Transform3D(lie, Vector3(cos(a) * d, 0.0, sin(a) * d)), rng.randf_range(0.32, 0.42), rng.randf_range(0.1, 0.14), 1.8)
+
+
+## A woodpile: split logs packed tight in rows on two bearers between two
+## posts, ends out, each lying bark up, bark down or on its side as it was
+## thrown on, under a slab roof.
+static func _woodpile(k: Kit, w: WoodBuilder.Wood, rng: RandomNumberGenerator) -> void:
+	var width := 1.2
+	var rows := 5
+	var per := 7
+	var len := 0.42
+	var step := width / per
+	var r := step * 1.08
+	var row_h := step * 0.9
+	var base := 0.08
+	for z in [-len * 0.3, len * 0.3]:
+		k.rod(Vector3(-width * 0.55, base * 0.5, z), Vector3(width * 0.55, base * 0.5, z), 0.045, _b(0.8), 6)
+	var top := base + rows * row_h
+	for x in [-width * 0.5 - 0.05, width * 0.5 + 0.05]:
+		k.rod(Vector3(x, -0.1, 0), Vector3(x, top + 0.05, 0), 0.035, _b(0.8), 6)
+	for row in rows:
+		for p in per:
+			var x := (p - (per - 1) * 0.5) * step + rng.randf_range(-0.01, 0.01)
+			var spin: float = [0.0, PI, PI * 0.5, -PI * 0.5][rng.randi() % 4] + rng.randf_range(-0.25, 0.25)
+			var turn := Basis.from_euler(Vector3(0, rng.randf_range(-0.05, 0.05), 0)) * Basis(Vector3.BACK, spin)
+			var centre := Vector3(x, base + row * row_h + row_h * 0.5, rng.randf_range(-0.02, 0.02))
+			var at := centre - turn * Vector3(0, r * 0.5, 0)
+			w.split(Transform3D(turn, at), len + rng.randf_range(-0.04, 0.04), r * rng.randf_range(0.95, 1.05), rng.randf_range(1.6, 2.2))
+	k.box(Vector3(width + 0.25, 0.03, len + 0.2), _at(Vector3(0, top + 0.07, 0), Vector3(0.1, 0, 0)), _b(0.85))
+
+
+## A pile of round logs stacked in a triangle, each row resting in the
+## hollows of the one below, bark in plates, cut ends ringed in a rim.
+static func _logpile(k: Kit, w: WoodBuilder.Wood, rng: RandomNumberGenerator) -> void:
+	var rows := 4
+	var r := 0.09
+	var len := 0.75
+	for row in rows:
+		var n := rows - row
+		for p in n:
+			var rr := r * rng.randf_range(0.9, 1.05)
+			var x := (p - (n - 1) * 0.5) * r * 2.02
+			var y := r + row * r * 1.74
+			var l := len + rng.randf_range(-0.06, 0.06)
+			var dz := rng.randf_range(-0.03, 0.03)
+			var a := Vector3(x, y, dz - l * 0.5)
+			var b := Vector3(x, y, dz + l * 0.5)
+			var path: Array[Vector3] = [a, a.lerp(b, 0.5), b]
+			var ring_b := w.trunk(path, [rr, rr * 0.98, rr * 0.96] as Array[float], 6, 0.12)
+			w.cap(ring_b, b, Vector3.BACK, 0.12, 0.008)
+			var back: Array[Vector3] = [b, a.lerp(b, 0.5), a]
+			var ring_a := w.trunk(back, [rr * 0.96, rr * 0.98, rr] as Array[float], 6, 0.0)
+			w.cap(ring_a, a, Vector3.FORWARD, 0.12, 0.008)
+	for x in [-(rows * r * 1.01) - 0.03, rows * r * 1.01 + 0.03]:
+		k.rod(Vector3(x, -0.1, 0), Vector3(x, r * 1.6, 0), 0.025, _b(0.7), 6)
+
+
+## A fallen, rotting log, after stylized props: bark in long plates split by
+## deep grooves, gently bent and tapering, one end sawn and ringed inside a
+## bark rim, the other broken off in splinters, a knot or two, moss on top
+## and shelf fungi down its side.
+static func _log(k: Kit, w: WoodBuilder.Wood, st: Dictionary, rng: RandomNumberGenerator) -> void:
+	var length := 2.1
+	var r0 := 0.22 * float(st.thick)
+	var path: Array[Vector3] = []
+	var radii: Array[float] = []
+	var bend := rng.randf_range(-0.18, 0.18)
+	var n := 10
+	for s in n:
+		var t := float(s) / (n - 1)
+		path.append(Vector3(lerpf(-length * 0.5, length * 0.5, t), r0 * 0.82, sin(t * PI) * bend))
+		radii.append(r0 * lerpf(1.06, 0.8, t) * (1.0 + 0.05 * sin(t * 9.0 + bend * 20.0)))
+	var broken := w.trunk(path, radii, 10, 0.16, r0 * 1.4)
+	# the sawn end: the path reversed, ringed inside a rim
+	var back: Array[Vector3] = [path[1], path[0]]
+	var sawn := w.trunk(back, [radii[1], radii[0]] as Array[float], 10, 0.0)
+	w.cap(sawn, path[0], (path[0] - path[1]).normalized(), 0.1, 0.02)
+	# the broken end shows its heart sunk deep among the splinters
+	w.cap(broken, path[n - 1], (path[n - 1] - path[n - 2]).normalized(), 0.22, r0 * 0.3)
+	# knots
+	for kk in 2:
+		var t := rng.randf_range(0.25, 0.75)
+		var at := TreeBuilder._along(path, t)
+		var a := rng.randf_range(0.6, 2.4)
+		var out := Vector3(0, sin(a), cos(a) * (1.0 if rng.randf() < 0.5 else -1.0)).normalized()
+		w.knot(at + out * radii[int(t * (n - 1))] * 0.85, out, r0 * 0.22)
 	var fungi := int(round(float(st.fungi) * 8.0))
 	_fungi(k, rng, fungi, func(g: RandomNumberGenerator) -> Array:
 		var t := g.randf_range(0.1, 0.9)
 		var side := 1.0 if g.randf() < 0.5 else -1.0
-		var c := TreeBuilder._along(pts, t)
-		var r := radii[int(t * 8)]
+		var c := TreeBuilder._along(path, t)
+		var r := radii[int(t * (n - 1))]
 		var out := Vector3(0, g.randf_range(-0.2, 0.3), side).normalized()
 		return [c + out * r * 0.95, out])
-	var mi := MeshInstance3D.new()
-	mi.mesh = k.mesh()
-	mi.material_override = item_material()
-	_colours(mi, st)
-	root.add_child(mi)
-	root.set_meta("shaded", root.get_child(0))
-	root.set_meta("tall", r0 * 1.6)
-	return root
 
 
-## An old stump: a short, flared trunk cut off and weathered, roots running
-## out into the grass, end grain on top, moss and fungi.
-static func _stump(st: Dictionary, rng: RandomNumberGenerator) -> Node3D:
-	var root := Node3D.new()
-	var bark := {"v": PackedVector3Array(), "n": PackedVector3Array(), "uv": PackedVector2Array(), "i": PackedInt32Array()}
+## An old stump, after stylized props: a short trunk in deep-grooved bark
+## plates flaring at its foot into roots that run out over the ground and
+## taper to points, its top broken into a jagged rim round a sunken cut
+## with a spiral of rings, a knot on its side, moss and fungi.
+static func _stump(k: Kit, w: WoodBuilder.Wood, st: Dictionary, rng: RandomNumberGenerator) -> void:
 	var r0 := 0.3 * float(st.thick)
-	var h := 0.45
-	var pts: Array[Vector3] = [Vector3(0, -0.1, 0), Vector3(0, h * 0.3, 0), Vector3(0, h * 0.7, 0), Vector3(0, h, 0)]
-	TreeBuilder._tube(bark, pts, [r0 * 1.2, r0, r0 * 0.96, r0 * 0.94] as Array[float], true)
-	# roots running out
+	var h := 0.55
+	var path: Array[Vector3] = []
+	var radii: Array[float] = []
+	for s in 7:
+		var t := s / 6.0
+		path.append(Vector3(0, lerpf(-0.12, h, t), 0))
+		radii.append(r0 * (1.0 + 0.55 * pow(1.0 - smoothstep(0.0, 0.5, t), 2.0)) * (1.0 + 0.03 * sin(t * 7.0)))
+	var ring := w.trunk(path, radii, 9, 0.18, r0 * 0.35)
+	w.cap(ring, path[6], Vector3.UP, 0.1, 0.03)
+	# roots running out from its foot
+	var count := 6
 	var spin := rng.randf() * TAU
-	for s in 5:
-		var a := spin + TAU * s / 5.0 + rng.randf_range(-0.2, 0.2)
-		var d := Vector3(cos(a), 0, sin(a))
-		var len := rng.randf_range(0.5, 0.8)
-		var rp: Array[Vector3] = [d * r0 * 0.6 + Vector3(0, 0.12, 0), d * (r0 + len * 0.4) + Vector3(0, 0.04, 0), d * (r0 + len) + Vector3(0, -0.04, 0)]
-		TreeBuilder._tube(bark, rp, [r0 * 0.38, r0 * 0.22, r0 * 0.06] as Array[float], false)
-	root.add_child(_dead_bark(st, bark))
-	var k := Kit.new()
-	k.rings(Vector3(0, h + 0.004, 0), Vector3.UP, r0 * 0.93, Color(0.66, 0.52, 0.36), Color(0.42, 0.31, 0.22), 5)
+	for s in count:
+		var a := spin + TAU * s / count + rng.randf_range(-0.25, 0.25)
+		var out := Vector3(cos(a), 0, sin(a))
+		w.root(out * r0 * 0.55, out, r0 * rng.randf_range(1.7, 2.6), r0 * rng.randf_range(0.4, 0.55), -0.02)
+	# a knot on its side
+	var ka := rng.randf() * TAU
+	var kout := Vector3(cos(ka), 0.25, sin(ka)).normalized()
+	w.knot(Vector3(0, h * 0.7, 0) + Vector3(cos(ka), 0, sin(ka)) * r0 * 0.95, kout, r0 * 0.12)
 	var fungi := int(round(float(st.fungi) * 6.0))
 	_fungi(k, rng, fungi, func(g: RandomNumberGenerator) -> Array:
-		var a := g.randf() * TAU
-		var out := Vector3(cos(a), 0.1, sin(a)).normalized()
-		return [Vector3(0, g.randf_range(0.08, h * 0.85), 0) + out * r0 * 0.97, out])
-	var mi := MeshInstance3D.new()
-	mi.mesh = k.mesh()
-	mi.material_override = item_material()
-	_colours(mi, st)
-	root.add_child(mi)
-	root.set_meta("shaded", root.get_child(0))
-	root.set_meta("tall", h)
-	return root
+		var fa := g.randf() * TAU
+		var out := Vector3(cos(fa), 0.1, sin(fa)).normalized()
+		return [Vector3(0, g.randf_range(0.12, h * 0.8), 0) + out * r0 * 1.0, out])
