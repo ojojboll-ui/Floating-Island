@@ -21,6 +21,7 @@ extends RefCounted
 ##   sink       how far into the ground, as a share of its height
 
 const TreeBuilder := preload("res://scripts/tree_builder.gd")
+const PlantGen := preload("res://scripts/plant_gen.gd")
 const RockBuilder := preload("res://scripts/rock_builder.gd")
 const PlantBuilder := preload("res://scripts/plant_builder.gd")
 
@@ -30,47 +31,67 @@ const KINDS := {
 	"lovtrad": {"label": "Lövträd", "builder": "tree", "dials": "tree", "variants": 1000,
 		"style": {"size": 5.5, "variation": 0.15, "trunk": 0.3, "bend": 0.3, "branches": 5, "levels": 3, "branch_len": 0.6,
 			"angle": 45.0, "crown": 0.5, "branch_start": 0.35, "leaves": 0.75, "leaf_size": 1.0,
-			"leaf_color": [0.46, 0.66, 0.2], "bark_color": [0.4, 0.29, 0.21]},
+			"leaf_color": [0.46, 0.66, 0.2], "bark_color": [0.4, 0.29, 0.21], "fruit": 0.0, "fruit_size": 1.0, "fruit_color": [0.82, 0.14, 0.1]},
 		"spacing": 2.6, "layer": "big", "where": "land",
 		"mark": [Color(0, 0, 0.45, 0.3), 1.9], "occupied": 0.55, "sink": 0.0},
 	"gran": {"label": "Gran", "builder": "tree", "dials": "tree", "variants": 1000,
 		"style": {"size": 6.2, "variation": 0.15, "trunk": 0.16, "bend": 0.05, "branches": 18, "levels": 1, "branch_len": 0.7,
 			"angle": 78.0, "crown": 0.0, "branch_start": 0.1, "leaves": 0.85, "leaf_size": 1.0, "needles": true,
-			"leaf_color": [0.2, 0.4, 0.17], "bark_color": [0.36, 0.24, 0.17]},
+			"leaf_color": [0.2, 0.4, 0.17], "bark_color": [0.36, 0.24, 0.17], "fruit": 0.0, "fruit_size": 1.0, "fruit_color": [0.82, 0.14, 0.1]},
 		"spacing": 2.4, "layer": "big", "where": "land",
 		"mark": [Color(0, 0, 0.3, 0.45), 1.7], "occupied": 0.5, "sink": 0.0},
 	"krokigt": {"label": "Höstträd", "builder": "tree", "dials": "tree", "variants": 1000,
 		"style": {"size": 6.5, "variation": 0.15, "trunk": 0.32, "bend": 0.75, "branches": 4, "levels": 3, "branch_len": 0.65,
 			"angle": 50.0, "crown": 0.6, "branch_start": 0.4, "leaves": 0.65, "leaf_size": 1.1,
-			"leaf_color": [0.85, 0.24, 0.12], "bark_color": [0.3, 0.24, 0.22]},
+			"leaf_color": [0.85, 0.24, 0.12], "bark_color": [0.3, 0.24, 0.22], "fruit": 0.0, "fruit_size": 1.0, "fruit_color": [0.82, 0.14, 0.1]},
 		"spacing": 4.0, "layer": "big", "where": "land",
 		"mark": [Color(0, 0, 0.5, 0.3), 2.4], "occupied": 0.8, "sink": 0.0},
 	"torrtrad": {"label": "Torrträd", "builder": "tree", "dials": "tree", "variants": 1000,
 		"style": {"size": 4.8, "variation": 0.15, "trunk": 0.28, "bend": 0.65, "branches": 5, "levels": 3, "branch_len": 0.6,
 			"angle": 40.0, "crown": 0.5, "branch_start": 0.3, "leaves": 0.0, "leaf_size": 1.0,
-			"leaf_color": [0.5, 0.45, 0.25], "bark_color": [0.47, 0.42, 0.37]},
+			"leaf_color": [0.5, 0.45, 0.25], "bark_color": [0.47, 0.42, 0.37], "fruit": 0.0, "fruit_size": 1.0, "fruit_color": [0.82, 0.14, 0.1]},
 		"spacing": 3.0, "layer": "big", "where": "land",
 		"mark": [Color(0, 0, 0.2, 0.55), 1.5], "occupied": 0.45, "sink": 0.0},
 	"sagotrad": {"label": "Sagoträd", "builder": "tree", "dials": "tree", "variants": 1000,
 		"style": {"size": 6.0, "variation": 0.1, "trunk": 0.42, "bend": 0.4, "branches": 3, "levels": 3, "branch_len": 0.72,
 			"angle": 52.0, "crown": 0.8, "branch_start": 0.48, "leaves": 0.85, "leaf_size": 1.3,
-			"leaf_color": [0.46, 0.66, 0.2], "bark_color": [0.42, 0.3, 0.22]},
+			"leaf_color": [0.46, 0.66, 0.2], "bark_color": [0.42, 0.3, 0.22], "fruit": 0.0, "fruit_size": 1.0, "fruit_color": [0.82, 0.14, 0.1]},
 		"spacing": 3.0, "layer": "big", "where": "land",
 		"mark": [Color(0, 0, 0.5, 0.35), 2.0], "occupied": 0.7, "sink": 0.0},
-	"buske": {"label": "Buske", "models": ["Bush_Common"], "recolor": Color(0.36, 0.56, 0.17), "height": [0.9, 1.3], "spacing": 1.1, "layer": "big", "where": "land",
-		"mark": [Color(0, 0, 0.35, 0.15), 0.9], "occupied": 0.55, "sink": 0.05, "sway": 0.4},
-	"blombuske": {"label": "Blombuske", "models": ["Bush_Common_Flowers"], "height": [0.9, 1.3], "spacing": 1.1, "layer": "big", "where": "land",
-		"mark": [Color(0, 0, 0.35, 0.15), 0.9], "occupied": 0.55, "sink": 0.05, "sway": 0.4},
-	"ormbunke": {"label": "Ormbunke", "models": ["Fern_1", "Plant_1", "Plant_1_Big"], "height": [0.4, 0.75], "spacing": 0.6, "layer": "small", "where": "land",
-		"mark": [Color(0, 0, 0.4, 0.1), 0.6], "occupied": 0.25, "sink": 0.0, "sway": 0.6},
-	"hogtgras": {"label": "Högt gräs", "lawn": true, "models": ["Grass_Wispy_Short", "Grass_Wispy_Tall", "Grass_Common_Tall"], "height": [0.35, 0.6], "spacing": 0.35, "layer": "small", "where": "land",
-		"occupied": 0.0, "sink": 0.0, "sway": 1.0},
-	"blommor": {"label": "Blommor", "models": ["Flower_3_Group", "Flower_4_Group", "Flower_3_Single", "Flower_4_Single"], "height": [0.3, 0.55], "spacing": 0.35, "layer": "small", "where": "land",
-		"occupied": 0.0, "sink": 0.0, "sway": 0.9},
-	"klover": {"label": "Klöver", "models": ["Clover_1", "Clover_2"], "height": [0.16, 0.26], "spacing": 0.3, "layer": "small", "where": "land",
-		"occupied": 0.0, "sink": 0.0, "sway": 0.5},
-	"svamp": {"label": "Svamp", "models": ["Mushroom_Common", "Mushroom_Laetiporus"], "height": [0.12, 0.24], "spacing": 0.25, "layer": "small", "where": "land",
-		"mark": [Color(0, 0, 0.5, 0.2), 0.35], "occupied": 0.0, "sink": 0.0, "sway": 0.0},
+	"buske": {"label": "Buske", "builder": "tree", "dials": "bush", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.2, "trunk": 0.12, "bend": 0.45, "branches": 6, "levels": 2, "branch_len": 0.9,
+			"angle": 55.0, "crown": 0.5, "branch_start": 0.0, "leaves": 0.9, "leaf_size": 0.55,
+			"leaf_color": [0.36, 0.56, 0.17], "bark_color": [0.35, 0.26, 0.19], "fruit": 0.0, "fruit_size": 0.45, "fruit_color": [0.75, 0.12, 0.2]},
+		"spacing": 1.1, "layer": "big", "where": "land",
+		"mark": [Color(0, 0, 0.35, 0.15), 0.9], "occupied": 0.55, "sink": 0.05},
+	"blombuske": {"label": "Blombuske", "builder": "tree", "dials": "bush", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.2, "trunk": 0.12, "bend": 0.45, "branches": 6, "levels": 2, "branch_len": 0.9,
+			"angle": 55.0, "crown": 0.5, "branch_start": 0.0, "leaves": 0.85, "leaf_size": 0.5, "blossom": true,
+			"leaf_color": [0.32, 0.52, 0.18], "bark_color": [0.35, 0.26, 0.19], "fruit": 0.8, "fruit_size": 1.0, "fruit_color": [0.72, 0.5, 0.88]},
+		"spacing": 1.1, "layer": "big", "where": "land",
+		"mark": [Color(0, 0, 0.35, 0.15), 0.9], "occupied": 0.55, "sink": 0.05},
+	"ormbunke": {"label": "Ormbunke", "builder": "plant", "gen": "fern", "dials": "fern", "variants": 1000,
+		"style": {"size": 0.6, "variation": 0.25, "fronds": 8, "arch": 0.55, "width": 0.65,
+			"color_a": [0.3, 0.55, 0.16], "color_b": [0.3, 0.55, 0.16], "color_c": [0.3, 0.55, 0.16]},
+		"spacing": 0.6, "layer": "small", "where": "land",
+		"mark": [Color(0, 0, 0.4, 0.1), 0.6], "occupied": 0.25, "sink": 0.0},
+	"hogtgras": {"label": "Högt gräs", "builder": "plant", "gen": "grass", "dials": "grass", "variants": 1000,
+		"style": {"size": 0.7, "variation": 0.25, "blades": 22, "bend": 0.35, "width": 1.0, "spread": 0.5, "heads": 0.3, "lawn": 1.0,
+			"color_a": [0.45, 0.62, 0.2], "color_b": [0.45, 0.62, 0.2], "color_c": [0.78, 0.7, 0.45]},
+		"spacing": 0.35, "layer": "small", "where": "land", "occupied": 0.0, "sink": 0.0},
+	"blommor": {"label": "Blommor", "builder": "plant", "gen": "flower", "dials": "flower", "variants": 1000,
+		"style": {"size": 0.45, "variation": 0.25, "stems": 4, "petals": 6, "bloom": 1.6, "cup": 0.3,
+			"color_a": [0.32, 0.55, 0.18], "color_b": [0.72, 0.5, 0.9], "color_c": [0.98, 0.82, 0.3]},
+		"spacing": 0.35, "layer": "small", "where": "land", "occupied": 0.0, "sink": 0.0},
+	"klover": {"label": "Klöver", "builder": "plant", "gen": "clover", "dials": "clover", "variants": 1000,
+		"style": {"size": 0.8, "variation": 0.2, "count": 18, "heads": 0.25,
+			"color_a": [0.3, 0.55, 0.2], "color_b": [0.95, 0.93, 0.88], "color_c": [0.95, 0.93, 0.88]},
+		"spacing": 0.3, "layer": "small", "where": "land", "occupied": 0.0, "sink": 0.0},
+	"svamp": {"label": "Svamp", "builder": "plant", "gen": "mushroom", "dials": "mushroom", "variants": 1000,
+		"style": {"size": 0.2, "variation": 0.3, "count": 3, "cap_width": 1.0, "cap_shape": 0.4, "spots": 0.55,
+			"color_a": [0.93, 0.88, 0.78], "color_b": [0.78, 0.16, 0.1], "color_c": [0.98, 0.96, 0.9]},
+		"spacing": 0.25, "layer": "small", "where": "land",
+		"mark": [Color(0, 0, 0.5, 0.2), 0.35], "occupied": 0.0, "sink": 0.0},
 	"stenblock": {"label": "Stenblock", "builder": "rock", "variants": 1000, "detail": 4,
 		"style": {"size": 1.4, "variation": 0.3, "angular": 0.5, "flat": 0.25, "long": 0.2, "moss": 0.5, "texture": 0.5, "tint": [0.47, 0.48, 0.5]},
 		"spacing": 1.6, "layer": "big", "where": "land",
@@ -110,14 +131,78 @@ const TREE_DIALS := [
 	["Stambas", "branch_start", 0.05, 0.75, "%", "Hur högt upp de första grenarna sitter"],
 	["Lövmängd", "leaves", 0.0, 1.0, "%", "Hur tät kronan är; noll ger ett kalt träd"],
 	["Lövstorlek", "leaf_size", 0.3, 2.0, "x", "Hur stora lövklungorna är"],
+	["Frukt", "fruit", 0.0, 1.0, "%", "Äpplen, bär eller blom i kronan"],
+	["Fruktstorlek", "fruit_size", 0.3, 2.5, "x", "Hur stora frukterna är"],
+]
+const BUSH_DIALS := [
+	["Höjd", "size", 0.3, 3.0, "m", "Hur hög busken är"],
+	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket buskarna skiljer sig i höjd"],
+	["Krokighet", "bend", 0.0, 1.0, "%", "Raka eller knotiga grenar"],
+	["Grenar", "branches", 2.0, 12.0, "count", "Hur många grenar som växer upp ur roten"],
+	["Förgrening", "levels", 1.0, 3.0, "count", "Hur många led grenarna delar sig i"],
+	["Grenvinkel", "angle", 15.0, 90.0, "deg", "Upprätt eller utbredd"],
+	["Lövmängd", "leaves", 0.0, 1.0, "%", "Hur tät busken är"],
+	["Lövstorlek", "leaf_size", 0.2, 1.5, "x", "Hur stora lövklungorna är"],
+	["Blom/bär", "fruit", 0.0, 1.0, "%", "Blommor eller bär på busken"],
+	["Storlek", "fruit_size", 0.3, 2.5, "x", "Hur stora blommorna eller bären är"],
+]
+const FERN_DIALS := [
+	["Storlek", "size", 0.15, 2.0, "m", "Hur hög ormbunken är"],
+	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket de skiljer sig i storlek"],
+	["Blad", "fronds", 3.0, 16.0, "count", "Hur många blad som växer ur mitten"],
+	["Böjning", "arch", 0.0, 1.0, "%", "Hur mycket bladen böjer sig ner"],
+	["Bredd", "width", 0.15, 1.0, "%", "Hur breda bladen är"],
+]
+const FLOWER_DIALS := [
+	["Höjd", "size", 0.1, 1.2, "m", "Hur höga blommorna är"],
+	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket de skiljer sig i höjd"],
+	["Stjälkar", "stems", 1.0, 9.0, "count", "Hur många blommor i varje tuva"],
+	["Kronblad", "petals", 3.0, 14.0, "count", "Hur många kronblad varje blomma har"],
+	["Blomstorlek", "bloom", 0.4, 2.5, "x", "Hur stora blommorna är"],
+	["Kupning", "cup", 0.0, 1.0, "%", "Platta som en prästkrage, eller kupade som en tulpan"],
+]
+const CLOVER_DIALS := [
+	["Storlek", "size", 0.15, 1.5, "m", "Hur stor varje klövertuva är"],
+	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket tuvorna skiljer sig"],
+	["Täthet", "count", 4.0, 40.0, "count", "Hur många blad i en tuva"],
+	["Blommor", "heads", 0.0, 1.0, "%", "Hur många blomhuvuden"],
+]
+const MUSHROOM_DIALS := [
+	["Höjd", "size", 0.05, 0.8, "m", "Hur höga svamparna är"],
+	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket de skiljer sig i storlek"],
+	["Antal", "count", 1.0, 7.0, "count", "Hur många svampar i varje klunga"],
+	["Hattbredd", "cap_width", 0.4, 2.0, "x", "Hur breda hattarna är"],
+	["Hattform", "cap_shape", 0.0, 1.0, "%", "Platt, välvd eller klockformad hatt"],
+	["Prickar", "spots", 0.0, 1.0, "%", "Vita prickar på hatten, som en flugsvamp"],
+]
+const GRASS_DIALS := [
+	["Höjd", "size", 0.15, 1.5, "m", "Hur högt gräset är"],
+	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket tuvorna skiljer sig i höjd"],
+	["Strån", "blades", 4.0, 50.0, "count", "Hur många strån i varje tuva"],
+	["Böjning", "bend", 0.0, 1.0, "%", "Raka strån, eller böjda som i vind"],
+	["Bredd", "width", 0.3, 3.0, "x", "Hur breda stråna är"],
+	["Spridning", "spread", 0.0, 1.0, "%", "Tät tuva, eller utspridd"],
+	["Vippor", "heads", 0.0, 1.0, "%", "Fröställningar ovanför stråna"],
+	["Gräsfärg", "lawn", 0.0, 1.0, "%", "Hur mycket gräset tar efter gräsmattan; noll ger den egna färgen"],
 ]
 ## The colours a kind's dials can set: label and style key.
-const DIAL_COLORS := {"stone": [["Färg", "tint"]], "tree": [["Löv", "leaf_color"], ["Bark", "bark_color"]]}
-const DIALS := {"stone": STONE_DIALS, "tree": TREE_DIALS}
+const DIAL_COLORS := {
+	"stone": [["Färg", "tint"]],
+	"tree": [["Löv", "leaf_color"], ["Bark", "bark_color"], ["Frukt", "fruit_color"]],
+	"bush": [["Löv", "leaf_color"], ["Blom/bär", "fruit_color"]],
+	"fern": [["Färg", "color_a"]],
+	"flower": [["Blad", "color_a"], ["Kronblad", "color_b"], ["Mitt", "color_c"]],
+	"clover": [["Blad", "color_a"], ["Blomma", "color_b"]],
+	"mushroom": [["Hatt", "color_b"], ["Fot", "color_a"], ["Prickar", "color_c"]],
+	"grass": [["Strå", "color_a"], ["Vippa", "color_c"]],
+}
+const DIALS := {"stone": STONE_DIALS, "tree": TREE_DIALS, "bush": BUSH_DIALS, "fern": FERN_DIALS,
+	"flower": FLOWER_DIALS, "clover": CLOVER_DIALS, "mushroom": MUSHROOM_DIALS, "grass": GRASS_DIALS}
 
 
 const TREES := ["lovtrad", "gran", "krokigt", "torrtrad", "sagotrad"]
 static var _rock_mat: ShaderMaterial
+static var _plant_mat: ShaderMaterial
 
 
 static var _models := {}      # model name -> {mesh, height}
@@ -157,6 +242,29 @@ static func build(rec: Dictionary) -> Node3D:
 			mi.set_instance_shader_parameter("stone", Vector3(t[0], t[1], t[2]) * (0.9 + 0.2 * hue))
 			mi.set_instance_shader_parameter("moss_amount", st.moss)
 			mi.set_instance_shader_parameter("texture_amount", st.texture)
+			mi.set_meta("tall", mi.mesh.get_aabb().size.y * size)
+			mi.rotation.y = rec.rot
+			mi.set_meta("shaded", mi)
+			return mi
+		"plant":
+			var st := RockBuilder.style_of(k.style, rec.get("style"))
+			var mi := MeshInstance3D.new()
+			mi.mesh = PlantGen.mesh(k.gen, st, int(rec.variant))
+			mi.scale = Vector3.ONE * size
+			if _plant_mat == null:
+				_plant_mat = ShaderMaterial.new()
+				_plant_mat.shader = load("res://shaders/plant.gdshader")
+			mi.material_override = _plant_mat
+			# thin double-sided petals and caps shadow themselves in speckles; only
+			# the taller leafy kinds cast shadows
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if k.gen in ["fern", "grass"] and size > 0.3 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			for key in ["color_a", "color_b", "color_c"]:
+				var col: Array = st[key]
+				mi.set_instance_shader_parameter(key, Vector3(col[0], col[1], col[2]))
+			mi.set_instance_shader_parameter("spots", float(st.get("spots", 0.0)))
+			mi.set_instance_shader_parameter("lawn", float(st.get("lawn", 0.0)))
+			var hue: float = rec.hue
+			mi.set_instance_shader_parameter("tint", Vector3(1.0 + (hue - 0.5) * 0.12, 1.0 + (hue - 0.5) * 0.06, 1.0 - (hue - 0.5) * 0.1))
 			mi.set_meta("tall", mi.mesh.get_aabb().size.y * size)
 			mi.rotation.y = rec.rot
 			mi.set_meta("shaded", mi)

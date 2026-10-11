@@ -59,18 +59,21 @@ static func build(style: Dictionary, height: float, seed: int) -> Node3D:
 		leaves.set_instance_shader_parameter("leaf_color", Vector3(c[0], c[1], c[2]))
 		leaves.set_instance_shader_parameter("needles", 1.0 if g.needles else 0.0)
 		root.add_child(leaves)
-		# a dark heart in each leaf cloud, so the gaps between cards show
-		# shade instead of sky (a spruce's tiers are open enough without)
-	if float(style.leaves) > 0.01 and not (g.clusters as Array).is_empty() and not g.needles:
-		var c: Array = style.leaf_color
-		var core := MeshInstance3D.new()
-		core.mesh = _cores(g)
-		var cm := StandardMaterial3D.new()
-		cm.albedo_color = Color(c[0] * 0.42, c[1] * 0.46, c[2] * 0.42)
-		cm.roughness = 1.0
-		core.material_override = cm
-		core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		root.add_child(core)
+	# fruit, berries or blossom on the crown's skin
+	var fruit := float(style.get("fruit", 0.0))
+	if fruit > 0.01 and not g.needles and not (g.clusters as Array).is_empty():
+		var fm := MeshInstance3D.new()
+		fm.mesh = _fruit_mesh(g, fruit, float(style.get("fruit_size", 1.0)), bool(style.get("blossom", false)))
+		var mat := StandardMaterial3D.new()
+		var fc: Array = style.get("fruit_color", [0.8, 0.12, 0.1])
+		mat.albedo_color = Color(fc[0], fc[1], fc[2])
+		mat.roughness = 0.5 if not style.get("blossom", false) else 0.85
+		if style.get("blossom", false):
+			mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+			mat.backlight_enabled = true
+			mat.backlight = Color(fc[0], fc[1], fc[2]) * 0.5
+		fm.material_override = mat
+		root.add_child(fm)
 	return root
 
 
@@ -274,24 +277,53 @@ static func _leaf_mesh(g: Dictionary) -> ArrayMesh:
 	return mesh
 
 
-## Low, dark balls inside the leaf clouds, all in one mesh.
-static func _cores(g: Dictionary) -> ArrayMesh:
+## Fruit or blossom: small balls (or flat five-petalled flowers) set into
+## the outer skin of the leaf clouds, more on the sunny outside.
+static func _fruit_mesh(g: Dictionary, amount: float, size: float, blossom: bool) -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(g.rng.seed) + 77
 	var ico: Array = RockBuilder._icosphere(1)
 	var unit: PackedVector3Array = ico[0]
 	var tri: PackedInt32Array = ico[1]
 	var verts := PackedVector3Array()
 	var nrm := PackedVector3Array()
 	var idx := PackedInt32Array()
+	var centre := Vector3.ZERO
+	for cl in g.clusters:
+		centre += cl[0]
+	centre /= g.clusters.size()
 	for cl in g.clusters:
 		var c: Vector3 = cl[0]
-		var r: float = float(cl[1]) * 0.3
-		var flat: float = cl[3]
-		var base := verts.size()
-		for v in unit:
-			verts.append(c + Vector3(v.x, v.y * 0.85 * minf(flat, 1.0), v.z) * r)
-			nrm.append(v)
-		for i in tri:
-			idx.append(base + i)
+		var r: float = cl[1]
+		var count := int(amount * (2.0 + r * 5.0) * (3.0 if blossom else 1.0) + rng.randf())
+		for n in count:
+			var dir := Vector3(rng.randfn(), rng.randfn() * 0.7 - 0.2, rng.randfn()).normalized()
+			# prefer the side facing out of the crown
+			if dir.dot((c - centre).normalized()) < -0.3:
+				dir = -dir
+			var at := c + dir * r * rng.randf_range(0.82, 1.0)
+			var fr := (0.06 if blossom else 0.11) * size * rng.randf_range(0.8, 1.2)
+			var base := verts.size()
+			if blossom:
+				# a flat flower facing out: five petals round a disc
+				var b := Basis.looking_at(-dir, Vector3.UP if absf(dir.y) < 0.9 else Vector3.RIGHT)
+				verts.append(at)
+				nrm.append(dir)
+				for p in 10:
+					var a := TAU * p / 10.0
+					var rr := fr * (1.0 if p % 2 == 0 else 0.45)
+					verts.append(at + b * (Vector3(cos(a), sin(a), 0.0) * rr))
+					nrm.append(dir)
+				for p in 10:
+					idx.append_array([base, base + 1 + p, base + 1 + (p + 1) % 10])
+			else:
+				for v in unit:
+					verts.append(at + Vector3(v.x, v.y * 0.9, v.z) * fr)
+					nrm.append(v)
+				for i in tri:
+					idx.append(base + i)
 	var mesh := ArrayMesh.new()
+	if idx.is_empty():
+		return mesh
 	MeshUtil.add_surface(mesh, verts, nrm, PackedVector2Array(), PackedColorArray(), idx)
 	return mesh

@@ -271,8 +271,10 @@ func _kind_box(kind: String) -> Control:
 		(sl.get_parent() as Control).tooltip_text = spec[5] + ". Ändrar också det senast målade"
 		box.add_child(sl.get_parent())
 		dials.append([sl, key])
-	var line := HBoxContainer.new()
-	line.add_theme_constant_override("separation", 8)
+	# colours wrap onto a second line rather than widen the panel
+	var line := HFlowContainer.new()
+	line.add_theme_constant_override("h_separation", 8)
+	line.add_theme_constant_override("v_separation", 6)
 	var picks := []
 	for pair in Catalog.DIAL_COLORS[set_name]:
 		var l := Label.new()

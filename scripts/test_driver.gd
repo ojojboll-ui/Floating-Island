@@ -638,9 +638,44 @@ static func run(main: Node, name: String) -> void:
 			var box: Control = main.ui._kind_dials["lovtrad"]
 			print("  tree dials shown: ", box.visible, ", ", box.find_children("*", "HSlider", true, false).size(), " sliders")
 			var t0 := Time.get_ticks_usec()
-			for kv in [["size", 8.0], ["crown", 1.0], ["angle", 70.0], ["branch_len", 0.8], ["leaf_color", [0.9, 0.55, 0.75]], ["leaves", 0.9]]:
+			for kv in [["size", 8.0], ["crown", 1.0], ["angle", 70.0], ["branch_len", 0.8], ["leaf_color", [0.42, 0.62, 0.2]], ["leaves", 0.9], ["fruit", 0.8]]:
 				main.props.set_style("lovtrad", kv[0], kv[1])
 			print("  restyled six times in %.0f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
+		"plant_gallery":
+			# every small kind in a row, a few of each
+			main.props.remove_near(-2.4, -1.8, 1.0)
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 5
+			var t0 := Time.get_ticks_msec()
+			var kinds := ["buske", "blombuske", "ormbunke", "hogtgras", "blommor", "klover", "svamp"]
+			for k in kinds.size():
+				var x := -4.2 + k * 1.4
+				for n in 3:
+					main.props.add(kinds[k], x + rng.randf_range(-0.3, 0.3), 0.4 + n * 0.55, rng)
+			print("  21 plants built in ", Time.get_ticks_msec() - t0, " ms")
+			await _frames(main, 5)
+		"plant_dials":
+			# paint each small kind through the panel, then turn its dials
+			main.props.remove_near(-2.4, -1.8, 1.0)
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			var plan := [
+				["Blommor", 0.0, 1.0, [["petals", 12.0], ["cup", 0.0], ["bloom", 2.2], ["color_b", [0.98, 0.95, 0.9]]]],
+				["Svamp", 1.4, 1.0, [["count", 6.0], ["cap_shape", 0.9], ["color_b", [0.6, 0.38, 0.22]], ["spots", 0.0]]],
+				["Ormbunke", -1.4, 1.0, [["fronds", 14.0], ["arch", 0.9]]],
+				["Högt gräs", 0.0, 2.2, [["lawn", 0.0], ["color_a", [0.75, 0.62, 0.35]], ["heads", 1.0], ["blades", 40.0]]],
+			]
+			var t0 := Time.get_ticks_usec()
+			for p in plan:
+				await _click(main, main.ui.buttons[p[0]])
+				await _tap(main, on.call(p[1], p[2]))
+				for kv in p[3]:
+					main.props.set_style(main.brush.place_kind, kv[0], kv[1])
+			print("  painted and restyled four kinds in %.0f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
 			main.ui.set_collapsed(true)
 			await _frames(main, 30)
 		"hover":
