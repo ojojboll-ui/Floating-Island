@@ -153,7 +153,7 @@ func _begin_stroke(screen: Vector2) -> void:
 	var p: Vector3 = hit.pos
 	props.begin_stroke()
 	if tool == Tool.PLACE and not Input.is_key_pressed(KEY_SHIFT):
-		if props.can_place(place_kind, p.x, p.z):
+		if props.can_place(place_kind, p.x, p.z, 1.0, true):
 			props.add(place_kind, p.x, p.z, _rng)
 	# ruins: a pillar goes down at once; walls, arches and stairs are drawn.
 	# Started on a storey, they stand on that storey.

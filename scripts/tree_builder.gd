@@ -16,6 +16,13 @@ extends RefCounted
 ## normals pointing out from the cloud and the crown, which is what makes a
 ## crown light like one soft shape (the Quaternius look). A spruce gets
 ## flat, drooping tiers of needles along its branches instead.
+##
+## A tree knows what stands round it (env): `top` gives the height of a
+## stone, wall or pillar under a point, and the trunk and every branch steer
+## round them as they grow, so a tree beside a boulder bends away from it
+## instead of growing through it. Trees of one kind planted on top of each
+## other grow from a shared foot and lean apart (`lean`, `base`), so their
+## crowns run together into one.
 
 const MeshUtil := preload("res://scripts/mesh_util.gd")
 const RockBuilder := preload("res://scripts/rock_builder.gd")
@@ -26,15 +33,19 @@ static var _bark_normal: ImageTexture
 
 
 ## The tree for a style, `height` metres tall, its foot at the origin.
-static func build(style: Dictionary, height: float, seed: int) -> Node3D:
+static func build(style: Dictionary, height: float, seed: int, env := {}) -> Node3D:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed * 7349 + 3
 	var g := {"rng": rng, "st": style, "needles": bool(style.get("needles", false)),
 		"bark": {"v": PackedVector3Array(), "n": PackedVector3Array(), "uv": PackedVector2Array(), "i": PackedInt32Array()},
-		"clusters": [], "height": height}
+		"clusters": [], "height": height, "top": env.get("top", Callable())}
 	var trunk_len := height * (0.92 if g.needles else 0.6)
 	var lean := Vector3(rng.randfn(), 0.0, rng.randfn()) * 0.08 * (1.0 - float(style.crown) * 0.5)
-	_branch(g, 0, Vector3(0.0, -0.3, 0.0), (Vector3.UP + lean).normalized(), trunk_len + 0.3, float(style.trunk) * height / 6.0)
+	# a merged neighbour of the same kind: lean away from it
+	lean += (env.get("lean", Vector3.ZERO) as Vector3) * 0.75
+	var foot: Vector3 = Vector3(0.0, -0.3, 0.0) + (env.get("base", Vector3.ZERO) as Vector3)
+	_branch(g, 0, foot, (Vector3.UP + lean).normalized(), trunk_len + 0.3, float(style.trunk) * height / 6.0)
+	_lift_clusters(g)
 	if g.needles and float(style.leaves) > 0.01:
 		# the spire: a last tuft at the very top
 		g.clusters.append([Vector3(0.0, trunk_len + 0.1, 0.0), float(style.leaf_size) * 0.4, Vector3.UP, 1.6])
@@ -124,9 +135,19 @@ static func _branch(g: Dictionary, level: int, start: Vector3, dir: Vector3, len
 		else:
 			# branches reach up toward the light as they grow
 			d = (d + wander + Vector3.UP * (0.09 - bend * 0.05)).normalized()
+		var r_here := radius * lerpf(1.0, tip_ratio, float(s + 1) / segs)
+		if (g.top as Callable).is_valid():
+			# steer round stones and walls: away from any that stand beside the
+			# next step, up and out of any it would grow into
+			var push := _avoid(g.top, p + d * length / segs, r_here + 0.2)
+			if push != Vector3.ZERO:
+				d = (d + push * (0.7 if level == 0 else 1.0)).normalized()
+			elif level == 0:
+				# clear of it: the trunk straightens up again, as a tree does
+				d = (d + Vector3.UP * 0.45).normalized()
 		p += d * length / segs
 		pts.append(p)
-		radii.append(radius * lerpf(1.0, tip_ratio, float(s + 1) / segs))
+		radii.append(r_here)
 	_tube(g.bark, pts, radii, level == 0)
 
 	var leafy := float(st.leaves) > 0.01
@@ -170,6 +191,37 @@ static func _branch(g: Dictionary, level: int, start: Vector3, dir: Vector3, len
 	if leafy and not g.needles and level == levels - 1 and float(st.leaves) > 0.55:
 		# fuller crowns: leaves on the branch itself as well as its twigs
 		g.clusters.append([_along(pts, 0.8), float(st.leaf_size) * 0.6, d, 0.8])
+
+
+## Which way to turn at q to keep clear of whatever stands round it: away
+## from probes, `reach` and twice that out, that meet something taller than
+## q; and upward if q itself is inside something.
+static func _avoid(top: Callable, q: Vector3, reach: float) -> Vector3:
+	var push := Vector3.ZERO
+	for k in 8:
+		var a := TAU * k / 8.0
+		var dir := Vector3(cos(a), 0.0, sin(a))
+		for ring in [1.0, 2.0]:
+			var p: Vector3 = q + dir * reach * float(ring)
+			var h: float = top.call(p)
+			if h > q.y - 0.1:
+				push -= dir * (1.0 / float(ring))
+	var here: float = top.call(q)
+	if here > q.y - 0.05:
+		push += Vector3.UP * 1.5
+	return push.limit_length(2.0) * 0.6
+
+
+## Leaf clouds that ended up in a stone or a wall rise out of it.
+static func _lift_clusters(g: Dictionary) -> void:
+	if not (g.top as Callable).is_valid():
+		return
+	for cl in g.clusters:
+		var c: Vector3 = cl[0]
+		var r: float = cl[1]
+		var h: float = (g.top as Callable).call(c)
+		if h > c.y - r * 0.6:
+			cl[0] = Vector3(c.x, h + r * 0.6, c.z)
 
 
 static func _along(pts: Array[Vector3], t: float) -> Vector3:

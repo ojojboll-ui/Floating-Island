@@ -76,6 +76,7 @@ func _ready() -> void:
 	roots.setup(data, ruins)
 	roots.view = view
 	roots.props = props
+	props.roots = roots
 
 	fish = FishSchool.new()
 	add_child(fish)

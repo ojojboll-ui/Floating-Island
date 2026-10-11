@@ -24,10 +24,17 @@ var styles := {}
 ## The things placed by the last stroke, which the dials restyle too.
 var last_stroke: Array = []
 const STONES := ["stenblock", "smasten", "trampsten"]
+## Kinds grown by the tree builder: they bend round stones and walls, and
+## two of one kind planted on top of each other grow into one.
+const WOODY := ["lovtrad", "gran", "krokigt", "torrtrad", "sagotrad", "buske", "blombuske"]
+var roots   # the root layer, whose height raster of stones and ruins trees grow round
+var _woody_rev := 0
+var _env_seen := ""
 
 
 func setup(island_data) -> void:
 	data = island_data
+	Catalog.context = self
 
 
 ## Size range midpoint, so marks scale with how big this one turned out.
@@ -41,7 +48,8 @@ static func _ratio(rec: Dictionary) -> float:
 
 ## spread scales how far apart things of one layer must stand: 1 is the
 ## kind's own spacing, more is sparser.
-func can_place(kind: String, x: float, z: float, spread := 1.0) -> bool:
+## merge: a single click, which may plant a tree on top of one of its kind.
+func can_place(kind: String, x: float, z: float, spread := 1.0, merge := false) -> bool:
 	var k: Dictionary = Catalog.KINDS[kind]
 	if not data.in_bounds(x, z):
 		return false
@@ -68,7 +76,16 @@ func can_place(kind: String, x: float, z: float, spread := 1.0) -> bool:
 		var other: Dictionary = Catalog.KINDS[r.kind]
 		var dist := here.distance_to(Vector2(r.x, r.z))
 		if other.layer == k.layer:
-			if dist < (float(k.spacing) + float(other.spacing)) * 0.5 * spread:
+			var need := (float(k.spacing) + float(other.spacing)) * 0.5 * spread
+			if merge and r.kind == kind and kind in WOODY:
+				# on top of one of its own kind: the two grow into one
+				need = 0.3
+			elif kind in WOODY and r.kind in STONES:
+				# right beside a boulder: the tree will bend round it
+				need = float(r.size) * 0.5 + 0.2
+			elif kind in STONES and r.kind in WOODY:
+				need = float(style_for(kind).size) * 0.5 + 0.2
+			if dist < need:
 				return false
 		elif other.layer == "big" and k.layer == "small":
 			# small things may nestle against a boulder, right up to its side
@@ -104,12 +121,85 @@ func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -
 	last_stroke.append(rec.id)
 	if kind in Catalog.TREES:
 		_shade_changed(Vector2(x, z))
+	if kind in WOODY:
+		_woody_rev += 1
 	_mark(rec)
 	_spawn(rec)
 	return rec
 
 
 ## Remove things of `kind` (or of any kind, if empty) within `radius`.
+func ground_at(x: float, z: float) -> float:
+	return data.sample_height(x, z)
+
+
+## The top of a stone, wall or pillar at (x, z), or -INF.
+func obstacle_top(x: float, z: float) -> float:
+	if roots == null:
+		return -INF
+	roots.ensure_raster()
+	return roots.ruin_top(x, z)
+
+
+## For a woody plant: [which way to lean, where its foot moves], in world
+## space, from the others of its kind standing close enough to merge with.
+func merge_with(rec: Dictionary) -> Array:
+	var lean := Vector3.ZERO
+	var base := Vector3.ZERO
+	var reach := float(Catalog.KINDS[rec.kind].spacing) * 0.9
+	var nearest := INF
+	for r in records:
+		if r.id == rec.id or r.kind != rec.kind:
+			continue
+		var off := Vector3(float(rec.x) - float(r.x), 0.0, float(rec.z) - float(r.z))
+		var d := off.length()
+		if d >= reach:
+			continue
+		if d < 0.001:
+			off = Vector3(1.0, 0.0, 0.0)
+			d = 0.001
+		lean += off / d * (1.0 - d / reach)
+		if d < nearest and d < 1.0:
+			nearest = d
+			# very close: the two feet meet, a forked trunk
+			base = -off / d * (1.0 - d) * 0.45
+	return [lean.limit_length(1.0), base]
+
+
+## What a woody plant's shape depends on round it: the stones and walls
+## within reach, and its own kind standing close.
+func _env_key(rec: Dictionary) -> String:
+	var key := ""
+	for j in range(-3, 4):
+		for i in range(-3, 4):
+			var h := obstacle_top(float(rec.x) + i * 0.8, float(rec.z) + j * 0.8)
+			key += "%.1f," % h if h > -1e9 else "-,"
+	var m := merge_with(rec)
+	return key + str((m[0] as Vector3).snapped(Vector3.ONE * 0.05)) + str((m[1] as Vector3).snapped(Vector3.ONE * 0.05))
+
+
+## Something changed round the woody plants: rebuild those it touches.
+func _process(_delta: float) -> void:
+	if roots == null:
+		return
+	roots.ensure_raster()
+	var seen := "%d/%d/%d" % [roots._raster_rev, roots._stones_rev, _woody_rev]
+	if seen == _env_seen:
+		return
+	_env_seen = seen
+	for rec in records:
+		if rec.kind in WOODY and _nodes.has(rec.id) and _env_key(rec) != rec.get("_env", ""):
+			_respawn(rec)
+
+
+func _respawn(rec: Dictionary) -> void:
+	var node: Node = _nodes.get(rec.id)
+	if node:
+		node.queue_free()
+	_nodes.erase(rec.id)
+	_spawn(rec)
+
+
 ## The style a generated kind is drawn with now.
 func style_for(kind: String) -> Dictionary:
 	if not styles.has(kind):
@@ -190,6 +280,8 @@ func remove_near(x: float, z: float, radius: float, kind := "") -> int:
 		if r.kind in STONES:
 			revision += 1
 		trees_gone = trees_gone or r.kind in Catalog.TREES
+		if r.kind in WOODY:
+			_woody_rev += 1
 		records.erase(r)
 		var node: Node = _nodes.get(r.id)
 		if node:
@@ -237,6 +329,7 @@ func snapshot() -> Array:
 
 func restore(state: Array) -> void:
 	revision += 1
+	_woody_rev += 1
 	for node in _nodes.values():
 		node.queue_free()
 	_nodes.clear()
@@ -253,6 +346,8 @@ func follow_ground() -> void:
 
 
 func _spawn(rec: Dictionary) -> void:
+	if rec.kind in WOODY:
+		rec["_env"] = _env_key(rec)
 	if rec.kind in STONES:
 		revision += 1
 	var node := Catalog.build(rec)

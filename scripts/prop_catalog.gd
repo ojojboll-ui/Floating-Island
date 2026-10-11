@@ -94,8 +94,7 @@ const KINDS := {
 		"mark": [Color(0, 0, 0.5, 0.2), 0.35], "occupied": 0.0, "sink": 0.0},
 	"stenblock": {"label": "Stenblock", "builder": "rock", "variants": 1000, "detail": 4,
 		"style": {"size": 1.4, "variation": 0.3, "angular": 0.5, "flat": 0.25, "long": 0.2, "moss": 0.5, "texture": 0.5, "tint": [0.47, 0.48, 0.5]},
-		"spacing": 1.6, "layer": "big", "where": "land",
-		"mark": [Color(0.08, 0, 0.6, 0.2), 1.7], "occupied": 0.9, "sink": 0.15, "sway": 0.0},
+		"spacing": 1.6, "layer": "big", "where": "land", "occupied": 0.75, "sink": 0.15, "sway": 0.0},
 	"smasten": {"label": "Småsten", "builder": "rock", "variants": 10, "detail": 2,
 		"style": {"size": 0.16, "variation": 0.45, "angular": 0.35, "flat": 0.45, "long": 0.3, "moss": 0.25, "texture": 0.3, "tint": [0.52, 0.51, 0.5]},
 		"spacing": 0.3, "layer": "small", "where": "land", "occupied": 0.1, "sink": 0.3, "sway": 0.0},
@@ -203,6 +202,8 @@ const DIALS := {"stone": STONE_DIALS, "tree": TREE_DIALS, "bush": BUSH_DIALS, "f
 const TREES := ["lovtrad", "gran", "krokigt", "torrtrad", "sagotrad"]
 static var _rock_mat: ShaderMaterial
 static var _plant_mat: ShaderMaterial
+## The prop layer, which knows what stands round a tree (see TreeBuilder env).
+static var context: Object
 
 
 static var _models := {}      # model name -> {mesh, height}
@@ -275,7 +276,7 @@ static func build(rec: Dictionary) -> Node3D:
 			var hue: float = rec.hue
 			# each tree a touch lighter or darker than its neighbours
 			st.leaf_color = [lc[0] * (0.92 + 0.16 * hue), lc[1] * (0.94 + 0.12 * hue), lc[2]]
-			node = TreeBuilder.build(st, size, int(rec.variant))
+			node = TreeBuilder.build(st, size, int(rec.variant), _env(rec))
 			node.set_meta("tall", size)
 			node.rotation.y = rec.rot
 			node.set_meta("shaded", node.get_child(0))
@@ -310,6 +311,25 @@ static func build(rec: Dictionary) -> Node3D:
 	shaded.set_instance_shader_parameter("tint", Vector3(1.0 + (hue - 0.5) * 0.18, 1.0 + (hue - 0.5) * 0.05, 1.0 - (hue - 0.5) * 0.15))
 	shaded.set_instance_shader_parameter("height", model_height)
 	return node
+
+
+## What a tree needs to know about where it stands, in its own frame.
+static func _env(rec: Dictionary) -> Dictionary:
+	if context == null:
+		return {}
+	var ctx = context
+	var base_y: float = ctx.ground_at(rec.x, rec.z)
+	var rot := Basis(Vector3.UP, float(rec.rot))
+	var inv := rot.inverse()
+	var origin := Vector3(rec.x, base_y, rec.z)
+	var merge: Array = ctx.merge_with(rec)
+	return {
+		"top": func(q: Vector3) -> float:
+			var w := origin + rot * q
+			return float(ctx.obstacle_top(w.x, w.z)) - base_y,
+		"lean": inv * (merge[0] as Vector3),
+		"base": inv * (merge[1] as Vector3),
+	}
 
 
 ## Load a kit model once, with its materials swapped for ours.

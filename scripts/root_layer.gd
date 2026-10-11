@@ -41,6 +41,7 @@ var _grown := {}
 var _waiting: Array = []    # the next preview to grow, once the worker is free
 var _raster := PackedFloat32Array()   # top of the ruins per cell, -INF where none
 var _raster_rev := -1
+var _raster_dirty := false
 var _stones_rev := -1
 var _lying := {}            # seed -> where its roots lie on the ground: x, z, radius in turn
 
@@ -99,10 +100,18 @@ func ruin_top(x: float, z: float) -> float:
 	return _raster[j * RASTER_N + i]
 
 
+## The raster as the ruins and stones stand now (not while roots grow on a
+## worker that reads it).
+func ensure_raster() -> void:
+	if ruins and _task < 0 and (ruins.revision != _raster_rev or (props and props.revision != _stones_rev)):
+		_take_raster()
+
+
 ## Take the ruins' tops from their meshes: every triangle that faces up
 ## raises the cells whose centres it covers to its own height there. Side
 ## faces are left out, or a wall would seem as wide as its stones lean.
 func _take_raster() -> void:
+	_raster_dirty = true
 	_raster_rev = ruins.revision
 	_stones_rev = props.revision if props else -1
 	var r := PackedFloat32Array()
@@ -226,8 +235,9 @@ func _start_preview() -> void:
 
 func _process(_delta: float) -> void:
 	# the ruins changed: take their tops again and regrow the roots on them
-	if ruins and (ruins.revision != _raster_rev or (props and props.revision != _stones_rev)) and _task < 0:
-		_take_raster()
+	ensure_raster()
+	if _raster_dirty and _task < 0:
+		_raster_dirty = false
 		_refresh()
 	if _task >= 0 and WorkerThreadPool.is_task_completed(_task):
 		WorkerThreadPool.wait_for_task_completion(_task)

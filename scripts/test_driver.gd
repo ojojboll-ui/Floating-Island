@@ -678,6 +678,50 @@ static func run(main: Node, name: String) -> void:
 			print("  painted and restyled four kinds in %.0f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
 			main.ui.set_collapsed(true)
 			await _frames(main, 30)
+		"together":
+			# a broadleaf beside a boulder, two of a kind planted on each other, a
+			# spruce beside a wall
+			main.props.remove_near(-2.4, -1.8, 1.0)
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			main.ui.tabs.current_tab = 2
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Mur"])
+			await _drag(main, [on.call(2.4, -2.6), on.call(4.6, -1.6)], 30)
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Stenblock"])
+			main.props.set_style("stenblock", "size", 1.8)
+			await _tap(main, on.call(-3.0, 0.6))
+			print("  stones: ", main.props.records.filter(func(r): return r.kind == "stenblock").map(func(r): return "(%.1f,%.1f) %.2f" % [r.x, r.z, r.size]))
+			print("  can place by stone: ", main.props.can_place("lovtrad", -1.9, 0.4, 1.0, true), " by wall: ", main.props.can_place("gran", 3.1, -1.0, 1.0, true), " occ ", d.sample_occupied(-1.9, 0.4), " sdf ", d.sample_sdf(-1.9, 0.4))
+			await _click(main, main.ui.buttons["Lövträd"])
+			await _tap(main, on.call(-1.6, 0.5))
+			var placed := []
+			await _tap(main, on.call(0.2, -1.6))
+			await _tap(main, on.call(0.9, -1.4))
+			await _click(main, main.ui.buttons["Gran"])
+			await _tap(main, on.call(3.5, -0.9))
+			print("  trees: ", main.props.records.filter(func(r): return r.kind in main.props.WOODY).map(func(r): return "%s(%.1f,%.1f)" % [r.kind, r.x, r.z]))
+			await _frames(main, 10)
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
+		"stone_after":
+			# a tree first, then a big boulder right beside it: the tree regrows round it
+			main.props.remove_near(-2.4, -1.8, 1.0)
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 3
+			var tree: Dictionary = main.props.add("lovtrad", 0.0, -1.0, rng, 5.5, 4)
+			await _frames(main, 5)
+			var before: Node = main.props._nodes[tree.id]
+			var trunk_before: AABB = (before.get_child(0) as MeshInstance3D).mesh.get_aabb()
+			main.props.style_for("stenblock").size = 2.0
+			main.props.add("stenblock", 1.25, -1.0, rng, 2.0)
+			await _frames(main, 5)
+			var after: Node = main.props._nodes[tree.id]
+			var trunk_after: AABB = (after.get_child(0) as MeshInstance3D).mesh.get_aabb()
+			print("  tree rebuilt: ", before != after, ", trunk centre x %.2f -> %.2f" % [trunk_before.get_center().x, trunk_after.get_center().x])
+			await _frames(main, 10)
 		"hover":
 			await _click(main, main.ui.buttons["Mossa"])
 			_mouse_move(main.rig.camera.unproject_position(Vector3(1.5, 0.6, 1.5)))
