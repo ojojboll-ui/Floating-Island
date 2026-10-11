@@ -46,11 +46,12 @@ static func build(style: Dictionary, height: float, seed: int, env := {}) -> Nod
 	var trunk_len := height * (0.92 if g.needles else 0.6)
 	var lean := Vector3(rng.randfn(), 0.0, rng.randfn()) * 0.08 * (1.0 - float(style.crown) * 0.5)
 	# a merged neighbour of the same kind: lean away from it
-	lean += (env.get("lean", Vector3.ZERO) as Vector3) * 0.75
+	lean += (env.get("lean", Vector3.ZERO) as Vector3) * 0.45
 	var foot: Vector3 = Vector3(0.0, -0.3, 0.0) + (env.get("base", Vector3.ZERO) as Vector3)
 	if style.get("conifer", false):
 		return _conifer(g, foot, (Vector3.UP + lean).normalized(), height)
 	_branch(g, 0, foot, (Vector3.UP + lean).normalized(), trunk_len + 0.3, float(style.trunk) * height / 6.0)
+	_fill_crown(g, env.get("lean", Vector3.ZERO))
 	_lift_clusters(g)
 	if g.needles and float(style.leaves) > 0.01:
 		# the spire: a last tuft at the very top
@@ -331,6 +332,61 @@ static func _avoid(top: Callable, q: Vector3, reach: float) -> Vector3:
 	return push.limit_length(2.0) * 0.6
 
 
+## Close the gaps in a broadleaf crown: a cloud between every two that are
+## near but not touching, so the crown reads as one mass. A tree merged with
+## another of its kind (leaning away from it, `lean`) also reaches its crown
+## back toward the other, so the two meet.
+static func _fill_crown(g: Dictionary, lean: Vector3) -> void:
+	if g.needles or (g.clusters as Array).is_empty():
+		return
+	var cl: Array = g.clusters
+	var add: Array = []
+	for i in cl.size():
+		for j in range(i + 1, cl.size()):
+			var a: Vector3 = cl[i][0]
+			var b: Vector3 = cl[j][0]
+			var ra: float = cl[i][1]
+			var rb: float = cl[j][1]
+			var d := a.distance_to(b)
+			if d > (ra + rb) * 0.7 and d < (ra + rb) * 1.8:
+				add.append([(a + b) * 0.5, (ra + rb) * 0.42, (a - b).normalized(), 1.0])
+	# no more than doubling the crown
+	add.shuffle()
+	add.resize(mini(add.size(), cl.size()))
+	cl.append_array(add)
+	# the heart of the crown: a cloud at its middle, and one above, so it is
+	# never a ring of clouds round a hole
+	var mid := Vector3.ZERO
+	var mean_r := 0.0
+	var top_y := -INF
+	for c in cl:
+		mid += c[0]
+		mean_r += float(c[1])
+		top_y = maxf(top_y, (c[0] as Vector3).y)
+	mid /= cl.size()
+	mean_r /= cl.size()
+	var spread := 0.0
+	for c in cl:
+		spread = maxf(spread, Vector2((c[0] as Vector3).x - mid.x, (c[0] as Vector3).z - mid.z).length())
+	var fill_r := clampf(spread * 0.75, mean_r, mean_r * 2.2)
+	cl.append([mid + Vector3.UP * mean_r * 0.3, fill_r, Vector3.UP, 0.9])
+	cl.append([Vector3(mid.x, lerpf(mid.y, top_y, 0.75), mid.z), fill_r * 0.8, Vector3.UP, 0.9])
+	cl.append([mid + Vector3.DOWN * mean_r * 0.7, fill_r * 0.75, Vector3.UP, 0.9])
+	if lean.length() > 0.05:
+		var centre := Vector3.ZERO
+		var r := 0.0
+		for c in cl:
+			centre += c[0]
+			r += float(c[1])
+		centre /= cl.size()
+		r /= cl.size()
+		var toward := -Vector3(lean.x, 0.0, lean.z).normalized()
+		var reach := lean.length()
+		for k in 3:
+			var at := centre + toward * r * (0.8 + 0.7 * k) * reach + Vector3.UP * r * (0.3 - 0.2 * k)
+			cl.append([at, r * 1.1, toward, 1.0])
+
+
 ## Leaf clouds that ended up in a stone or a wall rise out of it.
 static func _lift_clusters(g: Dictionary) -> void:
 	if not (g.top as Callable).is_valid():
@@ -466,7 +522,7 @@ static func _fruit_mesh(g: Dictionary, amount: float, size: float, blossom: bool
 	for cl in g.clusters:
 		var c: Vector3 = cl[0]
 		var r: float = cl[1]
-		var count := int(amount * (2.0 + r * 5.0) * (3.0 if blossom else 1.0) + rng.randf())
+		var count := int(amount * (0.5 + r * 1.6) * (5.0 if blossom else 1.0) + rng.randf())
 		for n in count:
 			var dir := Vector3(rng.randfn(), rng.randfn() * 0.7 - 0.2, rng.randfn()).normalized()
 			# prefer the side facing out of the crown

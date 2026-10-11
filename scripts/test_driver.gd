@@ -757,6 +757,68 @@ static func run(main: Node, name: String) -> void:
 			print("  ghost shown: ", main.brush._ghost != null and main.brush._ghost.visible)
 			main.ui.set_collapsed(true)
 			await _frames(main, 30)
+		"showcase":
+			# everything new on one island: ruins, a pond, generated trees and
+			# plants, stacked stones and roots
+			await run(main, "ruins")
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			main.ui.tabs.current_tab = 0
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Vatten"])
+			main.brush.radius = 1.3
+			await _drag(main, [on.call(-3.8, 2.0), on.call(-3.0, 2.6), on.call(-2.4, 2.2)], 70)
+			var p = main.props
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 21
+			p.begin_stroke()
+			p.style_for("lovtrad").fruit = 0.3
+			for at in [[1.4, 4.4], [-0.3, 1.9], [0.4, 2.2]]:
+				p.add("lovtrad", at[0], at[1], rng)
+			p.add("krokigt", 5.6, 3.2, rng)
+			for at in [[-4.9, -0.6], [-0.9, -4.8]]:
+				p.add("gran", at[0], at[1], rng)
+			p.style_for("stenblock").size = 1.5
+			for at in [[2.7, 2.9], [3.3, 3.1], [3.0, 2.95]]:
+				p.add("stenblock", at[0], at[1], rng)
+			for k in 14:
+				var a := rng.randf() * TAU
+				p.add("smasten", 3.0 + cos(a) * rng.randf_range(1.0, 1.7), 3.0 + sin(a) * rng.randf_range(1.0, 1.7), rng)
+			for at in [[-1.9, 3.7], [-4.7, 3.2]]:
+				p.add("buske", at[0], at[1], rng)
+			p.add("blombuske", -1.2, 4.6, rng)
+			for at in [[-3.7, -3.0], [-1.4, -3.4], [-3.3, -0.6]]:
+				p.add("ormbunke", at[0], at[1], rng)
+			for at in [[-1.9, -0.8], [-2.9, -1.0]]:
+				p.add("svamp", at[0], at[1], rng)
+			for k in 10:
+				p.add("blommor", rng.randf_range(-0.5, 2.5), rng.randf_range(0.0, 1.6), rng)
+			for k in 6:
+				p.add("hogtgras", rng.randf_range(-4.8, -2.0), rng.randf_range(1.0, 3.4), rng)
+			for k in 5:
+				p.add("klover", rng.randf_range(0.5, 3.0), rng.randf_range(-0.3, 1.0), rng)
+			# roots from the old tree's foot, crawling out over the ground
+			var r = main.roots
+			var anchors := []
+			for a in [0.4, 2.1, 3.6, 5.0]:
+				anchors.append(r.anchor_at(on.call(-2.4 + cos(a) * 0.5, -1.8 + sin(a) * 0.5)))
+			r.add(anchors, 77)
+			for rec in p.records:
+				if rec.kind in p.WOODY:
+					var m: Array = p.merge_with(rec)
+					print("  %s at (%.1f,%.1f) lean %s" % [rec.kind, rec.x, rec.z, (m[0] as Vector3).snapped(Vector3.ONE * 0.01)])
+			main.weather.hour = 16.8
+			main.weather.clouds = 0.5
+			main.ui.set_collapsed(true)
+			await _frames(main, 40)
+		"fairy_top":
+			var TB = preload("res://scripts/tree_builder.gd")
+			var st: Dictionary = main.props.style_for("sagotrad")
+			var n: Node3D = TB.build(st, 6.0, 4)
+			for c in n.get_children():
+				print("  part aabb ", (c as MeshInstance3D).mesh.get_aabb())
+			n.free()
+			await _frames(main, 5)
 		"hover":
 			await _click(main, main.ui.buttons["Mossa"])
 			_mouse_move(main.rig.camera.unproject_position(Vector3(1.5, 0.6, 1.5)))
