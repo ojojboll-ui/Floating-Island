@@ -43,9 +43,24 @@ void fragment() {
 		float line = 1.0 - smoothstep(0.0, 0.14, min(s, 1.0 - s));
 		col = srgb(mix(bark_color, wood_color, 0.25)) * 1.1 * (1.0 - line * 0.55);
 		col *= mix(0.35, 1.0, smoothstep(0.08, 0.2, r));
-	} else if (kind < 0.62) {
+	} else if (kind < 0.56) {
 		// the rim round a cut: bark worn pale at its edge
 		col = srgb(mix(bark_color, wood_color, 0.35)) * mix(1.05, 0.8, groove);
+	} else if (kind < 0.69) {
+		// worked wood (planks, staves, handles), after hand-painted props: a
+		// tone of its own per board, long wavy grain lines that come and go,
+		// a dark seam between staves, its edges worn pale
+		vec2 p = UV;
+		float sh = vcol.b;
+		float warp = vnoise2(vec2(p.y * 1.3 + sh * 9.0, p.x * 2.0)) * 0.7 + vnoise2(vec2(p.y * 5.0, sh * 4.0 + p.x)) * 0.12;
+		float s = fract((p.x + warp * 0.09) * 18.0 + sh * 5.0);
+		float line = 1.0 - smoothstep(0.0, 0.08, min(s, 1.0 - s));
+		line *= smoothstep(0.35, 0.65, vnoise2(vec2(p.x * 18.0 + sh * 3.0, p.y * 1.2)));
+		col = srgb(bark_color) * mix(0.86, 1.1, sh) * (0.93 + 0.12 * vnoise2(vec2(p.x * 9.0, p.y * 1.5 + sh * 7.0)));
+		col *= 1.0 - line * 0.34;
+		col *= mix(1.0, 0.45, smoothstep(0.2, 0.9, groove));
+		float edge = 1.0 - vcol.a;
+		col = mix(col, srgb(mix(bark_color, wood_color, 0.6)) * 1.12, edge * 0.75);
 	} else if (kind < 0.87) {
 		// a split face: pale wood, long grain
 		float grain = vnoise2(vec2(UV.x * 30.0, UV.y * 2.5));

@@ -19,6 +19,8 @@ const MeshUtil := preload("res://scripts/mesh_util.gd")
 const BARK := 0.0
 const EYE := 0.3
 const RIM := 0.5
+## worked wood: planks, staves, handles, posts, its grain in long wavy lines
+const PLANED := 0.62
 const SPLIT := 0.75
 const CUT := 1.0
 
@@ -38,6 +40,8 @@ class Wood:
 	var c := PackedColorArray()
 	var i := PackedInt32Array()
 	var rng := RandomNumberGenerator.new()
+	## The first ring of the last trunk, for a cap on its start.
+	var first_ring: Array = []
 
 	func put(p: Vector3, t: Vector2, col: Color) -> int:
 		v.append(p)
@@ -60,7 +64,7 @@ class Wood:
 	## plates on past the last ring (a broken, splintered end) and `top_jag`
 	## lifts some above it (a stump's broken rim). Returns the last ring's
 	## vertex positions, for a cap.
-	func trunk(path: Array[Vector3], radii: Array[float], plates: int, groove: float, end_jag := 0.0) -> Array:
+	func trunk(path: Array[Vector3], radii: Array[float], plates: int, groove: float, end_jag := 0.0, surface := BARK) -> Array:
 		var n := path.size()
 		var sides := plates * 6
 		# plate boundaries, unevenly spaced, and a shade for each plate
@@ -78,6 +82,7 @@ class Wood:
 		var first := v.size()
 		var along := 0.0
 		var last_ring: Array = []
+		first_ring = []
 		for k in n:
 			var t := (path[mini(k + 1, n - 1)] - path[maxi(k - 1, 0)]).normalized()
 			u = (u - t * u.dot(t)).normalized()
@@ -98,9 +103,13 @@ class Wood:
 				if k == n - 1 and end_jag > 0.0:
 					# splinters: a plate juts on, drawn to a point at its middle
 					pos += t * jag[p] * sin(PI * x)
-				put(pos, Vector2(a, along), Color(g, BARK, shade[p], 1.0))
+				# worked wood: metres round, mirrored so the grain meets itself at the seam
+				var round_uv := minf(a, 1.0 - a) * TAU * radii[k] if surface == PLANED else a
+				put(pos, Vector2(round_uv, along), Color(g * minf(groove * 8.0, 1.0), surface, shade[p], 1.0))
 				if k == n - 1:
 					last_ring.append(pos)
+				if k == 0:
+					first_ring.append(pos)
 		for k in n - 1:
 			for s in sides:
 				var a := first + k * sides + s
@@ -125,7 +134,7 @@ class Wood:
 	## round it, and the pale cut sunk `inset` below, its rings in a spiral.
 	## `level`, if given, is where the cut lies along `axis` from `centre`
 	## (a broken rim stands above it).
-	func cap(ring: Array, centre: Vector3, axis: Vector3, rim: float, inset: float) -> void:
+	func cap(ring: Array, centre: Vector3, axis: Vector3, rim: float, inset: float, surface := CUT) -> void:
 		var n := ring.size()
 		var radius := 0.0
 		for p in ring:
@@ -155,14 +164,28 @@ class Wood:
 			lip_top.append(put(lip, Vector2.ZERO, Color(0.35, RIM, 0.5, 1.0)))
 			lip_wall.append(put(lip, Vector2.ZERO, Color(0.35, RIM, 0.5, 1.0)))
 			wall_low.append(put(sunk, Vector2.ZERO, Color(0.5, RIM, 0.5, 1.0)))
-			cut_edge.append(put(sunk, polar, Color(0.0, CUT, 0.5, 1.0)))
+			# worked wood keeps its grain in metres across the face
+			var face_uv := polar if surface == CUT else Vector2(rel.dot(side), rel.dot(other)) * (1.0 - rim)
+			cut_edge.append(put(sunk, face_uv, Color(0.0, surface, 0.5, 1.0)))
+		# wound by what each face should look toward, so a cap closes either
+		# end of a trunk: the rim and the cut out along the axis, the rim's
+		# inner wall in toward the middle
+		var tri := func(a: int, b: int, c: int, want: Vector3) -> void:
+			if MeshUtil.face_normal(v[a], v[b], v[c]).dot(want) < 0.0:
+				i.append_array([a, c, b])
+			else:
+				i.append_array([a, b, c])
 		for s in n:
 			var s2 := (s + 1) % n
-			i.append_array([outer[s], lip_top[s], outer[s2], outer[s2], lip_top[s], lip_top[s2]])
-			i.append_array([lip_wall[s], wall_low[s], lip_wall[s2], lip_wall[s2], wall_low[s], wall_low[s2]])
-		var mid := put(plane - axis * inset, Vector2.ZERO, Color(0.0, CUT, 0.5, 1.0))
+			tri.call(outer[s], lip_top[s], outer[s2], axis)
+			tri.call(outer[s2], lip_top[s], lip_top[s2], axis)
+			var inward := centre - v[lip_wall[s]]
+			inward -= axis * inward.dot(axis)
+			tri.call(lip_wall[s], wall_low[s], lip_wall[s2], inward)
+			tri.call(lip_wall[s2], wall_low[s], wall_low[s2], inward)
+		var mid := put(plane - axis * inset, Vector2.ZERO, Color(0.0, surface, 0.5, 1.0))
 		for s in n:
-			i.append_array([mid, cut_edge[(s + 1) % n], cut_edge[s]])
+			tri.call(mid, cut_edge[(s + 1) % n], cut_edge[s], axis)
 
 	## A knot's eye: an oval swelling in the bark, `r` across and longer
 	## along the grain, ringed round a dark sunken heart, where a branch
@@ -281,6 +304,44 @@ class Wood:
 				var keep := i[t + 1]
 				i[t + 1] = i[t + 2]
 				i[t + 2] = keep
+
+	## A board of worked wood: `outline` (x along the grain) cut from a plank
+	## `thick` deep, its edges bevelled and worn pale, placed by xf. shade
+	## picks its tone among its neighbours (random if negative).
+	func board(outline: PackedVector2Array, thick: float, bevel: float, xf: Transform3D, shade := -1.0) -> void:
+		var g := MeshUtil.extrude(outline, thick, bevel)
+		var sh := rng.randf() if shade < 0.0 else shade
+		var pv: PackedVector3Array = g.v
+		var uvs: PackedVector2Array = g.uv
+		var edge: PackedFloat32Array = g.e
+		var base := v.size()
+		for k in pv.size():
+			# vertex alpha: 1 on the faces, less toward a worn edge
+			put(xf * pv[k], uvs[k] + Vector2(sh * 3.0, sh * 5.0), Color(0.0, PLANED, sh, 1.0 - edge[k]))
+		for t in (g.i as PackedInt32Array):
+			i.append(base + t)
+
+	## A plain rectangular board, `size` (x along the grain), placed by xf at
+	## its middle.
+	func plank(size: Vector3, bevel: float, xf: Transform3D, shade := -1.0) -> void:
+		var hx := size.x * 0.5
+		var hy := size.y * 0.5
+		var outline := PackedVector2Array([Vector2(-hx, -hy), Vector2(hx, -hy), Vector2(hx, hy), Vector2(-hx, hy)])
+		board(outline, size.z, bevel, xf, shade)
+
+	## A worked pole along `path`, `r` thick, whittled in `sides` long flats:
+	## a post, a handle, a stake. `ends` 1 cuts its far end pale, 2 both.
+	func pole(path: Array[Vector3], r: float, sides := 7, ends := 1, taper := 1.0) -> void:
+		var n := path.size()
+		var radii: Array[float] = []
+		for k in n:
+			radii.append(r * lerpf(1.0, taper, float(k) / maxf(n - 1, 1)))
+		var ring := trunk(path, radii, sides, 0.03, 0.0, PLANED)
+		var start := first_ring
+		if ends >= 1:
+			cap(ring, path[n - 1], (path[n - 1] - path[n - 2]).normalized(), 0.16, 0.0)
+		if ends >= 2:
+			cap(start, path[0], (path[0] - path[1]).normalized(), 0.16, 0.0)
 
 
 ## A MeshInstance for the accumulated wood, in the given colours.

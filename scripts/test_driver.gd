@@ -4,6 +4,7 @@ extends RefCounted
 ## panel and drags reach the brush exactly as a user's would.
 
 const Brush := preload("res://scripts/brush.gd")
+const Catalog := preload("res://scripts/prop_catalog.gd")
 
 
 static func run(main: Node, name: String) -> void:
@@ -897,6 +898,149 @@ static func run(main: Node, name: String) -> void:
 			n.global_position = at - Vector3(0, 0.35 if name != "wood_stumptop" else 0.75, 0)
 			n.rotation.y = cam.global_rotation.y + 0.5
 			await _frames(main, 10)
+		"studio":
+			# things in a row in front of the camera, everything sharp: --kinds=a,b,c
+			# (catalog kinds), --gap= metres between them, --turn= degrees
+			main.props.remove_near(0.0, 0.0, 9.0)
+			main.rig.aperture = 0.0
+			main.weather.hour = 15.0
+			var kinds: Array = ["tunna"]
+			var gap := 0.7
+			var spin := 0.5
+			var dist := 2.4
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--kinds="):
+					kinds = a.substr(8).split(",")
+				elif a.begins_with("--gap="):
+					gap = float(a.substr(6))
+				elif a.begins_with("--turn="):
+					spin = deg_to_rad(float(a.substr(7)))
+				elif a.begins_with("--near="):
+					dist = float(a.substr(7))
+				elif a.begins_with("--set="):
+					var kv: PackedStringArray = a.substr(6).split(":")
+					for kind in kinds:
+						main.props.style_for(kind)[kv[0]] = float(kv[1])
+			var cam: Camera3D = main.rig.camera
+			var fwd := -cam.global_basis.z
+			var x := -gap * (kinds.size() - 1) * 0.5
+			for kind in kinds:
+				var rec := {"id": -1, "kind": kind, "x": 0.0, "z": 0.0, "rot": 0.0, "variant": 4, "hue": 0.5, "jit": 0.0}
+				rec.style = main.props.style_for(kind).duplicate(true)
+				rec.size = float(rec.style.size)
+				var n: Node3D = Catalog.build(rec)
+				main.add_child(n)
+				n.global_position = cam.global_position + fwd * dist + cam.global_basis.x * x - Vector3(0, 0.45, 0)
+				n.rotation.y = cam.global_rotation.y + spin
+				x += gap
+			await _frames(main, 10)
+		"tool_lean":
+			# tools set down by things lean on them; out in the open they lie flat
+			main.props.remove_near(0.0, 0.0, 9.0)
+			main.rig.aperture = 0.0
+			var p = main.props
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 4
+			p.add("stubbe", 0.0, 0.0, rng, -1.0, 2, 0.3)
+			p.add("tunna", 2.0, 0.2, rng, -1.0, 1, 0.0)
+			p.add("koffert", -2.0, 0.6, rng, -1.0, 1, 0.4)
+			p.add("lovtrad", 1.0, -2.6, rng)
+			await _frames(main, 3)
+			# [kind, foot x, z, what it leans toward x, z]
+			var spots := [["spade", 0.75, 0.55, 0.0, 0.0], ["hacka", 2.0, 1.0, 2.0, 0.2], ["yxa", -2.0, 1.25, -2.0, 0.6],
+				["spade", 1.0, -1.9, 1.0, -2.6], ["yxa", -1.0, -1.2, -1.0, -2.2], ["hacka", 3.0, -1.4, 3.0, -2.6], ["spade", -2.8, -1.0, -2.8, -2.4]]
+			for s in spots:
+				var rot := atan2(-(float(s[3]) - float(s[1])), -(float(s[4]) - float(s[2])))
+				p.add(s[0], s[1], s[2], rng, -1.0, 1, rot)
+			await _frames(main, 5)
+			for r in p.records:
+				if r.kind in p.TOOLS:
+					var n: Node3D = p._nodes[r.id]
+					var up: Vector3 = n.global_basis.y.normalized()
+					print("  %s at (%.1f,%.1f): %.0f degrees up" % [r.kind, r.x, r.z, rad_to_deg(asin(clampf(up.y, -1.0, 1.0)))])
+			main.ui.set_collapsed(true)
+			await _frames(main, 20)
+		"ghost_match":
+			# the ghost shows what a click puts down: a spade leaning on a stump,
+			# a tree bending away from a boulder, turned with Q and E
+			main.props.remove_near(0.0, 0.0, 9.0)
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			var p = main.props
+			var rng := RandomNumberGenerator.new()
+			p.add("stubbe", 0.0, 0.0, rng, -1.0, 2, 0.3)
+			p.style_for("stenblock").size = 1.6
+			p.add("stenblock", 2.0, 0.0, rng, -1.0, 3, 0.0)
+			main.ui.tabs.current_tab = 3
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Spade"])
+			var cam_yaw: float = main.rig.camera.global_rotation.y
+			# the spade's foot in front of the stump, as seen from the camera
+			var foot: Vector3 = on.call(-sin(cam_yaw) * 0.6, -cos(cam_yaw) * 0.6)
+			foot = on.call(-foot.x, -foot.z)
+			main.brush.turn = 0.0
+			_mouse_move(main.rig.camera.unproject_position(foot))
+			await _frames(main, 6)
+			var g: Node3D = main.brush._ghost
+			print("  spade ghost %.0f degrees up" % rad_to_deg(asin(g.global_basis.y.normalized().y)))
+			await _tap(main, foot)
+			await _frames(main, 3)
+			for r in p.records:
+				if r.kind == "spade":
+					print("  spade placed %.0f degrees up" % rad_to_deg(asin((p._nodes[r.id] as Node3D).global_basis.y.normalized().y)))
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Lövträd"])
+			for turn in [0.0, 90.0]:
+				main.brush.turn = turn
+				var at: Vector3 = on.call(1.1, 0.4 + turn / 180.0)
+				_mouse_move(main.rig.camera.unproject_position(at))
+				await _frames(main, 8)
+				var gt: Node3D = main.brush._ghost
+				var gbox: AABB = gt.global_transform * (gt.get_child(0) as MeshInstance3D).mesh.get_aabb()
+				await _tap(main, at)
+				await _frames(main, 3)
+				var last: Dictionary = p.records[p.records.size() - 1]
+				var tn: Node3D = p._nodes[last.id]
+				var tbox: AABB = tn.global_transform * (tn.get_child(0) as MeshInstance3D).mesh.get_aabb()
+				print("  tree turned %d: ghost crown centre %s, placed %s" % [turn, (gbox.get_center() - at).snapped(Vector3.ONE * 0.01), (tbox.get_center() - at).snapped(Vector3.ONE * 0.01)])
+			main.ui.set_collapsed(true)
+			await _frames(main, 20)
+		"camp":
+			# a little camp of the restyled things, tools leaning where they were put
+			main.props.remove_near(0.0, 0.0, 9.0)
+			main.rig.aperture = 0.0
+			var p = main.props
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 12
+			var lean := func(kind: String, x: float, z: float, tx: float, tz: float) -> void:
+				p.add(kind, x, z, rng, -1.0, 1, atan2(-(tx - x), -(tz - z)))
+			p.add("talt", -2.6, -1.6, rng, -1.0, 1, 0.5)
+			p.add("eldstad", 0.0, 0.0, rng, -1.0, 1, 0.0)
+			p.add("gryta", 0.0, 0.0, rng, -1.0, 1, 0.0)
+			p.add("tunna", 1.7, -1.2, rng, -1.0, 1, 0.0)
+			lean.call("hacka", 1.75, -0.45, 1.7, -1.2)
+			p.add("huggkubbe", 2.4, 0.9, rng, -1.0, 1, 0.3)
+			p.add("stubbe", -1.6, 1.4, rng, -1.0, 2, 0.5)
+			lean.call("spade", -1.0, 1.75, -1.6, 1.4)
+			p.add("koffert", -0.3, -1.9, rng, -1.0, 1, 0.2)
+			lean.call("yxa", 0.3, -1.25, -0.2, -1.8)
+			p.add("stockhog", 3.2, -2.2, rng, -1.0, 1, 0.4)
+			p.add("skylt", 0.9, 2.4, rng, -1.0, 1, 2.6)
+			p.add("svampkorg", -0.9, 0.6, rng, -1.0, 1, 0.3)
+			p.add("bocker", 0.9, -0.6, rng, -1.0, 1, 0.8)
+			p.add("flaskor", 1.25, -0.9, rng, -1.0, 1, 0.0)
+			p.add("lykta", -1.9, -0.2, rng, -1.0, 1, 0.0)
+			p.style_for("stenblock").size = 1.3
+			p.add("stenblock", -3.6, 1.0, rng, -1.0, 7, 0.0)
+			p.add("stenblock", -3.0, 1.6, rng, -1.0, 9, 0.0)
+			for k in 10:
+				var a := rng.randf() * TAU
+				p.add("smasten", -3.3 + cos(a) * rng.randf_range(0.9, 1.6), 1.3 + sin(a) * rng.randf_range(0.9, 1.6), rng)
+			p.add("ryggsack", -1.4, -0.6, rng, -1.0, 1, 0.9)
+			main.weather.hour = 16.5
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

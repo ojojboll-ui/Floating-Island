@@ -30,7 +30,7 @@ const WOODY := ["lovtrad", "gran", "krokigt", "torrtrad", "sagotrad", "buske", "
 var roots   # the root layer, whose height raster of stones and ruins trees grow round
 var _woody_rev := 0
 ## Things that rest on whatever is under them: a wall, a stone, the ground.
-const RESTING := ["fackla", "ljus", "lykta", "ryggsack", "koffert", "gryta", "flaskor", "bocker", "svampkorg", "tunna", "hacka", "yxa"]
+const RESTING := ["fackla", "ljus", "lykta", "ryggsack", "koffert", "gryta", "flaskor", "bocker", "svampkorg", "tunna", "hacka", "yxa", "spade"]
 var _flames: Array = []   # [light, base energy]
 var _env_seen := ""
 
@@ -236,6 +236,171 @@ func _stone_sphere(rec: Dictionary) -> Vector4:
 	return Vector4(base.x, base.y + tall * 0.5, base.z, r)
 
 
+## Tools lie down or lean on what stands by: see tool_pose.
+const TOOLS := ["spade", "hacka", "yxa"]
+var _things_rev := 0
+
+
+## Where a tool comes to rest: its foot at (x, z) on the ground (or on the
+## wall or stone it was set down on), falling the way it points (`rot`: away
+## from the viewer, turned by Q and E) until it lies on the ground or leans
+## on the first thing in its way: a stump, a barrel, a wall, a tree. Returns
+## the node's whole transform; the tool is built lying along +y from its
+## foot, everything on its z >= 0 side, so its z = 0 side is what it rests on.
+func tool_pose(x: float, z: float, rot: float, size: float, reach: float, skip_id := -1) -> Transform3D:
+	var foot_y := ground_at(x, z) + rest_lift(x, z)
+	var d := Vector3(-sin(rot), 0.0, -cos(rot))
+	var side := Vector3(cos(rot), 0.0, -sin(rot))
+	var length := maxf(reach * size, 0.1)
+	var near := _things_near(Vector2(x, z), length + 1.0, skip_id)
+	# the steepest it is held up anywhere along its length: by what it rests
+	# on there, or, where that stands taller than it reaches, by its tip
+	# against the side
+	var theta := -0.6
+	var steps := 24
+	for k in range(1, steps + 1):
+		var s := length * k / steps
+		var h := -INF
+		for off: float in [-0.04, 0.0, 0.04]:
+			var p := Vector3(x, 0.0, z) + d * s + side * off * size
+			h = maxf(h, support_top(p.x, p.z, near))
+		h -= foot_y
+		var th := atan2(h, s)
+		if h > 0.0 and s * s + h * h > length * length:
+			th = acos(clampf(s / length, 0.0, 1.0))
+		theta = maxf(theta, th)
+	theta = clampf(theta, -0.6, deg_to_rad(78.0))
+	var b := Basis(Vector3.UP, rot) * Basis(Vector3.RIGHT, theta - PI * 0.5)
+	return Transform3D(b.scaled(Vector3.ONE * size), Vector3(x, foot_y, z))
+
+
+## The things a tool might lean on round `here`: [record, node] pairs.
+func _things_near(here: Vector2, reach: float, skip_id: int) -> Array:
+	var out: Array = []
+	for r in records:
+		if r.id == skip_id or r.kind in TOOLS or r.kind in STONES:
+			continue
+		var builder: String = Catalog.KINDS[r.kind].get("builder", "")
+		if builder != "item" and builder != "tree":
+			continue
+		if here.distance_to(Vector2(r.x, r.z)) > reach + 2.0:
+			continue
+		var node: Node3D = _nodes.get(r.id)
+		if node and node.visible:
+			out.append([r, node])
+	return out
+
+
+## The top of whatever stands at (x, z): the ground, a wall or stone, or one
+## of the things in `near` (from _things_near).
+func support_top(x: float, z: float, near: Array) -> float:
+	var top := maxf(ground_at(x, z), obstacle_top(x, z))
+	for pair in near:
+		var r: Dictionary = pair[0]
+		var node: Node3D = pair[1]
+		if Catalog.KINDS[r.kind].builder == "tree":
+			# a tree or bush: its trunk, as a post
+			var trunk := 0.05 + 0.035 * float(r.size)
+			if Vector2(x, z).distance_to(Vector2(r.x, r.z)) < trunk:
+				top = maxf(top, ground_at(r.x, r.z) + float(r.size) * 0.8)
+			continue
+		top = maxf(top, _thing_top(node, x, z))
+	return top
+
+
+## The top of a placed thing's own shape at (x, z), from a height map of
+## its meshes taken once and kept on the node; -INF off it.
+func _thing_top(node: Node3D, x: float, z: float) -> float:
+	if not node.has_meta("hmap"):
+		node.set_meta("hmap", _height_map(node))
+	var hm: Dictionary = node.get_meta("hmap")
+	if hm.is_empty():
+		return -INF
+	var inv := node.global_transform.affine_inverse()
+	var lp := inv * Vector3(x, node.global_position.y, z)
+	var i := int((lp.x - float(hm.x0)) / float(hm.cell))
+	var j := int((lp.z - float(hm.z0)) / float(hm.cell))
+	if i < 0 or j < 0 or i >= int(hm.nx) or j >= int(hm.nz):
+		return -INF
+	var h: float = (hm.h as PackedFloat32Array)[j * int(hm.nx) + i]
+	if h == -INF:
+		return -INF
+	return (node.global_transform * Vector3(lp.x, h, lp.z)).y
+
+
+## A height map of a node's meshes in its own frame: every triangle that
+## faces up raises the cells it covers to its height there.
+func _height_map(node: Node3D) -> Dictionary:
+	var inv := node.global_transform.affine_inverse()
+	var tris: Array = []
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	var parts: Array = node.find_children("*", "MeshInstance3D", true, false)
+	if node is MeshInstance3D:
+		parts.append(node)
+	for mi in parts:
+		var m: Mesh = (mi as MeshInstance3D).mesh
+		if m == null or m is QuadMesh or m.get_surface_count() == 0:
+			continue
+		var xf: Transform3D = inv * (mi as MeshInstance3D).global_transform
+		for s in m.get_surface_count():
+			var arr := m.surface_get_arrays(s)
+			var pv: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var pi: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+			var count := pi.size() if not pi.is_empty() else pv.size()
+			for t in range(0, count - 2, 3):
+				var a := xf * pv[pi[t] if not pi.is_empty() else t]
+				var b := xf * pv[pi[t + 1] if not pi.is_empty() else t + 1]
+				var c := xf * pv[pi[t + 2] if not pi.is_empty() else t + 2]
+				var up := (b - a).cross(c - a)
+				if up.y < 0.0:
+					up = -up
+				if up.length_squared() < 1e-12 or up.normalized().y < 0.25:
+					continue
+				tris.append([a, b, c])
+				for q in [a, b, c]:
+					lo = lo.min(Vector2(q.x, q.z))
+					hi = hi.max(Vector2(q.x, q.z))
+	if tris.is_empty():
+		return {}
+	var cell := maxf(maxf(hi.x - lo.x, hi.y - lo.y) / 48.0, 0.01)
+	var nx := int(ceil((hi.x - lo.x) / cell)) + 1
+	var nz := int(ceil((hi.y - lo.y) / cell)) + 1
+	var h := PackedFloat32Array()
+	h.resize(nx * nz)
+	h.fill(-INF)
+	for tri in tris:
+		var a: Vector3 = tri[0]
+		var b: Vector3 = tri[1]
+		var c: Vector3 = tri[2]
+		var i0 := clampi(int((minf(a.x, minf(b.x, c.x)) - lo.x) / cell), 0, nx - 1)
+		var i1 := clampi(int((maxf(a.x, maxf(b.x, c.x)) - lo.x) / cell), 0, nx - 1)
+		var j0 := clampi(int((minf(a.z, minf(b.z, c.z)) - lo.y) / cell), 0, nz - 1)
+		var j1 := clampi(int((maxf(a.z, maxf(b.z, c.z)) - lo.y) / cell), 0, nz - 1)
+		var top := maxf(a.y, maxf(b.y, c.y))
+		var mid := (a + b + c) / 3.0
+		var km := clampi(int((mid.z - lo.y) / cell), 0, nz - 1) * nx + clampi(int((mid.x - lo.x) / cell), 0, nx - 1)
+		h[km] = maxf(h[km], top)
+		for j in range(j0, j1 + 1):
+			for i in range(i0, i1 + 1):
+				var p := Vector2(lo.x + (i + 0.5) * cell, lo.y + (j + 0.5) * cell)
+				var v0 := Vector2(b.x - a.x, b.z - a.z)
+				var v1 := Vector2(c.x - a.x, c.z - a.z)
+				var v2 := p - Vector2(a.x, a.z)
+				var den := v0.x * v1.y - v1.x * v0.y
+				if absf(den) < 1e-12:
+					continue
+				var wb := (v2.x * v1.y - v1.x * v2.y) / den
+				var wc := (v0.x * v2.y - v2.x * v0.y) / den
+				if wb < -0.02 or wc < -0.02 or wb + wc > 1.02:
+					continue
+				var y := a.y + (b.y - a.y) * wb + (c.y - a.y) * wc
+				var k := j * nx + i
+				if y > h[k]:
+					h[k] = y
+	return {"x0": lo.x, "z0": lo.y, "cell": cell, "nx": nx, "nz": nz, "h": h}
+
+
 ## How high a small thing set down at (x, z) rests: on top of a wall, a
 ## pillar or a stone if it is on one, else on the ground.
 func rest_lift(x: float, z: float) -> float:
@@ -332,10 +497,14 @@ func _process(_delta: float) -> void:
 	if roots == null:
 		return
 	roots.ensure_raster()
-	var seen := "%d/%d/%d" % [roots._raster_rev, roots._stones_rev, _woody_rev]
+	var seen := "%d/%d/%d/%d" % [roots._raster_rev, roots._stones_rev, _woody_rev, _things_rev]
 	if seen == _env_seen:
 		return
 	_env_seen = seen
+	# tools lean on what stands by: when that changes they settle again
+	for rec in records:
+		if rec.kind in TOOLS:
+			_place(rec)
 	for rec in records:
 		if rec.kind in WOODY and _nodes.has(rec.id) and _env_key(rec) != rec.get("_env", ""):
 			_respawn(rec)
@@ -430,6 +599,7 @@ func remove_near(x: float, z: float, radius: float, kind := "") -> int:
 
 ## Take `gone` away, and let the ground round `here` grow back.
 func _remove(gone: Array, here: Vector2, radius: float) -> void:
+	_things_rev += 1
 	var trees_gone := false
 	for r in gone:
 		if r.kind in STONES:
@@ -500,6 +670,7 @@ func follow_ground() -> void:
 
 
 func _spawn(rec: Dictionary) -> void:
+	_things_rev += 1
 	_flames = _flames.filter(func(f): return is_instance_valid(f[0]))
 	if rec.kind in WOODY:
 		rec["_env"] = _env_key(rec)
@@ -537,6 +708,8 @@ func _place(rec: Dictionary) -> void:
 		if rec.kind in STONES and not node.position.is_equal_approx(at):
 			revision += 1
 		node.position = at
+		if rec.kind in TOOLS:
+			node.transform = tool_pose(x, z, float(rec.rot), float(rec.size), float(node.get_meta("reach", 1.0)), int(rec.id))
 		if rec.kind == "filt":
 			# a blanket lies along the slope
 			var n: Vector3 = data.surface_normal(x, z)

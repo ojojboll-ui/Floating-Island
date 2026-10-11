@@ -603,13 +603,14 @@ func _update_ghost(over_ui: bool) -> void:
 	var woody: bool = place_kind in props.WOODY
 	var key := "%s|%s|%d|%.2f|%s" % [place_kind, str(st), _ghost_variant, _ghost_jit, fire != null]
 	if woody:
-		# a tree's shape depends on what stands round it
-		key += "|%.1f,%.1f" % [snappedf(p.x, 0.5), snappedf(p.z, 0.5)]
+		# a tree's shape depends on what stands round it, and which way it
+		# is turned to that
+		key += "|%.1f,%.1f|%d" % [snappedf(p.x, 0.3), snappedf(p.z, 0.3), int(round(rad_to_deg(place_rot()) / 10.0))]
 	if key != _ghost_key:
 		_ghost_key = key
 		if _ghost:
 			_ghost.queue_free()
-		var rec := {"id": -1, "kind": place_kind, "x": p.x, "z": p.z, "rot": 0.0, "variant": _ghost_variant,
+		var rec := {"id": -1, "kind": place_kind, "x": p.x, "z": p.z, "rot": place_rot() if woody else 0.0, "variant": _ghost_variant,
 			"hue": 0.5, "jit": _ghost_jit, "over_fire": fire != null}
 		if st != null:
 			rec.style = (st as Dictionary).duplicate(true)
@@ -617,6 +618,7 @@ func _update_ghost(over_ui: bool) -> void:
 		else:
 			rec.size = (float(k.height[0]) + float(k.height[1])) * 0.5
 		_ghost = Catalog.build(rec)
+		_ghost.set_meta("size", rec.size)
 		_dress_ghost(_ghost)
 		add_child(_ghost)
 	_ghost.visible = true
@@ -624,6 +626,9 @@ func _update_ghost(over_ui: bool) -> void:
 	var tall: float = _ghost.get_meta("tall", 1.0)
 	_ghost.global_position = Vector3(p.x, data.sample_height(p.x, p.z) - float(k.sink) * tall + lift, p.z)
 	_ghost.rotation.y = place_rot()
+	if place_kind in props.TOOLS:
+		# a tool shows lying down or leaning on what is in its way
+		_ghost.global_transform = props.tool_pose(p.x, p.z, place_rot(), float(_ghost.get_meta("size")), float(_ghost.get_meta("reach", 1.0)))
 	# green: it fits; red: it will take away what is in its way; grey: it
 	# cannot go there at all
 	var check: int = props.place_check(place_kind, p.x, p.z, 1.0, true)
