@@ -93,7 +93,7 @@ const KINDS := {
 		"spacing": 0.25, "layer": "small", "where": "land",
 		"mark": [Color(0, 0, 0.5, 0.2), 0.35], "occupied": 0.0, "sink": 0.0},
 	"stenblock": {"label": "Stenblock", "builder": "rock", "variants": 1000, "detail": 4,
-		"style": {"size": 1.4, "variation": 0.3, "angular": 0.5, "flat": 0.25, "long": 0.2, "moss": 0.5, "texture": 0.5, "tint": [0.5, 0.49, 0.47]},
+		"style": {"size": 1.4, "variation": 0.3, "angular": 0.5, "flat": 0.25, "long": 0.2, "moss": 0.5, "texture": 0.5, "tint": [0.5, 0.51, 0.53]},
 		"spacing": 1.6, "layer": "big", "where": "land", "occupied": 0.75, "sink": 0.15, "sway": 0.0},
 	"smasten": {"label": "Småsten", "builder": "rock", "variants": 10, "detail": 2,
 		"style": {"size": 0.16, "variation": 0.45, "angular": 0.35, "flat": 0.45, "long": 0.3, "moss": 0.25, "texture": 0.3, "tint": [0.54, 0.52, 0.5]},

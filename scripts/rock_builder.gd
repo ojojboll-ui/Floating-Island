@@ -23,7 +23,7 @@ const STYLE := {
 	"long": 0.2,          # 0 round .. 1 twice as long as wide
 	"moss": 0.5,
 	"texture": 0.5,       # cracks and layers in the stone
-	"tint": [0.5, 0.49, 0.47],
+	"tint": [0.5, 0.51, 0.53],
 }
 
 static var _icos := {}     # subdivisions -> [unit vertices, indices]
@@ -86,7 +86,7 @@ static func _build(style: Dictionary, seed: int, detail: int) -> ArrayMesh:
 		r = minf(r, 1.25)
 		r *= 1.0 + 0.07 * (1.0 - angular) * noise.get_noise_3dv(dir * 1.6)
 		# knobs and dents all over, however hewn the stone
-		r *= 1.0 + 0.035 * noise.get_noise_3dv(dir * 4.5 + Vector3(9.0, 0.0, 0.0))
+		r *= 1.0 + 0.015 * noise.get_noise_3dv(dir * 4.5 + Vector3(9.0, 0.0, 0.0))
 		verts[k] = dir * r * stretch
 	# one metre across, resting on y = 0
 	var lo := Vector3(INF, INF, INF)

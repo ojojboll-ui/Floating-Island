@@ -61,48 +61,83 @@ vec2 voronoi(vec3 p) {
 	return vec2(d1, d2 - d1);
 }
 
-// ridges: noise folded at its middle, so it rises to sharp crests
-float ridged(vec3 p) {
-	return 1.0 - abs(vnoise3(p) * 2.0 - 1.0);
+// Slate, after the Quaternius rock texture: angular plates of all sizes,
+// each lying flat at its own slight tilt and in its own shade of
+// blue-grey, with a soft pale ridge where it meets the next, a fine dark
+// crack here and there inside it, and moss specks caught in the joins.
+// Big plates come from one Voronoi pattern; some of them split again into
+// smaller ones from a finer pattern. Returns the distance to the nearest
+// edge (x) and an id for the plate (y).
+vec3 cells(vec3 p) {
+	vec3 i = floor(p);
+	vec3 f = fract(p);
+	float d1 = 8.0;
+	float d2 = 8.0;
+	vec3 best = vec3(0.0);
+	for (int z = -1; z <= 1; z++) {
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				vec3 g = vec3(float(x), float(y), float(z));
+				vec3 o = vec3(hash13(i + g), hash13(i + g + 17.3), hash13(i + g + 41.7));
+				float d = length(g + o - f);
+				if (d < d1) {
+					d2 = d1;
+					d1 = d;
+					best = i + g;
+				} else if (d < d2) {
+					d2 = d;
+				}
+			}
+		}
+	}
+	return vec3(d2 - d1, hash13(best), hash13(best + 3.3));
 }
 
-// The relief of the stone, in metres, in its own space so it stays on it:
-// broad knobbly ridges, finer ones on them, and pitting. Textur scales it.
-float relief(vec3 p) {
-	float broad = ridged(p * 3.2) * 0.07 + ridged(p * 7.5 + 7.0) * 0.035 + ridged(p * 15.0 + 2.0) * 0.014;
-	float fine = vnoise3(p * 30.0) * 0.008 + vnoise3(p * 60.0) * 0.004;
-	return (broad + fine) * (0.4 + 1.2 * texture_amount);
+vec2 slate(vec3 p) {
+	// a slight shear, so the plates are not the same in every direction
+	vec3 q = vec3(p.x + p.y * 0.35, p.y * 1.25, p.z - p.y * 0.2);
+	vec3 big = cells(q * 1.15);
+	vec3 small = cells(q * 2.6 + 11.0);
+	// about half the big plates split into smaller ones
+	float split = step(0.5, big.z);
+	float edge = big.x / 1.15;
+	float id = big.y;
+	if (split > 0.5) {
+		edge = min(edge, small.x / 2.6 * 1.3);
+		id = mix(big.y, small.y, 0.6);
+	}
+	return vec2(edge, id);
 }
 
 void fragment() {
 	vec3 wn = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
-	// bump mapping from the relief: its slope in the stone's own space,
-	// turned into the world with the stone
-	float e = 0.012;
-	float h0 = relief(opos);
-	vec3 g = vec3(relief(opos + vec3(e, 0.0, 0.0)), relief(opos + vec3(0.0, e, 0.0)), relief(opos + vec3(0.0, 0.0, e))) - h0;
-	g /= e;
 	mat3 turn = mat3(normalize(MODEL_MATRIX[0].xyz), normalize(MODEL_MATRIX[1].xyz), normalize(MODEL_MATRIX[2].xyz));
-	vec3 gw = turn * g;
-	vec3 bn = normalize(wn - (gw - wn * dot(gw, wn)) * 3.2);
-
-	// the cracks between plates, from a 3D Voronoi pattern in the stone's space
-	vec2 cell = voronoi(opos * 2.6);
-	// only some of the edges crack, so it reads as a few fissures, not a net
-	float fissure = smoothstep(0.5, 0.68, vnoise3(opos * 1.4 + 3.0));
-	float crack = (1.0 - smoothstep(0.0, 0.03, cell.y)) * fissure * texture_amount;
+	vec2 sl = slate(opos);
+	float edge = sl.x;
+	float id = sl.y;
+	float amount = 0.25 + 0.75 * texture_amount;
+	// each plate lies flat at its own tilt: facets, not bumps
+	vec3 tilt = vec3(hash12(vec2(id, 2.1)), hash12(vec2(id, 5.7)), hash12(vec2(id, 9.3))) - 0.5;
+	vec3 tw = turn * tilt;
+	vec3 bn = normalize(wn + (tw - wn * dot(tw, wn)) * 1.3 * amount);
 
 	vec3 base = srgb(stone);
-	// each plate a slightly different grey, cooler or warmer
-	float plate = hash13(floor(opos * 2.6 + 0.5));
-	vec3 col = base * mix(vec3(0.96, 0.96, 0.97), vec3(1.06, 1.02, 0.95), plate) * (0.82 + 0.3 * fbm3(opos * 1.7));
-	// hollows dark, crests and worn edges lighter: the relief read as light
-	float lift = clamp((h0 / (0.06 * (0.4 + 1.2 * texture_amount))) - 0.35, -1.0, 1.0);
-	col *= 0.8 + 0.32 * lift;
-	// a touch warm, so the sky's blue in the shade does not turn it slate
-	col *= vec3(1.05, 1.0, 0.92);
-	// the cracks dark in their depth
-	col *= 1.0 - crack * 0.55;
+	// each plate its own shade, from slate blue to a pale lavender grey
+	vec3 col = base * mix(vec3(0.68, 0.74, 0.9), vec3(1.15, 1.13, 1.14), smoothstep(0.0, 1.0, id)) * (0.9 + 0.15 * fbm3(opos * 1.3));
+	// the pale ridge along every join, soft on the plate's side
+	float ridge = 1.0 - smoothstep(0.005, 0.05, edge);
+	float halo = 1.0 - smoothstep(0.0, 0.24, edge);
+	// the worn plate rounds over toward the join: it lightens, then the ridge
+	col = mix(col, col * 1.28 + 0.04, halo * halo * amount * 0.65);
+	col = mix(col, col * 1.4 + 0.06, ridge * amount * 0.5);
+	// a fine dark crack here and there, inside the plates
+	float hair = abs(vnoise3(opos * 5.0 + 2.0) - 0.5);
+	float crack = (1.0 - smoothstep(0.0, 0.012, hair)) * step(0.62, vnoise3(opos * 1.6 + 8.0)) * amount;
+	col *= 1.0 - crack * 0.45;
+	// moss specks caught in the joins
+	float speck = smoothstep(0.72, 0.8, vnoise3(opos * 40.0)) * smoothstep(0.4, 1.0, halo) * smoothstep(0.2, 0.7, moss_amount + moss_boost * 0.4);
+	col = mix(col, moss_tint(wpos) * 0.75, speck * 0.0);
+	float h0 = 0.0;
 	if (use_tex) {
 		col = texture(albedo_tex, UV).rgb * (0.85 + 0.25 * fbm3(wpos * 3.0));
 	}
@@ -122,14 +157,14 @@ void fragment() {
 	// more the damper the stone lies
 	float wet_moss = clamp(moss_amount + moss_boost * 0.45, 0.0, 1.2);
 	float field = moss_field(wpos);
-	float drift = fbm3(wpos * 1.1 + 4.0) * 0.7 + field * 0.3;
+	float drift = fbm3(wpos * 1.6 + 4.0) * 0.8 + field * 0.3;
 	// by the stone's own shape, not its bumps, so the moss lies in sheets
 	float on_top = smoothstep(0.9 - wet_moss * 0.55, 1.05 - wet_moss * 0.4, wn.y * 0.8 + drift * 0.5);
-	float in_cracks = crack * smoothstep(0.3, 0.9, wet_moss) * 0.7;
+	float in_cracks = halo * smoothstep(0.4, 1.0, wet_moss) * 0.35;
 	float moss = clamp(on_top + in_cracks + seam * (0.3 + wet_moss * 0.6), 0.0, 1.0) * step(0.01, wet_moss + seam);
 	// a soft, slightly fuzzy edge, not speckles
 	moss = smoothstep(0.3, 0.6, moss + (vnoise3(wpos * 6.0) - 0.5) * 0.12);
-	col = mix(col, moss_tint(wpos) * (0.75 + 0.3 * fbm3(wpos * 6.0)), moss * 0.92);
+	col = mix(col, moss_tint(wpos) * (0.5 + 0.55 * fbm3(wpos * 3.0)), moss * 0.92);
 	// soil and shade down in the seam
 	col = mix(col, srgb(vec3(0.3, 0.24, 0.17)), seam * seam * 0.45);
 	col *= 1.0 - seam * 0.35;
