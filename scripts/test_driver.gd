@@ -842,6 +842,31 @@ static func run(main: Node, name: String) -> void:
 				main.weather.hour = 19.6
 				main.weather.settle()
 			await _frames(main, 10)
+		"tool_close":
+			main.props.remove_near(0.0, 0.0, 9.0)
+			var p = main.props
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 3
+			p.add("huggkubbe", 0.0, 0.0, rng, -1.0, 1, 0.0)
+			p.add("yxa", 1.0, 0.3, rng, -1.0, 1, 0.4)
+			p.add("spade", -0.9, 0.2, rng, -1.0, 1, 0.0)
+			p.add("hacka", 1.0, -0.6, rng, -1.0, 1, 0.3)
+			await _frames(main, 10)
+		"tool_studio":
+			# the tools alone, standing up in the air in front of the camera
+			main.props.remove_near(0.0, 0.0, 9.0)
+			var IB = preload("res://scripts/item_builder.gd")
+			var cam: Camera3D = main.rig.camera
+			var x := -0.9
+			for spec in [["spade", "spade", 0.0], ["pick", "hacka", PI * 0.5], ["axe", "yxa", PI * 0.5], ["block", "huggkubbe", 0.0]]:
+				var st: Dictionary = main.props.style_for(spec[1])
+				var n: Node3D = IB.build(spec[0], st, 3)
+				main.add_child(n)
+				var fwd := -cam.global_basis.z
+				n.global_position = cam.global_position + fwd * 3.2 + cam.global_basis.x * x + Vector3(0, -0.6, 0)
+				n.rotation = Vector3(float(spec[2]) if spec[0] != "spade" and spec[0] != "block" else 0.0, cam.global_rotation.y, 0)
+				x += 0.65
+			await _frames(main, 10)
 		"hover":
 			await _click(main, main.ui.buttons["Mossa"])
 			_mouse_move(main.rig.camera.unproject_position(Vector3(1.5, 0.6, 1.5)))

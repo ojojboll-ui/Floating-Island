@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
 
 // A stylized flame on a card that always faces the camera round its
 // upright axis: a teardrop licked upward by noise, white-yellow at its
@@ -35,6 +35,6 @@ void fragment() {
 	core *= smoothstep(0.75, 0.2, y);
 	vec3 col = mix(vec3(1.0, 0.25, 0.04), vec3(1.0, 0.62, 0.16), smoothstep(0.0, 0.6, shape));
 	col = mix(col, vec3(1.0, 0.85, 0.5), core * 0.6);
-	ALBEDO = col * shape * 1.5;
-	ALPHA = shape;
+	ALBEDO = col * (1.2 + core * 0.6);
+	ALPHA = clamp(shape * 1.4, 0.0, 1.0) * 0.92;
 }

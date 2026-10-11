@@ -85,6 +85,64 @@ class Kit:
 		var bs := Basis(side, up, side.cross(up))
 		cyl(r, r, d.length(), Transform3D(bs, (a + b) * 0.5), col, sides)
 
+	## A tapering rod from a (radius ra) to b (radius rb).
+	func cone(a: Vector3, b: Vector3, ra: float, rb: float, col: Color, sides := 8) -> void:
+		var d := b - a
+		var up := d.normalized()
+		var side := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+		var bs := Basis(side, up, side.cross(up))
+		cyl(rb, ra, d.length(), Transform3D(bs, (a + b) * 0.5), col, sides)
+
+	## A flat plate: an outline in its own x-y plane, `thick` deep in z,
+	## bowed by `cup` (the middle pushed back), placed by xf.
+	func slab(outline: PackedVector2Array, thick: float, cup: float, xf: Transform3D, col: Color) -> void:
+		var n_out := outline.size()
+		var half := thick * 0.5
+		var lo := Vector2(INF, INF)
+		var hi := Vector2(-INF, -INF)
+		for p in outline:
+			lo = lo.min(p)
+			hi = hi.max(p)
+		var mid := (lo + hi) * 0.5
+		var w := maxf(hi.x - lo.x, 0.001) * 0.5
+		var bow := func(p: Vector2) -> float:
+			var t := (p.x - mid.x) / w
+			return cup * (1.0 - t * t)
+		var nb := xf.basis.inverse().transposed()
+		var centre := Vector2.ZERO
+		for p in outline:
+			centre += p
+		centre /= n_out
+		for face in [1.0, -1.0]:
+			var c0 := v.size()
+			v.append(xf * Vector3(centre.x, centre.y, face * half - bow.call(centre)))
+			n.append((nb * Vector3(0, 0, face)).normalized())
+			c.append(col)
+			for p in outline:
+				v.append(xf * Vector3(p.x, p.y, face * half - bow.call(p)))
+				n.append((nb * Vector3(0, 0, face)).normalized())
+				c.append(col)
+			for k2 in n_out:
+				var a := c0 + 1 + k2
+				var b2 := c0 + 1 + (k2 + 1) % n_out
+				if face > 0.0:
+					i.append_array([c0, a, b2])
+				else:
+					i.append_array([c0, b2, a])
+		# the rim
+		for k2 in n_out:
+			var p0 := outline[k2]
+			var p1 := outline[(k2 + 1) % n_out]
+			var edge := (p1 - p0).normalized()
+			var nrm := (nb * Vector3(edge.y, -edge.x, 0)).normalized()
+			var base := v.size()
+			for q in [[p0, half], [p1, half], [p1, -half], [p0, -half]]:
+				var pp: Vector2 = q[0]
+				v.append(xf * Vector3(pp.x, pp.y, float(q[1]) - bow.call(pp)))
+				n.append(nrm)
+				c.append(col)
+			i.append_array([base, base + 2, base + 1, base, base + 3, base + 2])
+
 	## End grain: concentric rings on a disc facing `normal`.
 	func rings(at: Vector3, normal: Vector3, r: float, light: Color, dark: Color, count := 4) -> void:
 		var up := normal.normalized()
@@ -187,7 +245,8 @@ static func build(gen: String, st: Dictionary, seed: int, extra := {}) -> Node3D
 		"pick":
 			_pick(k)
 		"axe":
-			_axe(k, Transform3D(Basis.from_euler(Vector3(0, 0, PI * 0.5 - 0.05)), Vector3(0, 0.03, 0)))
+			# lying flat in the grass: edge to the side, handle along the ground
+			_axe(k, Transform3D(Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0)), Vector3(0, 0.03, 0)))
 		"block":
 			return _block(st, rng)
 		"bottles":
@@ -400,26 +459,52 @@ static func _blanket(k: Kit, rng: RandomNumberGenerator) -> void:
 
 # --- tools ---------------------------------------------------------------------
 
+## A spade, as in a garden shed: a pointed, shield-shaped steel blade with
+## a tread along its top, a steel socket up the shaft, a long wooden shaft,
+## and at the top a steel fork that opens into a D round a wooden grip.
+## Stuck in the ground at a slight slant, its point buried.
 static func _spade(k: Kit) -> void:
-	# stuck in the ground at a slant
-	var tilt := Basis.from_euler(Vector3(0.22, 0, 0.12))
+	var tilt := Basis.from_euler(Vector3(0.12, 0, 0.06))
+	var at := func(p: Vector3) -> Vector3: return tilt * (p + Vector3(0, 0.1, 0))
 	var wood := _a()
-	var steel := _fixed(0.5, 0.52, 0.55)
-	k.add(_cylm(0.022, 0.022, 0.85), Transform3D(tilt, tilt * Vector3(0, 0.62, 0)), wood)
-	k.add(_boxm(Vector3(0.2, 0.025, 0.03)), Transform3D(tilt, tilt * Vector3(0, 1.08, 0)), wood)
-	for x in [-0.09, 0.09]:
-		k.add(_boxm(Vector3(0.025, 0.09, 0.03)), Transform3D(tilt, tilt * Vector3(x, 1.03, 0)), wood)
-	k.add(_boxm(Vector3(0.2, 0.28, 0.02)), Transform3D(tilt, tilt * Vector3(0, 0.12, 0)), steel)
-	k.ball(0.12, _at(Vector3(0, 0.0, 0)), _fixed(0.36, 0.27, 0.19), 8)   # dug-up earth
+	var steel := _fixed(0.48, 0.5, 0.52)
+	var dark := _fixed(0.3, 0.31, 0.33)
+	# the blade: square shoulders, straight sides drawing in to a point
+	var blade := PackedVector2Array([Vector2(-0.1, 0.0), Vector2(0.1, 0.0), Vector2(0.095, -0.15), Vector2(0.07, -0.24),
+		Vector2(0.03, -0.3), Vector2(0.0, -0.32), Vector2(-0.03, -0.3), Vector2(-0.07, -0.24), Vector2(-0.095, -0.15)])
+	k.slab(blade, 0.008, 0.02, Transform3D(tilt, at.call(Vector3(0, 0.2, 0))), steel)
+	# the tread rolled over along its top
+	k.add(_cylm(0.012, 0.012, 0.2), Transform3D(tilt * Basis.from_euler(Vector3(0, 0, PI * 0.5)), at.call(Vector3(0, 0.2, -0.004))), dark)
+	# the socket: a steel tube up the shaft, wide at the blade
+	k.cone(at.call(Vector3(0, 0.12, 0.01)), at.call(Vector3(0, 0.42, 0.006)), 0.032, 0.022, steel)
+	# the shaft
+	k.rod(at.call(Vector3(0, 0.4, 0.006)), at.call(Vector3(0, 1.02, 0.006)), 0.019, wood, 8)
+	# the fork: a steel sleeve, then two arms opening into a D
+	k.cone(at.call(Vector3(0, 0.98, 0.006)), at.call(Vector3(0, 1.06, 0.006)), 0.023, 0.026, steel)
+	var fork := Vector3(0, 1.06, 0.006)
+	for sx in [-1.0, 1.0]:
+		var out := Vector3(sx * 0.065, 1.16, 0.006)
+		var top := Vector3(sx * 0.06, 1.24, 0.006)
+		k.rod(at.call(fork), at.call(out), 0.009, steel, 5)
+		k.rod(at.call(out), at.call(top), 0.009, steel, 5)
+	k.add(_cylm(0.019, 0.019, 0.13), Transform3D(tilt * Basis.from_euler(Vector3(0, 0, PI * 0.5)), at.call(Vector3(0, 1.24, 0.006))), wood)
+	# earth heaped round where it went in
+	k.ball(0.1, Transform3D(Basis().scaled(Vector3(1.4, 0.45, 1.1)), Vector3(0, 0.0, 0)), _fixed(0.36, 0.27, 0.19), 8)
 
 
+## A pick lying in the grass: a long wooden handle, and a steel head that
+## curves gently down to a point at each end.
 static func _pick(k: Kit) -> void:
-	# lying in the grass
 	var wood := _a()
-	var steel := _fixed(0.45, 0.46, 0.5)
-	k.rod(Vector3(-0.45, 0.03, 0), Vector3(0.4, 0.04, 0.05), 0.024, wood)
-	k.rod(Vector3(0.38, 0.04, -0.33), Vector3(0.42, 0.06, 0.05), 0.03, steel, 6)
-	k.rod(Vector3(0.42, 0.06, 0.05), Vector3(0.38, 0.04, 0.4), 0.03, steel, 6)
+	var steel := _fixed(0.42, 0.43, 0.46)
+	var y := 0.035
+	k.rod(Vector3(-0.5, 0.025, 0), Vector3(0.38, y, 0.0), 0.022, wood, 8)
+	k.box(Vector3(0.07, 0.06, 0.07), _at(Vector3(0.38, y + 0.005, 0)), steel)
+	for sz in [-1.0, 1.0]:
+		var mid := Vector3(0.39, y + 0.01, sz * 0.17)
+		var tip := Vector3(0.35, y - 0.005, sz * 0.32)
+		k.cone(Vector3(0.38, y + 0.01, sz * 0.03), mid, 0.03, 0.022, steel, 6)
+		k.cone(mid, tip, 0.022, 0.004, steel, 6)
 
 
 ## An axe along +y from its head (the head at the origin, the edge to +x):
@@ -439,13 +524,13 @@ static func _axe(k: Kit, xf: Transform3D) -> void:
 	k.rod(p2, p3, 0.02, wood)
 	k.ball(0.025, Transform3D(xf.basis, p3), wood, 6)
 	# the head: a wedge, thick at the eye, thin at the edge
-	var head := PrismMesh.new()
-	head.size = Vector3(0.05, 0.15, 0.11)
-	head.left_to_right = 0.5
-	var hb := xf.basis * Basis.from_euler(Vector3(0, 0, -PI * 0.5))
-	k.add(head, Transform3D(hb, xf * Vector3(0.07, 0.0, 0)), steel)
-	k.box(Vector3(0.05, 0.06, 0.035), Transform3D(xf.basis, xf * Vector3(-0.005, 0.0, 0)), steel)
-	k.box(Vector3(0.012, 0.11, 0.014), Transform3D(xf.basis, xf * Vector3(0.143, 0.0, 0)), bright)
+	# the head: a flat steel plate flaring from the eye to a long edge
+	var outline := PackedVector2Array([Vector2(-0.02, 0.03), Vector2(0.06, 0.035), Vector2(0.15, 0.07),
+		Vector2(0.155, -0.065), Vector2(0.06, -0.03), Vector2(-0.02, -0.03)])
+	k.slab(outline, 0.022, 0.0, Transform3D(xf.basis, xf * Vector3(0, 0, 0)), steel)
+	k.box(Vector3(0.05, 0.065, 0.04), Transform3D(xf.basis, xf * Vector3(-0.005, 0.0, 0)), steel)
+	var bevel := PackedVector2Array([Vector2(0.125, 0.06), Vector2(0.155, 0.07), Vector2(0.16, -0.065), Vector2(0.13, -0.055)])
+	k.slab(bevel, 0.024, 0.0, Transform3D(xf.basis, xf * Vector3(0, 0, 0)), bright)
 
 
 ## A split log: a slice of a round, `angle` wide, `r` from the heart to the
@@ -519,10 +604,14 @@ static func _block(st: Dictionary, rng: RandomNumberGenerator) -> Node3D:
 	root.add_child(_dead_bark(bst, bark))
 	var k := Kit.new()
 	k.rings(Vector3(0, h + 0.003, 0), Vector3.UP, r * 0.96, Color(0.86, 0.72, 0.52), Color(0.62, 0.47, 0.32), 5)
-	# the axe, struck into the top at a slant, its handle reaching up and out
-	var at := Vector3(0.04, h - 0.03, 0.0)
-	var b := Basis.from_euler(Vector3(0.0, 0.5, 0.75))
-	_axe(k, Transform3D(b, at))
+	# the axe, struck into the top: its edge driven in at a slant, the handle
+	# reaching up and out the other way, 35 degrees above level
+	var up := deg_to_rad(35.0)
+	var handle := Vector3(cos(up), sin(up), 0.0)
+	var edge := Vector3(sin(up), -cos(up), 0.0)
+	var ab := Basis(edge, handle, edge.cross(handle)).rotated(Vector3.UP, 0.6)
+	var at := Vector3(-0.02, h, 0.0) - ab.x * 0.085
+	_axe(k, Transform3D(ab, at))
 	# split wood round the foot
 	for s in 6:
 		var a := rng.randf_range(-0.8, 1.6)
