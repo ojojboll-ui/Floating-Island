@@ -34,10 +34,10 @@ const KINDS := {
 			"leaf_color": [0.46, 0.66, 0.2], "bark_color": [0.4, 0.29, 0.21], "fruit": 0.0, "fruit_size": 1.0, "fruit_color": [0.82, 0.14, 0.1]},
 		"spacing": 2.6, "layer": "big", "where": "land",
 		"mark": [Color(0, 0, 0.45, 0.3), 1.9], "occupied": 0.55, "sink": 0.0},
-	"gran": {"label": "Gran", "builder": "tree", "dials": "tree", "variants": 1000,
-		"style": {"size": 6.2, "variation": 0.15, "trunk": 0.16, "bend": 0.05, "branches": 18, "levels": 1, "branch_len": 0.7,
-			"angle": 78.0, "crown": 0.0, "branch_start": 0.1, "leaves": 0.85, "leaf_size": 1.0, "needles": true,
-			"leaf_color": [0.2, 0.4, 0.17], "bark_color": [0.36, 0.24, 0.17], "fruit": 0.0, "fruit_size": 1.0, "fruit_color": [0.82, 0.14, 0.1]},
+	"gran": {"label": "Gran", "builder": "tree", "dials": "conifer", "variants": 1000,
+		"style": {"size": 6.2, "variation": 0.15, "trunk": 0.2, "bend": 0.55, "branches": 10, "levels": 1, "branch_len": 0.8,
+			"angle": 40.0, "crown": 0.0, "branch_start": 0.3, "leaves": 0.15, "leaf_size": 1.0, "conifer": true,
+			"leaf_color": [0.2, 0.38, 0.13], "bark_color": [0.36, 0.24, 0.17], "fruit": 0.0, "fruit_size": 1.0, "fruit_color": [0.82, 0.14, 0.1]},
 		"spacing": 2.4, "layer": "big", "where": "land",
 		"mark": [Color(0, 0, 0.3, 0.45), 1.7], "occupied": 0.5, "sink": 0.0},
 	"krokigt": {"label": "Höstträd", "builder": "tree", "dials": "tree", "variants": 1000,
@@ -133,6 +133,20 @@ const TREE_DIALS := [
 	["Frukt", "fruit", 0.0, 1.0, "%", "Äpplen, bär eller blom i kronan"],
 	["Fruktstorlek", "fruit_size", 0.3, 2.5, "x", "Hur stora frukterna är"],
 ]
+const CONIFER_DIALS := [
+	["Höjd", "size", 1.5, 14.0, "m", "Hur hög granen är"],
+	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket granarna skiljer sig i höjd"],
+	["Stam", "trunk", 0.06, 0.6, "m", "Stammens tjocklek"],
+	["Våningar", "branches", 2.0, 14.0, "count", "Hur många grenvåningar granen har"],
+	["Bredd", "branch_len", 0.3, 1.6, "x", "Hur breda våningarna är"],
+	["Hängning", "angle", 0.0, 60.0, "deg", "Hur mycket grenarna hänger"],
+	["Kronform", "crown", 0.0, 1.0, "%", "Spetsig kon, eller rundare topp"],
+	["Stambas", "branch_start", 0.0, 0.6, "%", "Hur högt upp de nedersta grenarna sitter"],
+	["Fransighet", "bend", 0.0, 1.0, "%", "Släta kanter, eller fransiga och taggiga"],
+	["Krokighet", "leaves", 0.0, 1.0, "%", "Rak eller lite krokig stam"],
+]
+
+
 const BUSH_DIALS := [
 	["Höjd", "size", 0.3, 3.0, "m", "Hur hög busken är"],
 	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket buskarna skiljer sig i höjd"],
@@ -189,13 +203,14 @@ const DIAL_COLORS := {
 	"stone": [["Färg", "tint"]],
 	"tree": [["Löv", "leaf_color"], ["Bark", "bark_color"], ["Frukt", "fruit_color"]],
 	"bush": [["Löv", "leaf_color"], ["Blom/bär", "fruit_color"]],
+	"conifer": [["Barr", "leaf_color"], ["Bark", "bark_color"]],
 	"fern": [["Färg", "color_a"]],
 	"flower": [["Blad", "color_a"], ["Kronblad", "color_b"], ["Mitt", "color_c"]],
 	"clover": [["Blad", "color_a"], ["Blomma", "color_b"]],
 	"mushroom": [["Hatt", "color_b"], ["Fot", "color_a"], ["Prickar", "color_c"]],
 	"grass": [["Strå", "color_a"], ["Vippa", "color_c"]],
 }
-const DIALS := {"stone": STONE_DIALS, "tree": TREE_DIALS, "bush": BUSH_DIALS, "fern": FERN_DIALS,
+const DIALS := {"stone": STONE_DIALS, "tree": TREE_DIALS, "conifer": CONIFER_DIALS, "bush": BUSH_DIALS, "fern": FERN_DIALS,
 	"flower": FLOWER_DIALS, "clover": CLOVER_DIALS, "mushroom": MUSHROOM_DIALS, "grass": GRASS_DIALS}
 
 

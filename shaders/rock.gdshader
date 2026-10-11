@@ -57,30 +57,46 @@ vec2 voronoi(vec3 p) {
 	return vec2(d1, d2 - d1);
 }
 
-float bump(vec3 p, float edge) {
-	return fbm3(p * 2.2) * 0.1 + vnoise3(p * 8.0) * 0.02 - (1.0 - smoothstep(0.0, 0.06, edge)) * 0.05 * texture_amount;
+// ridges: noise folded at its middle, so it rises to sharp crests
+float ridged(vec3 p) {
+	return 1.0 - abs(vnoise3(p) * 2.0 - 1.0);
+}
+
+// The relief of the stone, in metres, in its own space so it stays on it:
+// broad knobbly ridges, finer ones on them, and pitting. Textur scales it.
+float relief(vec3 p) {
+	float broad = ridged(p * 2.0) * 0.08 + ridged(p * 4.6 + 7.0) * 0.045 + ridged(p * 9.0 + 2.0) * 0.018;
+	float fine = vnoise3(p * 16.0) * 0.012 + vnoise3(p * 34.0) * 0.005;
+	return (broad + fine) * (0.4 + 1.2 * texture_amount);
 }
 
 void fragment() {
 	vec3 wn = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
-	vec2 cell = voronoi(opos * 3.2 + vec3(hash13(floor(wpos * 0.1)) * 9.0));
-	float e = 0.02;
-	float h0 = bump(wpos, cell.y);
-	vec3 g = vec3(bump(wpos + vec3(e, 0.0, 0.0), cell.y), bump(wpos + vec3(0.0, e, 0.0), cell.y), bump(wpos + vec3(0.0, 0.0, e), cell.y)) - h0;
+	// bump mapping from the relief: its slope in the stone's own space,
+	// turned into the world with the stone
+	float e = 0.012;
+	float h0 = relief(opos);
+	vec3 g = vec3(relief(opos + vec3(e, 0.0, 0.0)), relief(opos + vec3(0.0, e, 0.0)), relief(opos + vec3(0.0, 0.0, e))) - h0;
 	g /= e;
-	vec3 bn = normalize(wn - (g - wn * dot(g, wn)) * 0.9);
+	mat3 turn = mat3(normalize(MODEL_MATRIX[0].xyz), normalize(MODEL_MATRIX[1].xyz), normalize(MODEL_MATRIX[2].xyz));
+	vec3 gw = turn * g;
+	vec3 bn = normalize(wn - (gw - wn * dot(gw, wn)) * 2.6);
+
+	// the cracks between plates, from a 3D Voronoi pattern in the stone's space
+	vec2 cell = voronoi(opos * 2.6);
+	// only some of the edges crack, so it reads as a few fissures, not a net
+	float fissure = smoothstep(0.5, 0.68, vnoise3(opos * 1.4 + 3.0));
+	float crack = (1.0 - smoothstep(0.0, 0.03, cell.y)) * fissure * texture_amount;
 
 	vec3 base = srgb(stone);
 	// each plate a slightly different grey, cooler or warmer
-	float plate = hash13(floor(opos * 3.2 + 0.5));
-	vec3 col = base * mix(vec3(0.82, 0.88, 1.04), vec3(1.1, 1.03, 0.93), plate) * (0.75 + 0.4 * fbm3(opos * 2.0));
-	// layers running through the stone
-	float layer = smoothstep(0.35, 0.5, abs(fract(opos.y * 4.0 + fbm3(opos * 1.5) * 0.8) - 0.5));
-	col *= mix(1.0, 0.86 + 0.14 * layer, texture_amount);
-	// the cracks: pale lines along the plate edges, dark in their depth
-	float crack = 1.0 - smoothstep(0.015, 0.07, cell.y);
-	col = mix(col, col * 1.45 + 0.06, crack * texture_amount * 0.8);
-	col *= mix(1.0, 0.45, (1.0 - smoothstep(0.0, 0.02, cell.y)) * texture_amount);
+	float plate = hash13(floor(opos * 2.6 + 0.5));
+	vec3 col = base * mix(vec3(0.88, 0.92, 1.03), vec3(1.07, 1.02, 0.95), plate) * (0.8 + 0.35 * fbm3(opos * 1.7));
+	// hollows dark, crests and worn edges lighter: the relief read as light
+	float lift = clamp((h0 / (0.06 * (0.4 + 1.2 * texture_amount))) - 0.35, -1.0, 1.0);
+	col *= 0.8 + 0.4 * lift;
+	// the cracks dark in their depth
+	col *= 1.0 - crack * 0.55;
 	if (use_tex) {
 		col = texture(albedo_tex, UV).rgb * (0.85 + 0.25 * fbm3(wpos * 3.0));
 	}

@@ -80,12 +80,18 @@ func can_place(kind: String, x: float, z: float, spread := 1.0, merge := false) 
 			if merge and r.kind == kind and kind in WOODY:
 				# on top of one of its own kind: the two grow into one
 				need = 0.3
+			elif merge and kind in STONES and r.kind in STONES:
+				# a stone set on a stone: they stack into one rock
+				need = 0.12
 			elif kind in WOODY and r.kind in STONES:
 				# right beside a boulder: the tree will bend round it
 				need = float(r.size) * 0.5 + 0.2
 			elif kind in STONES and r.kind in WOODY:
 				need = float(style_for(kind).size) * 0.5 + 0.2
 			if dist < need:
+				return false
+		elif merge and kind in STONES and r.kind in STONES:
+			if dist < 0.08:
 				return false
 		elif other.layer == "big" and k.layer == "small":
 			# small things may nestle against a boulder, right up to its side
@@ -102,11 +108,12 @@ func _ruin_under(x: float, z: float) -> bool:
 	return ruins != null and ruins.covers(Vector2(x, z))
 
 
-func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -1.0, variant := -1) -> Dictionary:
+## rot and jit, when given, are the ghost's, so what lands is what was shown.
+func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -1.0, variant := -1, rot := NAN, jit := NAN) -> Dictionary:
 	var k: Dictionary = Catalog.KINDS[kind]
 	var rec := {
 		"id": _next_id, "kind": kind, "x": x, "z": z,
-		"rot": rng.randf() * TAU,
+		"rot": rng.randf() * TAU if is_nan(rot) else rot,
 		"size": size if size > 0.0 else (rng.randf_range(k.height[0], k.height[1]) if k.has("height") else 1.0),
 		"variant": variant if variant >= 0 else rng.randi() % Catalog.variants(kind),
 		"hue": rng.randf(),
@@ -114,9 +121,11 @@ func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -
 	_next_id += 1
 	if k.has("style"):
 		rec.style = style_for(kind).duplicate(true)
-		rec.jit = rng.randf_range(-1.0, 1.0)
+		rec.jit = rng.randf_range(-1.0, 1.0) if is_nan(jit) else jit
 		if size <= 0.0:
 			rec.size = _styled_size(rec)
+	if kind in STONES:
+		rec.lift = stone_lift(x, z)
 	records.append(rec)
 	last_stroke.append(rec.id)
 	if kind in Catalog.TREES:
@@ -129,6 +138,17 @@ func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -
 
 
 ## Remove things of `kind` (or of any kind, if empty) within `radius`.
+## How high a stone set down at (x, z) rests: on the ground, or, set on
+## another stone (or a wall), sunk halfway into its top so the two read as
+## one rock.
+func stone_lift(x: float, z: float) -> float:
+	var g := ground_at(x, z)
+	var top := obstacle_top(x, z)
+	if top < g + 0.08:
+		return 0.0
+	return (top - g) * 0.55
+
+
 func ground_at(x: float, z: float) -> float:
 	return data.sample_height(x, z)
 
@@ -370,7 +390,7 @@ func _place(rec: Dictionary) -> void:
 		node.visible = w > 0.4
 	else:
 		var tall: float = node.get_meta("tall", float(rec.size))
-		var at := Vector3(x, gy - float(k.sink) * tall, z)
+		var at := Vector3(x, gy - float(k.sink) * tall + float(rec.get("lift", 0.0)), z)
 		if rec.kind in STONES:
 			(node as GeometryInstance3D).set_instance_shader_parameter("moss_boost", _damp(rec))
 		if rec.kind in STONES and not node.position.is_equal_approx(at):

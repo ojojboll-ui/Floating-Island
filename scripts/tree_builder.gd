@@ -15,7 +15,10 @@ extends RefCounted
 ## Leaves are clouds of small alpha-cut cards round the branch tips, their
 ## normals pointing out from the cloud and the crown, which is what makes a
 ## crown light like one soft shape (the Quaternius look). A spruce gets
-## flat, drooping tiers of needles along its branches instead.
+## a conifer, after the Quaternius pines: a stack of drooping, fringed skirts
+## round the trunk, lighter on top, with a few dead stubs on the bare trunk
+## below them. The skirts follow the trunk as it bends, and pull in where a
+## wall or a stone stands in their way.
 ##
 ## A tree knows what stands round it (env): `top` gives the height of a
 ## stone, wall or pillar under a point, and the trunk and every branch steer
@@ -26,6 +29,7 @@ extends RefCounted
 
 const MeshUtil := preload("res://scripts/mesh_util.gd")
 const RockBuilder := preload("res://scripts/rock_builder.gd")
+const PlantGen := preload("res://scripts/plant_gen.gd")
 
 const GOLDEN := 2.39996   # radians
 
@@ -44,6 +48,8 @@ static func build(style: Dictionary, height: float, seed: int, env := {}) -> Nod
 	# a merged neighbour of the same kind: lean away from it
 	lean += (env.get("lean", Vector3.ZERO) as Vector3) * 0.75
 	var foot: Vector3 = Vector3(0.0, -0.3, 0.0) + (env.get("base", Vector3.ZERO) as Vector3)
+	if style.get("conifer", false):
+		return _conifer(g, foot, (Vector3.UP + lean).normalized(), height)
 	_branch(g, 0, foot, (Vector3.UP + lean).normalized(), trunk_len + 0.3, float(style.trunk) * height / 6.0)
 	_lift_clusters(g)
 	if g.needles and float(style.leaves) > 0.01:
@@ -191,6 +197,119 @@ static func _branch(g: Dictionary, level: int, start: Vector3, dir: Vector3, len
 	if leafy and not g.needles and level == levels - 1 and float(st.leaves) > 0.55:
 		# fuller crowns: leaves on the branch itself as well as its twigs
 		g.clusters.append([_along(pts, 0.8), float(st.leaf_size) * 0.6, d, 0.8])
+
+
+## A conifer: the trunk, then skirts stacked up it.
+static func _conifer(g: Dictionary, foot: Vector3, dir: Vector3, height: float) -> Node3D:
+	var st: Dictionary = g.st
+	var rng: RandomNumberGenerator = g.rng
+	# the trunk, steered like any other (levels 0: no boughs)
+	var fringe: float = st.bend
+	st = st.duplicate()
+	st.levels = 0
+	# for a conifer the Krokighet dial sits on "leaves", the fringe on "bend"
+	st.bend = float(st.leaves) * 0.6
+	st.leaves = 0.0
+	g.st = st
+	var trunk_len := height * 0.97
+	var pts := _trunk_points(g, foot, dir, trunk_len + 0.3, float(st.trunk) * height / 6.0)
+
+	var tiers := maxi(2, int(st.branches))
+	var start: float = st.branch_start
+	var width: float = height * 0.36 * float(st.branch_len)
+	var droop: float = deg_to_rad(float(st.angle))
+	var b := PlantGen.B.new()
+	for i in tiers:
+		var u := float(i) / maxf(tiers - 1, 1)
+		# from the lowest skirt up to the tip, overlapping like roof tiles
+		var t := lerpf(start, 0.93, pow(u, 0.9))
+		var centre := _along(pts, t)
+		var r := width * _crown(lerpf(0.0, 1.0, (t - start) / maxf(1.0 - start, 0.01)), float(st.crown)) * rng.randf_range(0.92, 1.08)
+		r = maxf(r, height * 0.035)
+		var gap := (0.93 - start) * trunk_len / maxf(tiers - 1, 1)
+		# raised so each skirt's edge hangs over the one below
+		_skirt(b, g.top, centre + Vector3.UP * gap * 0.9, r, r * tan(droop) * 0.6 + gap * 0.9, fringe, rng, u)
+	# a tuft at the very tip
+	_skirt(b, g.top, _along(pts, 1.0) + Vector3.UP * 0.25, width * 0.12, width * 0.2, fringe, rng, 1.0)
+	# dead stubs on the bare trunk below the skirts
+	for k in 3:
+		var at := _along(pts, rng.randf_range(0.12, maxf(start * 0.9, 0.15)))
+		var a := rng.randf() * TAU
+		var d2 := Vector3(cos(a), rng.randf_range(-0.15, 0.25), sin(a)).normalized()
+		var stub: Array[Vector3] = [at, at + d2 * height * 0.06, at + d2 * height * 0.1 + Vector3.DOWN * 0.04]
+		var sr := float(st.trunk) * height / 6.0 * 0.22
+		_tube(g.bark, stub, [sr, sr * 0.6, sr * 0.2] as Array[float], false)
+
+	var root := Node3D.new()
+	var trunk := MeshInstance3D.new()
+	var bm := ArrayMesh.new()
+	MeshUtil.add_surface(bm, g.bark.v, g.bark.n, g.bark.uv, PackedColorArray(), g.bark.i)
+	trunk.mesh = bm
+	trunk.material_override = _bark_material()
+	var bc: Array = st.bark_color
+	trunk.set_instance_shader_parameter("bark", Vector3(bc[0], bc[1], bc[2]))
+	root.add_child(trunk)
+	var skirts := MeshInstance3D.new()
+	skirts.mesh = b.mesh()
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/plant.gdshader")
+	skirts.material_override = mat
+	var lc: Array = st.leaf_color
+	skirts.set_instance_shader_parameter("color_a", Vector3(lc[0], lc[1], lc[2]))
+	root.add_child(skirts)
+	return root
+
+
+## The trunk alone: _branch's growth without its boughs, returning the points.
+static func _trunk_points(g: Dictionary, foot: Vector3, dir: Vector3, length: float, radius: float) -> Array[Vector3]:
+	var before: int = (g.bark.v as PackedVector3Array).size()
+	_branch(g, 0, foot, dir, length, radius)
+	# the trunk's rings are the first thing _branch adds: read their centres back
+	var sides := 10
+	var pts: Array[Vector3] = []
+	var v: PackedVector3Array = g.bark.v
+	var ring := sides + 1
+	for k in range(before, v.size(), ring):
+		var c := Vector3.ZERO
+		for s in sides:
+			c += v[k + s]
+		pts.append(c / sides)
+	return pts
+
+
+## One skirt: a ring of drooping, fringed fronds round `top`. Its edge pulls
+## in wherever a stone or wall stands taller than it.
+static func _skirt(b: PlantGen.B, top: Callable, at: Vector3, r: float, drop: float, fringe: float, rng: RandomNumberGenerator, u: float) -> void:
+	var sides := 34
+	var spin := rng.randf() * TAU
+	var centre := b.add(at + Vector3.UP * drop * 0.1, Vector3.UP, PlantGen._part(0.0, 0.62, rng.randf(), 0.05))
+	var mid := []
+	var edge := []
+	for s in sides:
+		var a := spin + TAU * s / sides
+		var dir := Vector3(cos(a), 0.0, sin(a))
+		# fringe: every other point juts out and hangs lower, a little ragged
+		# small points every other step, a longer one every few: feathery
+		var jag := (1.0 if s % 2 == 0 else 1.0 - 0.2 * fringe) * (1.0 + 0.12 * fringe if s % 6 == 0 else 1.0)
+		var rr := r * jag * rng.randf_range(1.0 - 0.15 * fringe, 1.0 + 0.1 * fringe)
+		if top.is_valid():
+			for probe in [0.5, 0.75, 1.0]:
+				var q := at + dir * rr * float(probe)
+				if float(top.call(q)) > q.y - drop * float(probe):
+					rr = maxf(rr * float(probe) * 0.85, r * 0.15)
+					break
+		var hang := drop * (1.0 if s % 2 == 0 else 0.75) * rng.randf_range(0.9, 1.1)
+		var m := at + dir * rr * 0.5 + Vector3.DOWN * hang * 0.3
+		var e := at + dir * rr + Vector3.DOWN * hang
+		var nm := (Vector3.UP * 1.4 + dir).normalized()
+		var ne := (Vector3.UP + dir * 0.9).normalized()
+		mid.append(b.add(m, nm, PlantGen._part(0.0, 0.8 + 0.15 * u, rng.randf(), 0.25)))
+		edge.append(b.add(e, ne, PlantGen._part(0.0, 1.0, rng.randf(), 0.55)))
+	for s in sides:
+		var n := (s + 1) % sides
+		b.tri(centre, mid[s], mid[n])
+		b.tri(mid[s], edge[s], edge[n])
+		b.tri(mid[s], edge[n], mid[n])
 
 
 ## Which way to turn at q to keep clear of whatever stands round it: away

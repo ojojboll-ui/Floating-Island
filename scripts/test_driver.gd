@@ -722,6 +722,39 @@ static func run(main: Node, name: String) -> void:
 			var trunk_after: AABB = (after.get_child(0) as MeshInstance3D).mesh.get_aabb()
 			print("  tree rebuilt: ", before != after, ", trunk centre x %.2f -> %.2f" % [trunk_before.get_center().x, trunk_after.get_center().x])
 			await _frames(main, 10)
+		"kit_pines":
+			# the Quaternius pines beside our own, for reference
+			main.props.remove_near(-2.4, -1.8, 1.0)
+			var Cat = preload("res://scripts/prop_catalog.gd")
+			var x := -4.5
+			for model in ["Pine_1", "Pine_3", "Pine_5"]:
+				var entry: Dictionary = Cat._model(model, 0.2, Color(1, 1, 1, 0), false)
+				var mi := MeshInstance3D.new()
+				mi.mesh = entry.mesh
+				mi.scale = Vector3.ONE * 6.0 / float(entry.height)
+				main.add_child(mi)
+				mi.position = Vector3(x, main.data.sample_height(x, -1.0), -1.0)
+				x += 2.6
+			var rng := RandomNumberGenerator.new()
+			main.props.add("gran", 3.4, -1.0, rng, 6.0, 3)
+			await _frames(main, 5)
+		"stack_ghost":
+			# three boulders clicked onto each other, then a spruce's ghost under the pointer
+			main.props.remove_near(-2.4, -1.8, 1.0)
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Stenblock"])
+			main.props.set_style("stenblock", "size", 1.6)
+			for at in [[0.6, 1.2], [1.3, 1.4], [0.95, 1.25]]:
+				await _tap(main, on.call(at[0], at[1]))
+				await _frames(main, 3)
+			print("  stones: ", main.props.records.filter(func(r): return r.kind == "stenblock" and r.x > 0.0 and r.x < 2.0).map(func(r): return "(%.1f,%.1f) lift %.2f" % [r.x, r.z, r.lift]))
+			await _click(main, main.ui.buttons["Gran"])
+			_mouse_move(main.rig.camera.unproject_position(on.call(-1.6, -0.6)))
+			await _frames(main, 20)
+			print("  ghost shown: ", main.brush._ghost != null and main.brush._ghost.visible)
 		"hover":
 			await _click(main, main.ui.buttons["Mossa"])
 			_mouse_move(main.rig.camera.unproject_position(Vector3(1.5, 0.6, 1.5)))
@@ -729,7 +762,7 @@ static func run(main: Node, name: String) -> void:
 		_:
 			push_error("unknown test " + name)
 	# park the pointer in the sky so the brush ring stays out of the picture
-	if name != "hover":
+	if name != "hover" and name != "stack_ghost":
 		_mouse_move(Vector2(8, 8))
 		await _frames(main, 2)
 

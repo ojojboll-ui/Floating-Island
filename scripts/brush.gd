@@ -23,6 +23,7 @@ const SHAPING := [Tool.RAISE, Tool.LOWER, Tool.SMOOTH, Tool.FLATTEN, Tool.LAND_A
 
 const IslandData := preload("res://scripts/island_data.gd")
 const IslandMesher := preload("res://scripts/island_mesher.gd")
+const Catalog := preload("res://scripts/prop_catalog.gd")
 const REBUILD_INTERVAL := 0.05
 ## the reversed underside tools, while Shift is held
 const UNCARVE := 100
@@ -68,6 +69,14 @@ var _since_preview := 0.0
 var _ruin_seed := 0                  # so the preview is the piece you get
 var _floor := {}                       # the floor record being painted
 var _root_anchors: Array = []         # where the roots being drawn start
+# the ghost: what a click will put down, see-through under the pointer
+var _ghost: Node3D
+var _ghost_key := ""
+var _ghost_variant := 0
+var _ghost_rot := 0.0
+var _ghost_jit := 0.0
+var _ghost_mat: ShaderMaterial
+var _ghost_leaf_mat: ShaderMaterial
 
 
 func setup(island_data, island_view, prop_layer, ruin_layer, cam: Camera3D) -> void:
@@ -100,6 +109,7 @@ func setup(island_data, island_view, prop_layer, ruin_layer, cam: Camera3D) -> v
 func set_tool(t: int, paint: Color = Color(0, 0, 0, 0), rocks: float = 0.0, kind := "") -> void:
 	tool = t
 	place_kind = kind
+	_reroll_ghost()
 	paint_target = paint
 	paint_rocks = rocks
 	tool_changed.emit()
@@ -154,7 +164,8 @@ func _begin_stroke(screen: Vector2) -> void:
 	props.begin_stroke()
 	if tool == Tool.PLACE and not Input.is_key_pressed(KEY_SHIFT):
 		if props.can_place(place_kind, p.x, p.z, 1.0, true):
-			props.add(place_kind, p.x, p.z, _rng)
+			props.add(place_kind, p.x, p.z, _rng, -1.0, _ghost_variant, _ghost_rot, _ghost_jit)
+			_reroll_ghost()
 	# ruins: a pillar goes down at once; walls, arches and stairs are drawn.
 	# Started on a storey, they stand on that storey.
 	_ruin_seed = _rng.randi()
@@ -535,6 +546,7 @@ func _below_surface(p: Vector3) -> bool:
 
 func _update_cursor() -> void:
 	var over_ui := get_viewport().gui_get_hovered_control() != null
+	_update_ghost(over_ui)
 	if _hit.is_empty() or over_ui:
 		_decal.visible = false
 		_ring.visible = false
@@ -550,6 +562,75 @@ func _update_cursor() -> void:
 	_ring.visible = _is_land_tool()
 	_ring.position = Vector3(p.x, 0.0 if not _hit.land else p.y, p.z)
 	_ring.scale = Vector3(radius, 1.0, radius)
+
+
+func _reroll_ghost() -> void:
+	_ghost_variant = _rng.randi() % maxi(1, Catalog.variants(place_kind)) if place_kind != "" else 0
+	_ghost_rot = _rng.randf() * TAU
+	_ghost_jit = _rng.randf_range(-1.0, 1.0)
+	_ghost_key = ""
+
+
+## The ghost of what a click puts down, where it would stand: the same
+## shape, size and turn the click will give it. Green where it may go, red
+## where it may not.
+func _update_ghost(over_ui: bool) -> void:
+	var show: bool = tool == Tool.PLACE and place_kind != "" and not over_ui and not _hit.is_empty() \
+		and _hit.land and not Input.is_key_pressed(KEY_SHIFT)
+	if not show:
+		if _ghost:
+			_ghost.visible = false
+		return
+	var p: Vector3 = _hit.pos
+	var k: Dictionary = Catalog.KINDS[place_kind]
+	var st = props.style_for(place_kind) if k.has("style") else null
+	var woody: bool = place_kind in props.WOODY
+	var key := "%s|%s|%d|%.2f|%.2f" % [place_kind, str(st), _ghost_variant, _ghost_rot, _ghost_jit]
+	if woody:
+		# a tree's shape depends on what stands round it
+		key += "|%.1f,%.1f" % [snappedf(p.x, 0.5), snappedf(p.z, 0.5)]
+	if key != _ghost_key:
+		_ghost_key = key
+		if _ghost:
+			_ghost.queue_free()
+		var rec := {"id": -1, "kind": place_kind, "x": p.x, "z": p.z, "rot": _ghost_rot, "variant": _ghost_variant,
+			"hue": 0.5, "jit": _ghost_jit}
+		if st != null:
+			rec.style = (st as Dictionary).duplicate(true)
+			rec.size = maxf(0.02, float(st.size) * (1.0 + float(st.variation) * 0.6 * _ghost_jit))
+		else:
+			rec.size = (float(k.height[0]) + float(k.height[1])) * 0.5
+		_ghost = Catalog.build(rec)
+		_dress_ghost(_ghost)
+		add_child(_ghost)
+	_ghost.visible = true
+	var lift: float = props.stone_lift(p.x, p.z) if place_kind in props.STONES else 0.0
+	var tall: float = _ghost.get_meta("tall", 1.0)
+	_ghost.global_position = Vector3(p.x, data.sample_height(p.x, p.z) - float(k.sink) * tall + lift, p.z)
+	var ok: bool = props.can_place(place_kind, p.x, p.z, 1.0, true)
+	var tint := Color(0.8, 1.0, 0.78) if ok else Color(1.0, 0.45, 0.4)
+	_ghost_mat.set_shader_parameter("tint", tint)
+	_ghost_leaf_mat.set_shader_parameter("tint", tint)
+
+
+func _dress_ghost(node: Node) -> void:
+	if _ghost_mat == null:
+		_ghost_mat = ShaderMaterial.new()
+		_ghost_mat.shader = load("res://shaders/ghost.gdshader")
+		_ghost_leaf_mat = ShaderMaterial.new()
+		_ghost_leaf_mat.shader = _ghost_mat.shader
+		_ghost_leaf_mat.set_shader_parameter("leaf_cut", true)
+	var all: Array = node.find_children("*", "GeometryInstance3D", true, false)
+	if node is GeometryInstance3D:
+		all.append(node)
+	for gi in all:
+		var g := gi as GeometryInstance3D
+		var leafy := false
+		if g.material_override is ShaderMaterial:
+			var sh: Shader = (g.material_override as ShaderMaterial).shader
+			leafy = sh != null and sh.resource_path.ends_with("leaves.gdshader")
+		g.material_override = _ghost_leaf_mat if leafy else _ghost_mat
+		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 static func _ring_texture() -> ImageTexture:
