@@ -19,6 +19,7 @@ const PLANTS := [
 	["Buskar", ["buske", "blombuske", "ormbunke", "hogtgras"]],
 	["Blommor", ["blommor", "klover", "svamp"]],
 	["Stenar", ["stenblock", "smasten", "trampsten"]],
+	["Död ved", ["stock", "stubbe"]],
 	["Vid vattnet", ["vass", "nackros"]],
 ]
 
@@ -111,7 +112,7 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	tabs.columns = 4
 	tabs.add_theme_constant_override("h_separation", 2)
 	tabs.add_theme_constant_override("v_separation", 2)
-	for t in ["Mark", "Växter", "Ruiner", "Väder", "Ljus", "Kamera", "Effekter", "Export"]:
+	for t in ["Mark", "Växter", "Ruiner", "Prylar", "Väder", "Ljus", "Kamera", "Effekter", "Export"]:
 		tabs.add_tab(t)
 	column.add_child(tabs)
 	column.add_child(HSeparator.new())
@@ -132,6 +133,9 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	var ruin_page := _ruins_row()
 	ruin_page.visible = false
 	body.add_child(ruin_page)
+	var items_page := _items_row()
+	items_page.visible = false
+	body.add_child(items_page)
 	var weather_page := _weather_row()
 	weather_page.visible = false
 	body.add_child(weather_page)
@@ -147,7 +151,7 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	var export_page := _export_row()
 	export_page.visible = false
 	body.add_child(export_page)
-	_pages = [row, plants, ruin_page, weather_page, light_page, camera_page, effects_page, export_page]
+	_pages = [row, plants, ruin_page, items_page, weather_page, light_page, camera_page, effects_page, export_page]
 	tabs.tab_changed.connect(_show_page)
 
 	# folded away, the panel is this little tab on the edge
@@ -242,13 +246,34 @@ func _plants_row() -> Control:
 		flow.add_child(_section(group[0], items))
 	var eraser := _tool_button("Ta bort", Brush.Tool.REMOVE, null, "Ta bort allt under penseln")
 	flow.add_child(_section("Verktyg", [eraser]))
-	for kind in Catalog.KINDS:
-		if Catalog.KINDS[kind].has("style"):
-			var box := _kind_box(kind)
-			box.visible = false
-			flow.add_child(box)
-			_kind_dials[kind] = box
+	for group in PLANTS:
+		for kind in group[1]:
+			_add_kind_box(flow, kind)
 	return flow
+
+
+## The Prylar page: small things to set out, lights and camp gear.
+func _items_row() -> Control:
+	var flow := _page()
+	for group in Catalog.ITEMS:
+		var items := []
+		for kind in group[1]:
+			items.append(_place_button(kind))
+		flow.add_child(_section(group[0], items))
+	var eraser := _tool_button("Ta bort saker", Brush.Tool.REMOVE, null, "Ta bort allt under penseln")
+	flow.add_child(_section("Verktyg", [eraser]))
+	for group in Catalog.ITEMS:
+		for kind in group[1]:
+			_add_kind_box(flow, kind)
+	return flow
+
+
+func _add_kind_box(flow: Control, kind: String) -> void:
+	if Catalog.KINDS[kind].has("style"):
+		var box := _kind_box(kind)
+		box.visible = false
+		flow.add_child(box)
+		_kind_dials[kind] = box
 
 
 ## The style dials of one generated kind. Like the roots' dials they set the
@@ -945,7 +970,7 @@ func _show_page(page: int) -> void:
 	for k in _pages.size():
 		_pages[k].visible = k == page
 	# the brush dials mean nothing on the weather page
-	_brush_dials.visible = page < 3
+	_brush_dials.visible = page < 4
 	# pick the first tool on the page, so the brush matches what is shown
 	for b in (_pages[page] as Control).find_children("*", "Button", true, false):
 		if (b as Button).button_group == _group:

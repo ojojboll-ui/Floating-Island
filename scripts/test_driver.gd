@@ -258,7 +258,7 @@ static func run(main: Node, name: String) -> void:
 		"weather":
 			await run(main, "plants")
 			main.weather.settle()
-			main.ui.tabs.current_tab = 3
+			main.ui.tabs.current_tab = 4
 			await _frames(main, 3)
 		"light":
 			main.weather.hour = 17.8
@@ -268,7 +268,7 @@ static func run(main: Node, name: String) -> void:
 			main.weather.clouds = 0.8
 			main.rebuild_ui()
 			await _frames(main, 2)
-			main.ui.tabs.current_tab = 4
+			main.ui.tabs.current_tab = 5
 			await _frames(main, 3)
 		"camera":
 			main.rig.spin_speed = 8.0
@@ -280,7 +280,7 @@ static func run(main: Node, name: String) -> void:
 			main.rig.aperture = 0.8
 			main.rebuild_ui()
 			await _frames(main, 2)
-			main.ui.tabs.current_tab = 5
+			main.ui.tabs.current_tab = 6
 			await _frames(main, 40)
 		"files":
 			await run(main, "storey2")
@@ -302,7 +302,7 @@ static func run(main: Node, name: String) -> void:
 			var still: String = await main.IslandFile.still(main, Vector2i(1920, 1080))
 			print("  still: ", still, " ", Image.load_from_file(still).get_size())
 		"export":
-			main.ui.tabs.current_tab = 5
+			main.ui.tabs.current_tab = 6
 			await _frames(main, 3)
 			var out: String = main.IslandFile.film(main, 2.0, Vector2i(1280, 720), true)
 			print("  film: ", out)
@@ -366,7 +366,7 @@ static func run(main: Node, name: String) -> void:
 			print("  after open rays ", p.rays, " volume ", p.volume, " temperature ", p.temperature, " shadow ", p.shadow_tint)
 			main.rebuild_ui()
 			await _frames(main, 2)
-			main.ui.tabs.current_tab = 6
+			main.ui.tabs.current_tab = 7
 			await _frames(main, 3)
 			var still: String = await main.IslandFile.still(main, Vector2i(1280, 720))
 			print("  still: ", still)
@@ -819,6 +819,29 @@ static func run(main: Node, name: String) -> void:
 				print("  part aabb ", (c as MeshInstance3D).mesh.get_aabb())
 			n.free()
 			await _frames(main, 5)
+		"item_gallery", "item_dusk":
+			# every small thing in rows, a pot hung over the fire
+			main.props.remove_near(-2.4, -1.8, 1.0)
+			main.props.remove_near(0.0, 0.0, 9.0)
+			var p = main.props
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 9
+			var t0 := Time.get_ticks_msec()
+			var rows := [["eldstad", "fackla", "ljus", "lykta", "huggkubbe", "yxa", "vedtrave", "stockhog"],
+				["talt", "ryggsack", "koffert", "filt", "spade", "hacka"],
+				["flaskor", "bocker", "svampkorg", "tunna", "skylt", "stock", "stubbe"]]
+			for r in rows.size():
+				var kinds: Array = rows[r]
+				for i in kinds.size():
+					var x := -4.2 + i * 8.4 / maxf(kinds.size() - 1, 1)
+					var z := -2.4 + r * 2.6
+					p.add(kinds[i], x, z, rng, -1.0, -1, 0.35)
+			p.add("gryta", -4.1, -2.3, rng, -1.0, -1, 0.0)
+			print("  %d things in %d ms" % [p.records.size(), Time.get_ticks_msec() - t0])
+			if name == "item_dusk":
+				main.weather.hour = 19.6
+				main.weather.settle()
+			await _frames(main, 10)
 		"hover":
 			await _click(main, main.ui.buttons["Mossa"])
 			_mouse_move(main.rig.camera.unproject_position(Vector3(1.5, 0.6, 1.5)))

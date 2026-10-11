@@ -10,6 +10,7 @@ instance uniform float ground_y = 0.0;
 instance uniform vec3 tint = vec3(1.0);
 instance uniform float height = 1.0;
 instance uniform vec3 bark = vec3(0.40, 0.29, 0.21);
+instance uniform float moss_more = 0.0;
 
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap;
 uniform bool has_normal = false;
@@ -22,7 +23,7 @@ void fragment() {
 	float knots = fbm3(wpos * 2.5);
 	vec3 col = srgb(bark) * (0.65 + 0.45 * grain) * (0.85 + 0.3 * knots);
 	// moss only on branch tops that truly face the sky, not up the trunk
-	float up_moss = smoothstep(0.6, 0.95, wn.y + (moss_field(wpos) - 0.5) * 0.5);
+	float up_moss = smoothstep(0.6 - moss_more * 0.7, 0.95 - moss_more * 0.5, wn.y + (moss_field(wpos) - 0.5) * 0.5);
 	// moss only around the very foot, broken unevenly
 	float foot = smoothstep(0.28, 0.0, wpos.y - ground_y + (fbm3(wpos * 4.0) - 0.5) * 0.18);
 	col = mix(col, moss_tint(wpos) * 0.8, clamp(up_moss * 0.7 + foot * 0.85, 0.0, 1.0));

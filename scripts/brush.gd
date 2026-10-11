@@ -584,8 +584,12 @@ func _update_ghost(over_ui: bool) -> void:
 	var p: Vector3 = _hit.pos
 	var k: Dictionary = Catalog.KINDS[place_kind]
 	var st = props.style_for(place_kind) if k.has("style") else null
+	# a pot by a fire shows hanging over it
+	var fire = props.fire_near(p.x, p.z) if place_kind == "gryta" else null
+	if fire != null:
+		p = Vector3(fire.x, p.y, fire.z)
 	var woody: bool = place_kind in props.WOODY
-	var key := "%s|%s|%d|%.2f|%.2f" % [place_kind, str(st), _ghost_variant, _ghost_rot, _ghost_jit]
+	var key := "%s|%s|%d|%.2f|%.2f|%s" % [place_kind, str(st), _ghost_variant, _ghost_rot, _ghost_jit, fire != null]
 	if woody:
 		# a tree's shape depends on what stands round it
 		key += "|%.1f,%.1f" % [snappedf(p.x, 0.5), snappedf(p.z, 0.5)]
@@ -594,7 +598,7 @@ func _update_ghost(over_ui: bool) -> void:
 		if _ghost:
 			_ghost.queue_free()
 		var rec := {"id": -1, "kind": place_kind, "x": p.x, "z": p.z, "rot": _ghost_rot, "variant": _ghost_variant,
-			"hue": 0.5, "jit": _ghost_jit}
+			"hue": 0.5, "jit": _ghost_jit, "over_fire": fire != null}
 		if st != null:
 			rec.style = (st as Dictionary).duplicate(true)
 			rec.size = maxf(0.02, float(st.size) * (1.0 + float(st.variation) * 0.6 * _ghost_jit))
@@ -604,7 +608,7 @@ func _update_ghost(over_ui: bool) -> void:
 		_dress_ghost(_ghost)
 		add_child(_ghost)
 	_ghost.visible = true
-	var lift: float = props.stone_lift(p.x, p.z) if place_kind in props.STONES else 0.0
+	var lift: float = 0.0 if fire != null else props.lift_for(place_kind, p.x, p.z)
 	var tall: float = _ghost.get_meta("tall", 1.0)
 	_ghost.global_position = Vector3(p.x, data.sample_height(p.x, p.z) - float(k.sink) * tall + lift, p.z)
 	var ok: bool = props.can_place(place_kind, p.x, p.z, 1.0, true)
@@ -620,6 +624,13 @@ func _dress_ghost(node: Node) -> void:
 		_ghost_leaf_mat = ShaderMaterial.new()
 		_ghost_leaf_mat.shader = _ghost_mat.shader
 		_ghost_leaf_mat.set_shader_parameter("leaf_cut", true)
+	# no light or flame in a ghost
+	for l in node.find_children("*", "Light3D", true, false):
+		l.queue_free()
+	for m in node.find_children("*", "MeshInstance3D", true, false):
+		var mat = (m as MeshInstance3D).material_override
+		if mat is ShaderMaterial and (mat as ShaderMaterial).shader and (mat as ShaderMaterial).shader.resource_path.ends_with("flame.gdshader"):
+			m.queue_free()
 	var all: Array = node.find_children("*", "GeometryInstance3D", true, false)
 	if node is GeometryInstance3D:
 		all.append(node)

@@ -29,6 +29,9 @@ const STONES := ["stenblock", "smasten", "trampsten"]
 const WOODY := ["lovtrad", "gran", "krokigt", "torrtrad", "sagotrad", "buske", "blombuske"]
 var roots   # the root layer, whose height raster of stones and ruins trees grow round
 var _woody_rev := 0
+## Things that rest on whatever is under them: a wall, a stone, the ground.
+const RESTING := ["fackla", "ljus", "lykta", "ryggsack", "koffert", "gryta", "flaskor", "bocker", "svampkorg", "tunna", "hacka", "yxa"]
+var _flames: Array = []   # [light, base energy]
 var _env_seen := ""
 
 
@@ -75,6 +78,8 @@ func can_place(kind: String, x: float, z: float, spread := 1.0, merge := false) 
 	for r in records:
 		var other: Dictionary = Catalog.KINDS[r.kind]
 		var dist := here.distance_to(Vector2(r.x, r.z))
+		if kind == "gryta" and r.kind == "eldstad":
+			continue
 		if other.layer == k.layer:
 			var need := (float(k.spacing) + float(other.spacing)) * 0.5 * spread
 			if merge and r.kind == kind and kind in WOODY:
@@ -128,6 +133,16 @@ func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -
 	if kind in STONES:
 		rec.lift = stone_lift(x, z)
 		stones_moved = true
+	elif kind in RESTING:
+		rec.lift = rest_lift(x, z)
+	if kind == "gryta":
+		var fire = fire_near(x, z)
+		if fire != null:
+			# a pot set down by a fire hangs over it
+			rec.x = fire.x
+			rec.z = fire.z
+			rec.over_fire = true
+			rec.lift = 0.0
 	records.append(rec)
 	last_stroke.append(rec.id)
 	if kind in Catalog.TREES:
@@ -171,6 +186,31 @@ func _stone_sphere(rec: Dictionary) -> Vector4:
 	var base := node.global_position if node else Vector3(rec.x, ground_at(rec.x, rec.z), rec.z)
 	var r := (float(rec.size) * 0.5 + tall * 0.5) * 0.5
 	return Vector4(base.x, base.y + tall * 0.5, base.z, r)
+
+
+## How high a small thing set down at (x, z) rests: on top of a wall, a
+## pillar or a stone if it is on one, else on the ground.
+func rest_lift(x: float, z: float) -> float:
+	var g := ground_at(x, z)
+	var top := obstacle_top(x, z)
+	return maxf(0.0, top - g) if top > g + 0.05 else 0.0
+
+
+## How high something of `kind` rests at (x, z).
+func lift_for(kind: String, x: float, z: float) -> float:
+	if kind in STONES:
+		return stone_lift(x, z)
+	if kind in RESTING:
+		return rest_lift(x, z)
+	return 0.0
+
+
+## The fire pit within reach of (x, z), for a pot to hang over; or null.
+func fire_near(x: float, z: float) -> Variant:
+	for r in records:
+		if r.kind == "eldstad" and Vector2(r.x, r.z).distance_to(Vector2(x, z)) < 1.2:
+			return r
+	return null
 
 
 ## How high a stone set down at (x, z) rests: on the ground, or, set on
@@ -235,6 +275,12 @@ func _env_key(rec: Dictionary) -> String:
 
 ## Something changed round the woody plants: rebuild those it touches.
 func _process(_delta: float) -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	for f in _flames:
+		var l := f[0] as OmniLight3D
+		if is_instance_valid(l):
+			var ph: float = f[2]
+			l.light_energy = float(f[1]) * (0.82 + 0.12 * sin(t * 11.0 + ph) + 0.08 * sin(t * 23.0 + ph * 2.0))
 	if roots == null:
 		return
 	roots.ensure_raster()
@@ -401,6 +447,7 @@ func follow_ground() -> void:
 
 
 func _spawn(rec: Dictionary) -> void:
+	_flames = _flames.filter(func(f): return is_instance_valid(f[0]))
 	if rec.kind in WOODY:
 		rec["_env"] = _env_key(rec)
 	if rec.kind in STONES:
@@ -409,6 +456,9 @@ func _spawn(rec: Dictionary) -> void:
 	add_child(node)
 	_nodes[rec.id] = node
 	_place(rec)
+	for l in node.find_children("*", "OmniLight3D", true, false):
+		if l.has_meta("flicker"):
+			_flames.append([l, l.get_meta("flicker"), randf() * TAU])
 
 
 func _place(rec: Dictionary) -> void:
@@ -434,6 +484,11 @@ func _place(rec: Dictionary) -> void:
 		if rec.kind in STONES and not node.position.is_equal_approx(at):
 			revision += 1
 		node.position = at
+		if rec.kind == "filt":
+			# a blanket lies along the slope
+			var n: Vector3 = data.surface_normal(x, z)
+			var right := n.cross(Vector3.FORWARD).normalized()
+			node.basis = Basis(right, n, right.cross(n)).orthonormalized() * Basis(Vector3.UP, float(rec.rot)) * Basis().scaled(Vector3.ONE * float(rec.size))
 		node.visible = data.sample_sdf(x, z) > 0.15
 	(node.get_meta("shaded") as GeometryInstance3D).set_instance_shader_parameter("ground_y", gy)
 

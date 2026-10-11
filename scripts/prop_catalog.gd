@@ -22,6 +22,7 @@ extends RefCounted
 
 const TreeBuilder := preload("res://scripts/tree_builder.gd")
 const PlantGen := preload("res://scripts/plant_gen.gd")
+const ItemBuilder := preload("res://scripts/item_builder.gd")
 const RockBuilder := preload("res://scripts/rock_builder.gd")
 const PlantBuilder := preload("res://scripts/plant_builder.gd")
 
@@ -101,6 +102,72 @@ const KINDS := {
 	"trampsten": {"label": "Trampstenar", "builder": "rock", "variants": 10, "detail": 2,
 		"style": {"size": 0.6, "variation": 0.2, "angular": 0.55, "flat": 0.85, "long": 0.25, "moss": 0.3, "texture": 0.4, "tint": [0.57, 0.55, 0.52]},
 		"spacing": 0.75, "layer": "small", "where": "any", "occupied": 0.4, "sink": 0.45, "sway": 0.0},
+	"stock": {"label": "Stock", "builder": "item", "gen": "log", "dials": "deadwood", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.2, "thick": 1.0, "moss": 0.6, "fungi": 0.4, "color_a": [0.36, 0.3, 0.25], "color_b": [0.82, 0.62, 0.36]},
+		"spacing": 1.4, "layer": "big", "where": "land", "mark": [Color(0, 0, 0.45, 0.25), 1.2], "occupied": 0.5, "sink": 0.12},
+	"stubbe": {"label": "Stubbe", "builder": "item", "gen": "stump", "dials": "deadwood", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.2, "thick": 1.0, "moss": 0.4, "fungi": 0.4, "color_a": [0.38, 0.29, 0.22], "color_b": [0.85, 0.66, 0.4]},
+		"spacing": 1.0, "layer": "big", "where": "land", "mark": [Color(0, 0, 0.4, 0.25), 0.9], "occupied": 0.45, "sink": 0.0},
+	"eldstad": {"label": "Eldstad", "builder": "item", "gen": "firepit", "dials": "light", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "glow": 1.0, "color_a": [0.4, 0.4, 0.4], "color_b": [0.4, 0.4, 0.4]},
+		"spacing": 1.2, "layer": "small", "where": "land", "mark": [Color(0, 0, 0, 0.8), 0.7], "occupied": 0.75, "sink": 0.0},
+	"fackla": {"label": "Fackla", "builder": "item", "gen": "torch", "dials": "light", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "glow": 1.0, "color_a": [0.45, 0.32, 0.2], "color_b": [0.4, 0.4, 0.4]},
+		"spacing": 0.4, "layer": "small", "where": "any", "occupied": 0.08, "sink": 0.0},
+	"ljus": {"label": "Stearinljus", "builder": "item", "gen": "candles", "dials": "light", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "glow": 1.0, "color_a": [0.95, 0.9, 0.78], "color_b": [0.55, 0.45, 0.35]},
+		"spacing": 0.3, "layer": "small", "where": "any", "occupied": 0.1, "sink": 0.0},
+	"lykta": {"label": "Lykta", "builder": "item", "gen": "lantern", "dials": "light", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "glow": 1.0, "color_a": [0.18, 0.18, 0.2], "color_b": [0.4, 0.4, 0.4]},
+		"spacing": 0.3, "layer": "small", "where": "any", "occupied": 0.1, "sink": 0.0},
+	"talt": {"label": "Tält", "builder": "item", "gen": "tent", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.05, "color_a": [0.78, 0.66, 0.42], "color_b": [0.42, 0.3, 0.2]},
+		"spacing": 2.6, "layer": "big", "where": "land", "occupied": 1.0, "sink": 0.0},
+	"ryggsack": {"label": "Ryggsäck", "builder": "item", "gen": "backpack", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.05, "color_a": [0.4, 0.5, 0.3], "color_b": [0.7, 0.3, 0.25]},
+		"spacing": 0.5, "layer": "small", "where": "any", "occupied": 0.15, "sink": 0.0},
+	"koffert": {"label": "Koffert", "builder": "item", "gen": "chest", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.05, "color_a": [0.5, 0.33, 0.2], "color_b": [0.25, 0.25, 0.27]},
+		"spacing": 0.8, "layer": "small", "where": "any", "occupied": 0.35, "sink": 0.0},
+	"gryta": {"label": "Gryta", "builder": "item", "gen": "pot", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.05, "color_a": [0.62, 0.38, 0.2], "color_b": [0.42, 0.3, 0.2]},
+		"spacing": 0.4, "layer": "small", "where": "any", "occupied": 0.1, "sink": 0.0},
+	"filt": {"label": "Picknickfilt", "builder": "item", "gen": "blanket", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.05, "color_a": [0.78, 0.22, 0.2], "color_b": [0.75, 0.7, 0.6]},
+		"spacing": 1.4, "layer": "small", "where": "land", "occupied": 0.7, "sink": 0.0},
+	"spade": {"label": "Spade", "builder": "item", "gen": "spade", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.05, "color_a": [0.55, 0.4, 0.25], "color_b": [0.4, 0.4, 0.4]},
+		"spacing": 0.4, "layer": "small", "where": "land", "occupied": 0.05, "sink": 0.0},
+	"hacka": {"label": "Hacka", "builder": "item", "gen": "pick", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.05, "color_a": [0.55, 0.4, 0.25], "color_b": [0.4, 0.4, 0.4]},
+		"spacing": 0.5, "layer": "small", "where": "any", "occupied": 0.05, "sink": 0.0},
+	"yxa": {"label": "Yxa", "builder": "item", "gen": "axe", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.05, "color_a": [0.72, 0.5, 0.3], "color_b": [0.4, 0.4, 0.4]},
+		"spacing": 0.4, "layer": "small", "where": "any", "occupied": 0.3, "sink": 0.0},
+	"huggkubbe": {"label": "Huggkubbe", "builder": "item", "gen": "block", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "color_a": [0.86, 0.66, 0.42], "color_b": [0.42, 0.36, 0.3]},
+		"spacing": 0.9, "layer": "small", "where": "land", "mark": [Color(0, 0, 0, 0.6), 1.0], "occupied": 0.8, "sink": 0.0},
+	"flaskor": {"label": "Flaskor", "builder": "item", "gen": "bottles", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "color_a": [0.3, 0.55, 0.32], "color_b": [0.55, 0.32, 0.15]},
+		"spacing": 0.3, "layer": "small", "where": "any", "occupied": 0.05, "sink": 0.0},
+	"bocker": {"label": "Böcker", "builder": "item", "gen": "books", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "color_a": [0.55, 0.2, 0.18], "color_b": [0.25, 0.4, 0.3]},
+		"spacing": 0.3, "layer": "small", "where": "any", "occupied": 0.05, "sink": 0.0},
+	"svampkorg": {"label": "Svampkorg", "builder": "item", "gen": "basket", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "color_a": [0.7, 0.52, 0.3], "color_b": [0.75, 0.45, 0.2]},
+		"spacing": 0.35, "layer": "small", "where": "any", "occupied": 0.08, "sink": 0.0},
+	"tunna": {"label": "Tunna", "builder": "item", "gen": "barrel", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "color_a": [0.52, 0.36, 0.22], "color_b": [0.25, 0.25, 0.27]},
+		"spacing": 0.65, "layer": "small", "where": "any", "occupied": 0.3, "sink": 0.0},
+	"vedtrave": {"label": "Vedtrave", "builder": "item", "gen": "woodpile", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "color_a": [0.86, 0.66, 0.42], "color_b": [0.42, 0.36, 0.3]},
+		"spacing": 0.8, "layer": "small", "where": "land", "mark": [Color(0, 0, 0, 0.45), 0.9], "occupied": 0.7, "sink": 0.0},
+	"stockhog": {"label": "Rund vedtrave", "builder": "item", "gen": "logpile", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "color_a": [0.86, 0.66, 0.42], "color_b": [0.42, 0.33, 0.25]},
+		"spacing": 0.9, "layer": "small", "where": "land", "mark": [Color(0, 0, 0, 0.4), 0.8], "occupied": 0.6, "sink": 0.0},
+	"skylt": {"label": "Skylt", "builder": "item", "gen": "sign", "dials": "item", "variants": 1000,
+		"style": {"size": 1.0, "variation": 0.1, "color_a": [0.6, 0.45, 0.28], "color_b": [0.4, 0.4, 0.4]},
+		"spacing": 0.5, "layer": "small", "where": "land", "occupied": 0.05, "sink": 0.0},
 	"vass": {"label": "Vass", "builder": "reeds", "height": [0.8, 1.2], "spacing": 0.4, "layer": "small", "where": "shore",
 		"mark": [Color(0, 0, 0.2, 0.5), 0.5], "occupied": 0.2, "sink": 0.0},
 	"nackros": {"label": "Näckros", "builder": "lily", "height": [0.22, 0.34], "spacing": 0.4, "layer": "water", "where": "water",
@@ -198,9 +265,35 @@ const GRASS_DIALS := [
 	["Vippor", "heads", 0.0, 1.0, "%", "Fröställningar ovanför stråna"],
 	["Gräsfärg", "lawn", 0.0, 1.0, "%", "Hur mycket gräset tar efter gräsmattan; noll ger den egna färgen"],
 ]
+const ITEM_DIALS := [
+	["Storlek", "size", 0.3, 3.0, "x", "Hur stor saken är"],
+	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket de skiljer sig i storlek"],
+]
+const LIGHT_DIALS := [
+	["Storlek", "size", 0.3, 3.0, "x", "Hur stor saken är"],
+	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket de skiljer sig i storlek"],
+	["Ljusstyrka", "glow", 0.0, 3.0, "x", "Hur starkt det lyser"],
+]
+const DEADWOOD_DIALS := [
+	["Storlek", "size", 0.3, 3.0, "x", "Hur stor den är"],
+	["Variation", "variation", 0.0, 1.0, "%", "Hur mycket de skiljer sig i storlek"],
+	["Tjocklek", "thick", 0.4, 2.5, "x", "Hur grov den är"],
+	["Mossa", "moss", 0.0, 1.0, "%", "Hur mossig den är"],
+	["Svampar", "fungi", 0.0, 1.0, "%", "Tickor som växer på den"],
+]
+## The tab of small things: groups and the kinds in them.
+const ITEMS := [
+	["Ljus och eld", ["eldstad", "fackla", "ljus", "lykta"]],
+	["Läger", ["talt", "ryggsack", "koffert", "gryta", "filt"]],
+	["Ved och verktyg", ["huggkubbe", "yxa", "vedtrave", "stockhog", "spade", "hacka"]],
+	["Smått", ["flaskor", "bocker", "svampkorg", "tunna", "skylt"]],
+]
 ## The colours a kind's dials can set: label and style key.
 const DIAL_COLORS := {
 	"stone": [["Färg", "tint"]],
+	"item": [["Färg", "color_a"], ["Färg 2", "color_b"]],
+	"light": [["Färg", "color_a"]],
+	"deadwood": [["Bark", "color_a"], ["Svamp", "color_b"]],
 	"tree": [["Löv", "leaf_color"], ["Bark", "bark_color"], ["Frukt", "fruit_color"]],
 	"bush": [["Löv", "leaf_color"], ["Blom/bär", "fruit_color"]],
 	"conifer": [["Barr", "leaf_color"], ["Bark", "bark_color"]],
@@ -211,7 +304,7 @@ const DIAL_COLORS := {
 	"grass": [["Strå", "color_a"], ["Vippa", "color_c"]],
 }
 const DIALS := {"stone": STONE_DIALS, "tree": TREE_DIALS, "conifer": CONIFER_DIALS, "bush": BUSH_DIALS, "fern": FERN_DIALS,
-	"flower": FLOWER_DIALS, "clover": CLOVER_DIALS, "mushroom": MUSHROOM_DIALS, "grass": GRASS_DIALS}
+	"flower": FLOWER_DIALS, "item": ITEM_DIALS, "light": LIGHT_DIALS, "deadwood": DEADWOOD_DIALS, "clover": CLOVER_DIALS, "mushroom": MUSHROOM_DIALS, "grass": GRASS_DIALS}
 
 
 const TREES := ["lovtrad", "gran", "krokigt", "torrtrad", "sagotrad"]
@@ -262,6 +355,13 @@ static func build(rec: Dictionary) -> Node3D:
 			mi.rotation.y = rec.rot
 			mi.set_meta("shaded", mi)
 			return mi
+		"item":
+			var st := RockBuilder.style_of(k.style, rec.get("style"))
+			node = ItemBuilder.build(k.gen, st, int(rec.variant), {"over_fire": rec.get("over_fire", false)})
+			node.scale = Vector3.ONE * size
+			node.set_meta("tall", float(node.get_meta("tall", 0.3)) * size)
+			node.rotation.y = rec.rot
+			return node
 		"plant":
 			var st := RockBuilder.style_of(k.style, rec.get("style"))
 			var mi := MeshInstance3D.new()
