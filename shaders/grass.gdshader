@@ -35,7 +35,11 @@ void vertex() {
 	float sz = terrain_at(root + vec2(0.0, 0.1)).r - terrain_at(root - vec2(0.0, 0.1)).r;
 	density *= 1.0 - smoothstep(3.0, 5.0, length(vec2(sx, sz)) / 0.2);
 	float grows = step(chance, density);
-	float tall = mix(0.75, 1.25, INSTANCE_CUSTOM.w) * mix(0.55, 1.0, smoothstep(0.0, 0.5, t.g)) * (0.55 + 0.6 * density);
+	// by the coast the grass hangs out over the edge, but only here and there:
+	// in patches along the rim, some hanging further than others
+	float edge = 1.0 - smoothstep(0.05, 0.5, t.g);
+	float over = smoothstep(0.45, 0.75, fbm2(root * 1.3 + vec2(17.0, 3.0)));
+	float tall = mix(0.75, 1.25, INSTANCE_CUSTOM.w) * (0.55 + 0.6 * density) * (1.0 + edge * over * 0.15);
 	tall *= grows;
 
 	along = UV.y;
@@ -44,6 +48,16 @@ void vertex() {
 	VERTEX.xz = root + (VERTEX.xz - root) * grows;
 	// stand on the ground at the root; blades stay upright on slopes
 	VERTEX.y = VERTEX.y * tall + t.r - 0.02;
+	// out over the edge and down it: outward from the coast, the tip drooping
+	// further the nearer the root is to the edge, some tufts more than others
+	if (edge * over > 0.001 && grows > 0.5) {
+		vec2 out_dir = -vec2(terrain_at(root + vec2(0.1, 0.0)).g - terrain_at(root - vec2(0.1, 0.0)).g,
+			terrain_at(root + vec2(0.0, 0.1)).g - terrain_at(root - vec2(0.0, 0.1)).g);
+		out_dir = length(out_dir) > 1e-5 ? normalize(out_dir) : vec2(0.0);
+		float flop = edge * over * (0.4 + 0.6 * fract(chance * 7.31)) * along;
+		VERTEX.xz += out_dir * flop * tall * 0.4;
+		VERTEX.y -= flop * flop * tall * 0.45;
+	}
 
 	float gust = vnoise2(VERTEX.xz * 0.18 + vec2(TIME * 0.35, TIME * 0.21));
 	float sway = sin(TIME * 1.7 + VERTEX.x * 0.8 + VERTEX.z * 0.6) * 0.35 + gust * 1.1 - 0.4;

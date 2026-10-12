@@ -36,18 +36,41 @@ void fragment() {
 	// cooler and darker as it hangs deeper
 	rock = mix(rock, rock * srgb(vec3(0.72, 0.76, 0.86)), smoothstep(-2.0, -8.0, wpos.y));
 
+	// along the rim, for strands hanging straight down: x on faces turned
+	// toward z, z on faces turned toward x, blended between
+	float wz = smoothstep(0.3, 0.7, abs(wn.z) / max(abs(wn.x) + abs(wn.z), 1e-4));
+	float round_rim = wz > 0.5 ? wpos.x : wpos.z;
+	// the soil under the grass: a band of uneven depth, deeper in pockets,
+	// crumbling into the rock in clods and pebbles rather than a line
 	float wobble = fbm3(wpos * 3.0) - 0.5;
-	vec3 soil = srgb(vec3(0.32, 0.22, 0.15)) * (0.75 + 0.35 * fbm3(wpos * 5.0));
-	float soil_amt = 1.0 - smoothstep(0.28, 0.5, rim_depth + wobble * 0.25);
+	float depth_here = 0.42 + 0.56 * (mix(fbm2(vec2(wpos.z * 0.9, 3.0)), fbm2(vec2(wpos.x * 0.9, 3.0)), wz) - 0.5);
+	vec3 soil = srgb(vec3(0.32, 0.22, 0.15)) * (0.72 + 0.4 * fbm3(wpos * 5.0));
+	float clods = vnoise3(wpos * vec3(7.0, 9.0, 7.0));
+	float soil_amt = 1.0 - smoothstep(depth_here - 0.08, depth_here + 0.08, rim_depth + wobble * 0.3 + (clods - 0.5) * 0.25);
+	// lighter clods in the soil, and the darker, damper soil toward its foot
+	soil *= 0.9 + 0.3 * smoothstep(0.62, 0.8, vnoise3(wpos * vec3(11.0, 14.0, 11.0) + 5.0));
+	soil *= mix(1.0, 0.75, smoothstep(depth_here * 0.4, depth_here, rim_depth));
 	vec3 col = mix(rock, soil, soil_amt);
+	// a few roots threading down through the soil
+	float root_line = abs(vnoise2(vec2(round_rim * 6.0 + wpos.y * 0.8, 1.0)) - 0.5);
+	col = mix(col, srgb(vec3(0.42, 0.3, 0.2)), (1.0 - smoothstep(0.0, 0.025, root_line)) * soil_amt * step(0.62, vnoise2(vec2(round_rim * 2.0, 7.0))) * 0.8);
 
-	// grass and roots spilling over the edge
-	float hang = 1.0 - smoothstep(0.03, 0.16, rim_depth + (vnoise2(wpos.xz * 9.0) - 0.5) * 0.16);
-	col = mix(col, grass_tint(wpos.xz) * 0.7, hang);
+	// grass spilling over the edge in strands of uneven length, darker in
+	// under the lip where the sky does not reach
+	float strands_x = vnoise2(vec2(wpos.x * 22.0, 0.5)) * 0.6 + vnoise2(vec2(wpos.x * 7.0, 2.5)) * 0.4;
+	float strands_z = vnoise2(vec2(wpos.z * 22.0, 0.5)) * 0.6 + vnoise2(vec2(wpos.z * 7.0, 2.5)) * 0.4;
+	float strands = mix(strands_z, strands_x, wz);
+	float reach = 0.03 + 0.15 * strands * strands * strands;
+	float hang = 1.0 - smoothstep(reach * 0.75, reach, rim_depth);
+	vec3 grass_col = grass_tint(wpos.xz) * mix(0.75, 0.42, smoothstep(0.0, reach, rim_depth));
+	grass_col *= 0.9 + 0.2 * vnoise2(vec2(round_rim * 40.0, wpos.y * 4.0));
+	col = mix(col, grass_col, hang);
+	// shade right under the grass lip
+	col *= 1.0 - (1.0 - hang) * (1.0 - smoothstep(reach, reach + 0.14, rim_depth)) * 0.35;
 
 	// moss settles on ledges
 	float moss = smoothstep(0.25, 0.8, wn.y + (moss_field(wpos) - 0.5) * 0.9);
-	col = mix(col, moss_tint(wpos) * 0.85, moss * 0.85 * (1.0 - soil_amt));
+	col = mix(col, moss_tint(wpos) * 0.85, moss * 0.85 * (1.0 - soil_amt) * (1.0 - hang));
 
 	float e = 0.03;
 	float h0 = rock_bump(wpos);
