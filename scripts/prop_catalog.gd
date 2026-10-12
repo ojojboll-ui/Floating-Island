@@ -102,6 +102,12 @@ const KINDS := {
 	"trampsten": {"label": "Trampstenar", "builder": "rock", "variants": 10, "detail": 2,
 		"style": {"size": 0.6, "variation": 0.2, "angular": 0.68, "flat": 0.85, "long": 0.25, "moss": 0.3, "texture": 0.4, "relief": 0.5, "tint": [0.57, 0.55, 0.52]},
 		"spacing": 0.75, "layer": "small", "where": "any", "occupied": 0.4, "sink": 0.45, "sway": 0.0},
+	# rock: big stones like the boulders, set close and sunk deep so a stroke
+	# builds one outcrop; a few shapes, turned and sized apart, so painting
+	# stays quick
+	"berg": {"label": "Berg", "builder": "rock", "variants": 24, "detail": 5,
+		"style": {"size": 2.2, "variation": 0.4, "angular": 0.72, "flat": 0.3, "long": 0.35, "moss": 0.5, "texture": 0.5, "relief": 0.5, "tint": [0.5, 0.51, 0.53]},
+		"spacing": 0.7, "layer": "big", "where": "land", "occupied": 0.9, "sink": 0.42, "sway": 0.0},
 	"stock": {"label": "Stock", "builder": "item", "gen": "log", "dials": "deadwood", "variants": 1000,
 		"style": {"size": 1.0, "variation": 0.2, "thick": 1.0, "moss": 0.35, "fungi": 0.4, "color_a": [0.45, 0.34, 0.25], "wood_color": [0.84, 0.66, 0.44], "color_b": [0.82, 0.62, 0.36]},
 		"spacing": 1.4, "layer": "big", "where": "land", "mark": [Color(0, 0, 0.45, 0.25), 1.2], "occupied": 0.5, "sink": 0.12},

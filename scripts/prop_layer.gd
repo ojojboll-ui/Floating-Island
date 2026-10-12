@@ -23,7 +23,7 @@ var revision := 0
 var styles := {}
 ## The things placed by the last stroke, which the dials restyle too.
 var last_stroke: Array = []
-const STONES := ["stenblock", "smasten", "trampsten"]
+const STONES := ["stenblock", "smasten", "trampsten", "berg"]
 ## Kinds grown by the tree builder: they bend round stones and walls, and
 ## two of one kind planted on top of each other grow into one.
 const WOODY := ["lovtrad", "gran", "krokigt", "torrtrad", "sagotrad", "buske", "blombuske"]
@@ -33,11 +33,16 @@ var _woody_rev := 0
 const RESTING := ["fackla", "ljus", "lykta", "ryggsack", "koffert", "gryta", "flaskor", "bocker", "svampkorg", "tunna", "hacka", "yxa", "spade"]
 var _flames: Array = []   # [light, base energy]
 var _env_seen := ""
+var _prewarm: Array = []   # [task, shapes] of stone shapes being built ahead
 
 
 func setup(island_data) -> void:
 	data = island_data
 	Catalog.context = self
+	# Berg comes in a handful of shapes: build them in the background now,
+	# so its first strokes do not wait for them
+	var k: Dictionary = Catalog.KINDS["berg"]
+	_prewarm = Catalog.RockBuilder.prewarm(Catalog.RockBuilder.style_of(k.style, null), int(k.variants), int(k.detail))
 
 
 ## Size range midpoint, so marks scale with how big this one turned out.
@@ -488,6 +493,9 @@ func _env_key(rec: Dictionary) -> String:
 
 ## Something changed round the woody plants: rebuild those it touches.
 func _process(_delta: float) -> void:
+	if not _prewarm.is_empty() and WorkerThreadPool.is_task_completed(_prewarm[0]):
+		Catalog.RockBuilder.adopt(_prewarm)
+		_prewarm = []
 	var t := Time.get_ticks_msec() / 1000.0
 	for f in _flames:
 		var l := f[0] as OmniLight3D

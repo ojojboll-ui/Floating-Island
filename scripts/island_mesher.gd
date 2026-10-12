@@ -30,12 +30,9 @@ class Surface:
 	var uvs := PackedVector2Array()
 	var colors := PackedColorArray()
 	var uv2s := PackedVector2Array()
-	## rock: how much, block tone, metres to a crack, relief height
-	var custom := PackedFloat32Array()
 	var indices := PackedInt32Array()
 
-	func add(p: Vector3, n: Vector3, uv: Vector2, c: Color, uv2 := Vector2.ZERO, cust := Color(0, 0, 0, 0)) -> int:
-		custom.append_array([cust.r, cust.g, cust.b, cust.a])
+	func add(p: Vector3, n: Vector3, uv: Vector2, c: Color, uv2 := Vector2.ZERO) -> int:
 		verts.append(p)
 		uv2s.append(uv2)
 		normals.append(n)
@@ -52,7 +49,7 @@ class Surface:
 		if indices.is_empty():
 			return null
 		var mesh := ArrayMesh.new()
-		MeshUtil.add_surface(mesh, verts, normals, uvs, colors, indices, uv2s, custom)
+		MeshUtil.add_surface(mesh, verts, normals, uvs, colors, indices, uv2s)
 		return mesh
 
 
@@ -156,20 +153,11 @@ static func build_tile(data, ti: int, tj: int, want_top: bool, want_body: bool) 
 			if poly.size() < 3:
 				continue
 			has_land = true
-			# rock is cut finer, so its relief can stand out of the ground
-			var counts := []
-			var sub := 1
-			if want_top and poly.size() == 4 and poly[0] is int and poly[1] is int and poly[2] is int and poly[3] is int:
-				counts = [_edge_count(data, corners[0], corners[1]), _edge_count(data, corners[1], corners[2]),
-					_edge_count(data, corners[3], corners[2]), _edge_count(data, corners[0], corners[3])]
-				sub = maxi(maxi(counts[0], counts[1]), maxi(counts[2], counts[3]))
 			var tids := []
 			if want_top or want_body:
 				for key in poly:
 					tids.append(_top_vertex(g, top, top_ids, key))
-				if want_top and sub > 1:
-					_sub_cell(g, top, top_ids, i, j, corners, counts, sub)
-				elif want_top:
+				if want_top:
 					for k in range(1, poly.size() - 1):
 						top.tri(tids[0], tids[k], tids[k + 1])
 			if want_body:
@@ -214,11 +202,7 @@ static func _top_vertex(g: Grid, s: Surface, ids: Dictionary, key) -> int:
 		var p: Vector2 = data.grid_pos_k(k)
 		var l := g.local(k)
 		# uv.x carries the distance to the coast so the shader can treat the rim
-		if _near_berg(data, k):
-			var r := _berg_point(data, p.x, p.y)
-			id = s.add(r[0], r[1], Vector2(data.sdf[k], data.rocks[k]), data.splat[k], _wet(g, k), r[2])
-		else:
-			id = s.add(Vector3(p.x, g.surf[l], p.y), g.top_n[l], Vector2(data.sdf[k], data.rocks[k]), data.splat[k], _wet(g, k), Color(data.berg[k], 0.5, 1.0, 0.0))
+		id = s.add(Vector3(p.x, g.surf[l], p.y), g.top_n[l], Vector2(data.sdf[k], data.rocks[k]), data.splat[k], _wet(g, k))
 	else:
 		var t := _crossing_t(g, key)
 		var la := g.local(key.x)
@@ -226,7 +210,7 @@ static func _top_vertex(g: Grid, s: Surface, ids: Dictionary, key) -> int:
 		var p: Vector2 = (data.grid_pos_k(key.x) as Vector2).lerp(data.grid_pos_k(key.y), t)
 		var c: Color = (data.splat[key.x] as Color).lerp(data.splat[key.y], t)
 		var n := g.top_n[la].lerp(g.top_n[lb], t).normalized()
-		id = s.add(Vector3(p.x, lerpf(g.surf[la], g.surf[lb], t), p.y), n, Vector2(0.0, lerpf(data.rocks[key.x], data.rocks[key.y], t)), c, _wet(g, key.x).lerp(_wet(g, key.y), t), Color(lerpf(data.berg[key.x], data.berg[key.y], t), 0.5, 1.0, 0.0))
+		id = s.add(Vector3(p.x, lerpf(g.surf[la], g.surf[lb], t), p.y), n, Vector2(0.0, lerpf(data.rocks[key.x], data.rocks[key.y], t)), c, _wet(g, key.x).lerp(_wet(g, key.y), t))
 	ids[key] = id
 	return id
 
@@ -342,120 +326,3 @@ static func _column(g: Grid, top: Surface, top_ids: Dictionary, body: Surface, c
 		body.add(pts[r], n, Vector2(top_p.y - pts[r].y, 0.0), Color(0, 0, 0, 0))
 	columns[key] = first
 	return first
-
-
-# --- rock (Berg) -------------------------------------------------------------
-
-## How many pieces the rock cuts a grid edge into: by its length up the
-## slope, so a steep face gets as many as it needs and is never stretched.
-## It depends on the edge alone, so the two cells beside it cut it alike
-## and meet without cracks. Edges by the coast, or without rock, stay whole.
-static func _edge_count(data, a: int, b: int) -> int:
-	if data.berg[a] <= 0.001 and data.berg[b] <= 0.001:
-		return 1
-	if minf(data.sdf[a], data.sdf[b]) < 0.45:
-		return 1
-	var dh: float = absf(data.surface(a) - data.surface(b))
-	var cell: float = IslandData.CELL
-	return clampi(int(ceil(sqrt(cell * cell + dh * dh) / 0.1)), 1, 20)
-
-
-## Whether grid point k lies by any rock, so it takes the rock's shape.
-static func _near_berg(data, k: int) -> bool:
-	var res: int = IslandData.RES
-	var i := k % res
-	var j := k / res
-	for dj in range(-1, 2):
-		for di in range(-1, 2):
-			var ii := clampi(i + di, 0, res - 1)
-			var jj := clampi(j + dj, 0, res - 1)
-			if data.berg[jj * res + ii] > 0.001:
-				return true
-	return false
-
-
-## The ground at (x, z) with the rock's relief pushed out along its normal:
-## [position, relief (height, tone, metres to a crack), the smooth ground's normal].
-static func _pushed(data, x: float, z: float) -> Array:
-	var hn: Vector3 = data.smooth_hn(x, z)
-	var p := Vector3(x, hn.x, z)
-	var s: float = data.berg_scale(x, z)
-	var n := Vector3(-hn.y, 1.0, -hn.z).normalized()
-	var rel := Vector3(0.0, 0.5, 1.0)
-	if s > 0.0:
-		rel = data.berg_relief(p, n)
-		p += n * IslandData.berg_lift(rel.x) * s
-	return [p, rel, n]
-
-
-## A rock vertex: [position, normal, shader data].
-static func _berg_point(data, x: float, z: float) -> Array:
-	var here := _pushed(data, x, z)
-	var e := 0.02
-	var px: Vector3 = _pushed(data, x + e, z)[0]
-	var pz: Vector3 = _pushed(data, x, z + e)[0]
-	var pos: Vector3 = here[0]
-	var n := (pz - pos).cross(px - pos).normalized()
-	# out of the ground, even where the rock leans out over itself
-	if n.dot(here[2]) < 0.0:
-		n = -n
-	var rel: Vector3 = here[1]
-	return [pos, n, Color(data.sample_berg(x, z), rel.y, rel.z, rel.x)]
-
-
-## A grid cell with rock, cut into m by m: each side snapped to its own count
-## of pieces (see _edge_count), so it meets the next cell point for point.
-static func _sub_cell(g: Grid, s: Surface, ids: Dictionary, i: int, j: int, corners: Array, counts: Array, m: int) -> void:
-	var pts := []
-	for b in m + 1:
-		for a in m + 1:
-			var u := float(a) / m
-			var v := float(b) / m
-			if b == 0:
-				u = round(u * counts[0]) / counts[0]
-			elif b == m:
-				u = round(u * counts[2]) / counts[2]
-			if a == 0:
-				v = round(v * counts[3]) / counts[3]
-			elif a == m:
-				v = round(v * counts[1]) / counts[1]
-			pts.append(_sub_vertex(g, s, ids, i, j, corners, u, v))
-	for b in m:
-		for a in m:
-			var p00: int = pts[b * (m + 1) + a]
-			var p10: int = pts[b * (m + 1) + a + 1]
-			var p11: int = pts[(b + 1) * (m + 1) + a + 1]
-			var p01: int = pts[(b + 1) * (m + 1) + a]
-			if p00 != p10 and p10 != p11 and p00 != p11:
-				s.tri(p00, p10, p11)
-			if p00 != p11 and p11 != p01 and p00 != p01:
-				s.tri(p00, p11, p01)
-
-
-static func _sub_vertex(g: Grid, s: Surface, ids: Dictionary, i: int, j: int, corners: Array, u: float, v: float) -> int:
-	if (u == 0.0 or u == 1.0) and (v == 0.0 or v == 1.0):
-		var c: int = [corners[0], corners[1], corners[3], corners[2]][int(u) + int(v) * 2]
-		return _top_vertex(g, s, ids, c)
-	var data = g.data
-	var cell: float = IslandData.CELL
-	var origin: Vector2 = data.grid_pos(i, j)
-	var x := origin.x + u * cell
-	var z := origin.y + v * cell
-	var key := Vector3i(int(round(x * 4000.0)), int(round(z * 4000.0)), 1)
-	if ids.has(key):
-		return ids[key]
-	var r := _berg_point(data, x, z)
-	var w := [(1.0 - u) * (1.0 - v), u * (1.0 - v), u * v, (1.0 - u) * v]
-	var col := Color(0, 0, 0, 0)
-	var sdf := 0.0
-	var rocks := 0.0
-	var wet := Vector2.ZERO
-	for q in 4:
-		var k: int = corners[q]
-		col += (data.splat[k] as Color) * w[q]
-		sdf += data.sdf[k] * w[q]
-		rocks += data.rocks[k] * w[q]
-		wet += _wet(g, k) * w[q]
-	var id := s.add(r[0], r[1], Vector2(sdf, rocks), col, wet, r[2])
-	ids[key] = id
-	return id

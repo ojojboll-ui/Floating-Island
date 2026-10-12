@@ -48,10 +48,7 @@ static func style_of(base: Dictionary, s) -> Dictionary:
 ## The stone for a style and a variant, one metre across, resting on y = 0.
 ## Shapes are cached: many pebbles share a handful of them.
 static func mesh(style: Dictionary, variant: int, detail := 3) -> ArrayMesh:
-	var shape := style.duplicate()
-	for look in ["moss", "texture", "relief", "tint", "size", "variation"]:
-		shape.erase(look)
-	var key := "%s|%d|%d" % [str(shape), variant, detail]
+	var key := _key(style, variant, detail)
 	if _meshes.has(key):
 		return _meshes[key]
 	var m := _build(style, variant, detail)
@@ -113,6 +110,9 @@ static func _build(style: Dictionary, seed: int, detail: int) -> ArrayMesh:
 	var colors := PackedColorArray()
 	var idx := PackedInt32Array()
 	var face_of := PackedInt32Array()
+	# the stone's outline as a few big triangles, for whatever only needs its
+	# shape roughly (the roots' height raster)
+	var hull := PackedVector3Array()
 	for fi in faces.size():
 		var f: Array = faces[fi]
 		var m := f.size()
@@ -143,10 +143,11 @@ static func _build(style: Dictionary, seed: int, detail: int) -> ArrayMesh:
 			var h := (c - a - ab * (c - a).dot(ab) / maxf(ab.length_squared(), 1e-12)).length()
 			if ab.length() < 1e-6 or h < 1e-6:
 				continue
+			hull.append_array([bump.call(c), bump.call(a), bump.call(b)])
 			# split finely enough for the lumps to show (big stones finer), every
 			# face alike, so shared edges are split at the same points and leave
 			# no gaps
-			var n := clampi(detail + (1 if detail >= 5 else 0), 2, 6)
+			var n := clampi(detail - 1, 2, 4)
 			var row_start: Array = []
 			var base := fv.size()
 			for i in n + 1:
@@ -189,6 +190,7 @@ static func _build(style: Dictionary, seed: int, detail: int) -> ArrayMesh:
 		nrm.append(crisp[k].lerp(soft[k], smooth).normalized())
 	var out := ArrayMesh.new()
 	MeshUtil.add_surface(out, verts, nrm, uvs, colors, idx)
+	out.set_meta("hull", hull)
 	return out
 
 
@@ -252,6 +254,35 @@ static func _face_normals(verts: PackedVector3Array, idx: PackedInt32Array, face
 		var p := Vector3i((verts[k] * 10000.0).round())
 		out[k] = (acc[Vector4i(p.x, p.y, p.z, face_of[k])] as Vector3).normalized()
 	return out
+
+
+## The cache key for a stone: only what shapes it, not how it is coloured.
+static func _key(style: Dictionary, variant: int, detail: int) -> String:
+	var shape := style.duplicate()
+	for look in ["moss", "texture", "relief", "tint", "size", "variation"]:
+		shape.erase(look)
+	return "%s|%d|%d" % [str(shape), variant, detail]
+
+
+## Build the shapes for variants 0 .. count-1 ahead, off the main thread, so
+## the first strokes of a kind do not wait for them. Returns the task id;
+## call adopt() with it once it is done.
+static func prewarm(style: Dictionary, count: int, detail: int) -> Array:
+	var built := {}
+	var st := style.duplicate(true)
+	var task := WorkerThreadPool.add_task(func() -> void:
+		for v in count:
+			built[_key(st, v, detail)] = _build(st, v, detail))
+	return [task, built]
+
+
+## Take the shapes a finished prewarm built into the cache.
+static func adopt(job: Array) -> void:
+	WorkerThreadPool.wait_for_task_completion(job[0])
+	var built: Dictionary = job[1]
+	for key in built:
+		if not _meshes.has(key):
+			_meshes[key] = built[key]
 
 
 ## A cube's faces, `h` from its middle, each a loop of corners.

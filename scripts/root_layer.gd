@@ -124,10 +124,17 @@ func _take_raster() -> void:
 	for entry in solids:
 		var mesh: Mesh = entry[0]
 		var xf: Transform3D = entry[1]
-		for s in mesh.get_surface_count():
-			var arrays := mesh.surface_get_arrays(s)
-			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-			var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		# a generated stone gives its rough outline, a few big triangles
+		var parts: Array = []
+		if mesh.has_meta("hull"):
+			parts.append([mesh.get_meta("hull"), PackedInt32Array()])
+		else:
+			for s in mesh.get_surface_count():
+				var arrays := mesh.surface_get_arrays(s)
+				parts.append([arrays[Mesh.ARRAY_VERTEX], arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()])
+		for part in parts:
+			var verts: PackedVector3Array = part[0]
+			var idx: PackedInt32Array = part[1]
 			var world := PackedVector3Array()
 			world.resize(verts.size())
 			for k in verts.size():

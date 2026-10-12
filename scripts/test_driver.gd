@@ -1042,52 +1042,47 @@ static func run(main: Node, name: String) -> void:
 			main.ui.set_collapsed(true)
 			await _frames(main, 30)
 		"berg":
-			# bare rock painted over a patch, part of it raised into a steep knoll:
-			# the rock's blocks follow up the face instead of stretching
+			# a hill raised, then Berg painted over it with the brush: an outcrop of
+			# boulder stones that sits on the slope, and how smooth the stroke ran
 			main.props.remove_near(0.0, 0.0, 9.0)
 			var d = main.data
-			for a in OS.get_cmdline_user_args():
-				if a.begins_with("--rough="):
-					d.berg_rough = float(a.substr(8))
-				elif a.begins_with("--vari="):
-					d.berg_variation = float(a.substr(7))
-			for k in 8:
-				d.paint(Vector2(0.4 + (k % 3) * 0.9, 0.6 + (k / 3) * 0.8), 1.6, Color(0, 0, 0, 0), 0.0, 1.0, 1.0)
-			for k in 20:
-				d.edit_height(Vector2(1.2, 1.4), 1.0, 0.12)
-			var t0 := Time.get_ticks_msec()
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			for k in 14:
+				d.edit_height(Vector2(1.2, 1.2), 1.4, 0.12)
 			main.view.rebuild(d.dirty, d.dirty_shape)
 			d.dirty = Rect2i()
 			d.dirty_shape = Rect2i()
 			main.view.flush()
-			print("  rock built in %d ms, height at the knoll %.2f (bare %.2f)" % [Time.get_ticks_msec() - t0, d.sample_height(1.2, 1.4), d.sample_bare(1.2, 1.4)])
-			for a in OS.get_cmdline_user_args():
-				if a.begins_with("--nbias="):
-					main.weather.sun.shadow_normal_bias = float(a.substr(8))
-				elif a == "--noshadow":
-					main.weather.sun.shadow_enabled = false
-			print("  sun biases ", main.weather.sun.shadow_bias, " ", main.weather.sun.shadow_normal_bias)
-			if "--nograss" in OS.get_cmdline_user_args():
-				for e in main.view._tiles.values():
-					(e.grass as Node3D).visible = false
 			main.props.follow_ground()
-			main.ui.set_collapsed(true)
-			await _frames(main, 20)
-		"berg_ui":
-			# the Berg paint shows its dials, a stroke paints rock, Undo takes it back
-			var d = main.data
-			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
-			main.ui.tabs.current_tab = 0
+			main.ui.tabs.current_tab = 1
 			await _frames(main, 3)
 			await _click(main, main.ui.buttons["Berg"])
-			await _frames(main, 3)
-			print("  dials shown: ", main.ui._berg_dials.visible)
-			await _drag(main, [on.call(-1.0, 1.0), on.call(1.0, 1.2)], 30)
+			main.brush.radius = 1.6
+			await _drag(main, [on.call(-0.6, 0.4), on.call(1.2, 1.4), on.call(2.6, 1.0)], 60)
 			await _frames(main, 10)
-			print("  rock at (0, 1.1): %.2f" % d.sample_berg(0.0, 1.1))
-			main.brush.undo()
-			await _frames(main, 10)
-			print("  after undo: %.2f" % d.sample_berg(0.0, 1.1))
+			print("  rock stones: %d" % main.props.records.filter(func(r): return r.kind == "berg").size())
+			main.ui.set_collapsed(true)
+			await _frames(main, 20)
+		"rock_time":
+			# how long a stone's shape takes to build, and the roots' raster after it
+			var RB = preload("res://scripts/rock_builder.gd")
+			for kind in ["berg", "stenblock", "smasten"]:
+				var st: Dictionary = main.props.style_for(kind)
+				var t0 := Time.get_ticks_usec()
+				for v in 3:
+					RB.mesh(st, 500 + v, int(Catalog.KINDS[kind].detail))
+				print("  %s: %.0f ms a shape" % [kind, (Time.get_ticks_usec() - t0) / 3000.0])
+			var rng := RandomNumberGenerator.new()
+			for v in [3, 3, 7]:
+				var ta := Time.get_ticks_usec()
+				main.props.add("berg", 1.0 + v * 0.3, 1.0, rng, -1.0, v)
+				var tb := Time.get_ticks_usec()
+				await _frames(main, 1)
+				print("  add berg variant %d: %.0f ms, next frame %.0f ms" % [v, (tb - ta) / 1000.0, (Time.get_ticks_usec() - tb) / 1000.0])
+			main.props.add("berg", 1.0, 1.0, rng)
+			var t1 := Time.get_ticks_usec()
+			main.roots.ensure_raster()
+			print("  raster after a stone: %.0f ms" % ((Time.get_ticks_usec() - t1) / 1000.0))
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

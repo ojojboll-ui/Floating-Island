@@ -33,8 +33,6 @@ const UNDO_LIMIT := 40
 var tool: int = Tool.RAISE
 var paint_target := Color(0, 0, 0, 0)
 var paint_rocks := 0.0
-## How much the paint makes the ground bare rock (Berg).
-var paint_berg := 0.0
 var place_kind := ""
 var ruin_height := 2.0
 var radius := 1.6
@@ -351,7 +349,7 @@ func _apply(hit: Dictionary, dt: float) -> void:
 		Tool.LAND_REMOVE:
 			data.edit_land(c, radius, false)
 		Tool.PAINT:
-			data.paint(c, radius, paint_target, paint_rocks, 6.0 * rate * dt, paint_berg)
+			data.paint(c, radius, paint_target, paint_rocks, 6.0 * rate * dt)
 		Tool.WATER:
 			# the level follows the ground down as the brush moves downhill, so
 			# a stroke becomes a stream; it never climbs back up. The rim roll

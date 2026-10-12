@@ -18,12 +18,12 @@ const PLANTS := [
 	["Träd", ["lovtrad", "gran", "krokigt", "torrtrad", "sagotrad"]],
 	["Buskar", ["buske", "blombuske", "ormbunke", "hogtgras"]],
 	["Blommor", ["blommor", "klover", "svamp"]],
-	["Stenar", ["stenblock", "smasten", "trampsten"]],
+	["Stenar", ["stenblock", "smasten", "trampsten", "berg"]],
 	["Död ved", ["stock", "stubbe"]],
 	["Vid vattnet", ["vass", "nackros"]],
 ]
 
-# name, splat target, swatch colour, loose stones target, tooltip, rock target
+# name, splat target, swatch colour, loose stones target, tooltip
 const MATERIALS := [
 	["Gräs", Color(0, 0, 0, 0), Color(0.45, 0.62, 0.2), 0.0, "Måla gräs"],
 	["Plattor", Color(1, 0, 0, 0), Color(0.6, 0.58, 0.55), 0.0, "Lagda stenplattor"],
@@ -31,7 +31,6 @@ const MATERIALS := [
 	["Sand", Color(0, 1, 0, 0), Color(0.86, 0.78, 0.58), 0.0, "Måla sand"],
 	["Mossa", Color(0, 0, 1, 0), Color(0.38, 0.5, 0.15), 0.0, "Måla mossa"],
 	["Jord", Color(0, 0, 0, 1), Color(0.5, 0.37, 0.25), 0.0, "Måla jord"],
-	["Berg", Color(0, 0, 0, 0), Color(0.55, 0.55, 0.57), 0.0, "Kalt berg i block och sprickor. Höj det, så följer ojämnheten med uppför branten. Reglagen nedanför", 1.0],
 ]
 
 var brush
@@ -52,7 +51,6 @@ var _dock: PanelContainer
 var _handle: Button
 var collapsed := false
 var _root_dials: Control
-var _berg_dials: Control
 var _scatter_dials: Array = []   # Täthet and Klungor, for painting things out
 var _kind_dials := {}             # kind -> its box of style dials
 
@@ -195,9 +193,6 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	for m in MATERIALS:
 		paint_buttons.append(_tool_button(m[0], Brush.Tool.PAINT, m, m[4]))
 	row.add_child(_section("Måla", paint_buttons))
-	_berg_dials = _berg_box()
-	_berg_dials.visible = false
-	row.add_child(_berg_dials)
 
 	var sliders := _column("Pensel")
 	_size_slider = _slider("Storlek", 0.4, 6.0, brush.radius, func(v: float) -> void: brush.radius = v)
@@ -568,23 +563,6 @@ func _effects_row() -> Control:
 
 ## The roots' dials. They set the next roots drawn and restyle the last
 ## ones, so roots can be drawn first and tuned after.
-## The rock's dials: how rough it is, and how much its blocks vary. They
-## change all the rock on the island.
-func _berg_box() -> Control:
-	var box := _column("Berg")
-	var d = main.data
-	for spec in [["Ojämnhet", "berg_rough", "Hur kraftigt berget buktar i block och sprickor"],
-			["Variation", "berg_variation", "Lika stora block, eller stora och små om vartannat"]]:
-		var key: String = spec[1]
-		var sl := _slider(spec[0], 0.0, 1.0, d.get(key), func(v: float) -> void:
-			d.set(key, v)
-			d.touch_berg(), "%")
-		sl.drag_started.connect(func() -> void: brush.push_undo())
-		(sl.get_parent() as Control).tooltip_text = spec[2] + ". Gäller allt berg på ön"
-		box.add_child(sl.get_parent())
-	return box
-
-
 func _root_box() -> Control:
 	var box := _column("Rötter")
 	var r = main.roots
@@ -1003,8 +981,6 @@ func _show_page(page: int) -> void:
 func _sync() -> void:
 	if _root_dials:
 		_root_dials.visible = brush.tool == Brush.Tool.ROOTS
-	if _berg_dials:
-		_berg_dials.visible = brush.tool == Brush.Tool.PAINT and brush.paint_berg > 0.0
 	var placing: bool = brush.tool == Brush.Tool.PLACE
 	for d in _scatter_dials:
 		(d as Control).visible = placing
@@ -1045,15 +1021,12 @@ func _tool_button(label: String, t: int, material, tip: String) -> Button:
 	buttons[label] = b
 	var target := Color(0, 0, 0, 0)
 	var stones := 0.0
-	var rock := 0.0
 	if material != null:
 		target = material[1]
 		stones = material[3]
-		rock = material[5] if material.size() > 5 else 0.0
 		b.icon = _swatch(material[2])
 	b.toggled.connect(func(on: bool) -> void:
 		if on:
-			brush.paint_berg = rock
 			brush.set_tool(t, target, stones))
 	return b
 
