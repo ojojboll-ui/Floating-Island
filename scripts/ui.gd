@@ -180,7 +180,8 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	]))
 	row.add_child(_section("Undersida", [
 		_tool_button("Sudda under", Brush.Tool.CARVE, null, "Sudda bort öns undersida nedifrån, upp till det ljusa berget under jorden. Fungerar bäst med kameran under ön (Shift: bygg på igen)"),
-		_tool_button("Rötter", Brush.Tool.ROOTS, null, "Rita rötter: på marken kryper de över gräs, sten och golv och tippar över kanten; på undersidan och klippan hänger de ner. Reglagen nedanför (Shift: ta bort rötter)"),
+		_tool_button("Rötter", Brush.Tool.ROOTS, null, "Rita rötter: på marken kryper de över gräs, sten och golv och tippar över kanten; på undersidan och klippan hänger de ner. Reglagen nedanför (Shift: sudda rötter)"),
+		_tool_button("Sudda rötter", Brush.UNROOT, null, "Sudda bort delar av rötterna som penseln drar över; det som växer vidare därifrån försvinner också"),
 	]))
 	_root_dials = _root_box()
 	_root_dials.visible = false
@@ -568,7 +569,7 @@ func _root_box() -> Control:
 	var r = main.roots
 	var dials := []
 	for spec in [["Storlek", "size", 0.25, 3.0, "x", "Skalar hela rotsystemet: längd, bredd och tjocklek tillsammans, så formen blir densamma"],
-			["Längd", "length", 1.0, 8.0, "m", "Hur långt rötterna når"],
+			["Längd", "length", 0.5, 8.0, "m", "Hur långt rötterna når"],
 			["Bredd", "spread", 0.3, 4.0, "m", "Hur brett de breder ut sig"],
 			["Tjocklek", "thickness", 0.2, 3.0, "x", "Hur grova de är"],
 			["Täthet", "branching", 0.0, 1.0, "%", "Hur tätt rötterna söker sig fram: glest ger få långa rötter, tätt ett fint nät"],

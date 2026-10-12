@@ -430,7 +430,7 @@ func _apply(hit: Dictionary, dt: float) -> void:
 
 
 func _is_under_tool() -> bool:
-	return tool == Tool.CARVE or tool == Tool.ROOTS
+	return tool == Tool.CARVE or tool == Tool.ROOTS or tool == UNROOT
 
 
 ## A spot in the brush for the next thing painted. With Klungor up, most

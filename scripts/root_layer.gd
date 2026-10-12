@@ -44,6 +44,7 @@ var _raster_rev := -1
 var _raster_dirty := false
 var _stones_rev := -1
 var _lying := {}            # seed -> where its roots lie on the ground: x, z, radius in turn
+var _grown_nodes := {}      # seed -> [node positions, which are rubbed out], for Sudda rötter
 
 
 func setup(island_data, ruin_layer) -> void:
@@ -255,16 +256,43 @@ func _process(_delta: float) -> void:
 
 
 ## Take away every root that starts within r of c.
+## Rub out the roots within r of c (Sudda rötter): the parts of a root
+## system inside are cut away, with all that grew on from them; a system
+## with nothing left is removed.
 func remove_near(c: Vector3, r: float) -> bool:
+	var changed := false
 	var keep: Array = []
 	for rec in records:
-		var near := false
-		for a in rec.anchors:
-			if Vector3(a[0], a[1], a[2]).distance_to(c) < r:
-				near = true
-		if not near:
-			keep.append(rec)
-	if keep.size() == records.size():
+		var grown: Array = _grown_nodes.get(rec.seed, [])
+		var hit := false
+		var left := false
+		if not grown.is_empty():
+			var pos: PackedVector3Array = grown[0]
+			var dead: PackedByteArray = grown[1]
+			for k in pos.size():
+				if k < dead.size() and dead[k] == 1:
+					continue
+				if pos[k].distance_to(c) < r:
+					hit = true
+				else:
+					left = true
+		else:
+			for a in rec.anchors:
+				if Vector3(a[0], a[1], a[2]).distance_to(c) < r:
+					hit = true
+		if hit and not left:
+			changed = true
+			continue
+		if hit:
+			var cuts: Array = rec.get("cuts", [])
+			# a brush held still adds no more cuts
+			var last: Array = cuts.back() if not cuts.is_empty() else []
+			if last.is_empty() or Vector3(last[0], last[1], last[2]).distance_to(c) > r * 0.25:
+				cuts.append([c.x, c.y, c.z, r])
+				rec.cuts = cuts
+				changed = true
+		keep.append(rec)
+	if not changed:
 		return false
 	records = keep
 	_refresh()
@@ -351,6 +379,8 @@ static func _style_of(rec: Dictionary) -> Dictionary:
 	if rec.has("length") and not s.has("length"):
 		s.length = rec.length
 		s.spread = rec.spread
+	# the parts rubbed out, which the roots no longer grow through
+	s.cuts = rec.get("cuts", [])
 	return RootBuilder.style_of(s)
 
 
@@ -387,6 +417,7 @@ func _refresh() -> void:
 		var grown := RootBuilder.grow(resolved, st, seed, inside, ground, bare_ground)
 		_nodes[seed].mesh = RootBuilder.to_mesh(grown)
 		_lying[seed] = grown.get("lying", PackedFloat32Array())
+		_grown_nodes[seed] = [grown.get("nodes", PackedVector3Array()), grown.get("dead", PackedByteArray())]
 		changed = true
 	for seed in _nodes.keys():
 		if not seen.has(seed):

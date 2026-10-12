@@ -1106,6 +1106,34 @@ static func run(main: Node, name: String) -> void:
 			print("  on the body: %d" % main.props.records.filter(func(r): return r.get("side", false)).size())
 			main.ui.set_collapsed(true)
 			await _frames(main, 20)
+		"roots_close":
+			# a tree with no moss, roots drawn round its foot, seen close: what
+			# colours the roots
+			main.props.remove_near(0.0, 0.0, 9.0)
+			main.rig.aperture = 0.0
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			var p = main.props
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 3
+			p.style_for("lovtrad").moss = 0.0
+			p.add("lovtrad", 0.0, 0.0, rng)
+			var r = main.roots
+			if "--userroots" in OS.get_cmdline_user_args():
+				for kv in [["size", 0.39], ["length", 1.0], ["spread", 2.1], ["thickness", 3.0], ["fork_gap", 1.5], ["fork_angle", 24.0], ["bark", 0.0]]:
+					r.style[kv[0]] = kv[1]
+			var anchors := []
+			for a in [0.3, 1.9, 3.4, 4.8]:
+				anchors.append(r.anchor_at(on.call(cos(a) * 0.3, sin(a) * 0.3)))
+			r.add(anchors, 77)
+			if "--erase" in OS.get_cmdline_user_args():
+				await _frames(main, 5)
+				var t0 := Time.get_ticks_msec()
+				r.remove_near(on.call(0.9, 0.3), 0.35)
+				print("  rubbed out in %d ms, cuts: %s" % [Time.get_ticks_msec() - t0, r.records.map(func(x): return x.get("cuts", []).size())])
+			main.weather.hour = 14.0
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

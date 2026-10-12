@@ -2,8 +2,8 @@ shader_type spatial;
 render_mode cull_back;
 
 // Roots, stylized: a painted colour with soft light and shade, and as much
-// of the Quaternius twisted-tree bark (CC0) as the Bark dial asks for. Moss
-// gathers on top of roots lying on the ground; soil clings where hanging
+// of the Quaternius twisted-tree bark (CC0) as the Bark dial asks for. They keep their
+// own colour on the ground (no moss from it); soil clings where hanging
 // roots leave the rock; hanging roots sway in the wind toward their tips.
 // Vertex colour red is how far along the root a point is, green is 1 where
 // the root hangs free.
@@ -46,9 +46,6 @@ void fragment() {
 	vec3 col = mix(painted, barky, bark);
 	// soft light from above, the stylized way
 	col *= mix(0.78, 1.08, wn.y * 0.5 + 0.5);
-	// moss on top of roots lying on the ground
-	float moss = smoothstep(0.35, 0.9, wn.y + (moss_field(wpos) - 0.5) * 0.8) * (1.0 - hanging);
-	col = mix(col, moss_tint(wpos) * 0.85, moss * 0.6);
 	// soil still clinging where a hanging root leaves the rock
 	float soil = smoothstep(0.15, 0.0, along + (fbm3(wpos * 3.0) - 0.5) * 0.1) * hanging;
 	col = mix(col, srgb(vec3(0.3, 0.21, 0.14)), soil * 0.7);

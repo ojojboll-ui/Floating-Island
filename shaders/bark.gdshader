@@ -25,8 +25,8 @@ void fragment() {
 	// moss only on branch tops that truly face the sky, not up the trunk
 	float up_moss = smoothstep(0.6 - moss_more * 0.7, 0.95 - moss_more * 0.5, wn.y + (moss_field(wpos) - 0.5) * 0.5);
 	// moss only around the very foot, broken unevenly
-	float foot = smoothstep(0.28, 0.0, wpos.y - ground_y + (fbm3(wpos * 4.0) - 0.5) * 0.18);
-	col = mix(col, moss_tint(wpos) * 0.8, clamp(up_moss * 0.7 + foot * 0.85, 0.0, 1.0));
+	float foot = smoothstep(0.09, 0.0, wpos.y - ground_y + (fbm3(wpos * 4.0) - 0.5) * 0.06);
+	col = mix(col, moss_tint(wpos) * 0.8, clamp(up_moss * 0.7 + foot * 0.5, 0.0, 1.0));
 	ALBEDO = weathered(col, wn.y, wpos);
 	if (has_normal) {
 		// the Quaternius bark normal (CC0): twice round the trunk, stretched along it

@@ -491,16 +491,30 @@ static func grow(anchors: Array, style: Dictionary, seed: int, inside: Callable,
 	var longest := 0.001
 	for k in n:
 		longest = maxf(longest, along[k])
+	# what has been rubbed out (Sudda rötter): every node inside one of the
+	# cuts, and all that grows on from it
+	var cuts: Array = st.get("cuts", [])
+	var dead := PackedByteArray()
+	dead.resize(n)
+	for k in n:
+		var gone := parent[k] >= 0 and dead[parent[k]] == 1
+		if not gone:
+			for c in cuts:
+				if pos[k].distance_to(Vector3(c[0], c[1], c[2])) < float(c[3]):
+					gone = true
+					break
+		dead[k] = 1 if gone else 0
 	# where the roots lie on the ground, and how thick: x, z, radius in turn
 	var lying := PackedFloat32Array()
 	for k in n:
-		if lies[k] == 1:
+		if lies[k] == 1 and dead[k] == 0:
 			lying.append_array([pos[k].x, pos[k].z, radius[k]])
 
 	# chains: follow the thickest child on; every other child starts a chain
 	# of its own from the fork
 	var mesh := {"v": PackedVector3Array(), "n": PackedVector3Array(), "uv": PackedVector2Array(),
-		"c": PackedColorArray(), "i": PackedInt32Array(), "lying": lying, "nodes": pos, "lies": lies, "climbs": climbs, "radius": radius}
+		"c": PackedColorArray(), "i": PackedInt32Array(), "lying": lying, "nodes": pos, "lies": lies, "climbs": climbs, "radius": radius,
+		"placed": {}, "dead": dead}
 	var starts: Array = []
 	for k in n:
 		if parent[k] < 0:
@@ -512,6 +526,8 @@ static func grow(anchors: Array, style: Dictionary, seed: int, inside: Callable,
 			chain.append(s[1])
 		var k: int = s[0]
 		while true:
+			if dead[k] == 1:
+				break
 			chain.append(k)
 			var ks: Array = kids[k]
 			if ks.is_empty():
@@ -802,8 +818,10 @@ static func _tube(m: Dictionary, chain: PackedInt32Array, pos: PackedVector3Arra
 	var dist: Array[float] = []
 	var free: Array[float] = []
 	var on_solid: Array[bool] = []
+	var nodes: Array[int] = []
 	var on_face: Array[bool] = []
 	for k in chain:
+		nodes.append(k)
 		on_solid.append(lies[k] == 1)
 		on_face.append(climbs[k] == 1)
 		pts.append(pos[k])
@@ -829,6 +847,7 @@ static func _tube(m: Dictionary, chain: PackedInt32Array, pos: PackedVector3Arra
 		var f2: Array[float] = [free[0]]
 		var s2: Array[bool] = [on_solid[0]]
 		var c2: Array[bool] = [on_face[0]]
+		var n2: Array[int] = [nodes[0]]
 		for k in range(1, pts.size()):
 			p2.append((pts[k - 1] + pts[k]) * 0.5)
 			r2.append((rad[k - 1] + rad[k]) * 0.5)
@@ -836,18 +855,26 @@ static func _tube(m: Dictionary, chain: PackedInt32Array, pos: PackedVector3Arra
 			f2.append(maxf(free[k - 1], free[k]))
 			s2.append(on_solid[k - 1] and on_solid[k])
 			c2.append(on_face[k - 1] and on_face[k])
+			n2.append(-1)
 			p2.append(pts[k])
 			r2.append(rad[k])
 			d2.append(dist[k])
 			f2.append(free[k])
 			s2.append(on_solid[k])
 			c2.append(on_face[k])
+			n2.append(nodes[k])
 		pts = p2
 		rad = r2
 		dist = d2
 		free = f2
 		on_solid = s2
 		on_face = c2
+		nodes = n2
+	# a branch starts where its parent's tube actually runs, not where the
+	# parent's node was before that tube was smoothed, or the two drift apart
+	# and leave a gap at the fork
+	if m.placed.has(nodes[0]):
+		pts[0] = m.placed[nodes[0]]
 	# the girth eases from one node to the next, so a root narrowing as it
 	# takes to a wall does not step down at the wall's foot
 	for _easing in 2:
@@ -873,8 +900,18 @@ static func _tube(m: Dictionary, chain: PackedInt32Array, pos: PackedVector3Arra
 			if on_solid[k] or (k > 0 and k < pts.size() - 1 and on_solid[k - 1] and on_solid[k + 1]):
 				pts[k] = _outside(pts[k], rad[k], ground)
 	_arch_over_tops(pts, rad, on_solid, on_face, ground)
+	# the start closed in a rounded cap, so a root never shows an open end
+	var back := (pts[0] - pts[1]).normalized()
+	pts.insert(0, pts[0] + back * rad[0] * 0.45)
+	pts.insert(0, pts[1] + back * rad[0] * 0.8)
+	rad.insert(0, rad[0] * 0.8)
+	rad.insert(0, rad[1] * 0.15)
+	for _cap in 2:
+		dist.insert(0, dist[0])
+		free.insert(0, free[0])
+		nodes.insert(0, -1)
 	var count := pts.size()
-	var sides := 8 if rad[0] > 0.07 else 6
+	var sides := 8 if rad[2] > 0.07 else 6
 	var base: int = m.v.size()
 	var t0 := (pts[1] - pts[0]).normalized()
 	var u := t0.cross(Vector3.RIGHT if absf(t0.x) < 0.9 else Vector3.FORWARD).normalized()
@@ -893,6 +930,8 @@ static func _tube(m: Dictionary, chain: PackedInt32Array, pos: PackedVector3Arra
 			r *= 0.15
 		elif k == count - 2:
 			r *= 0.7
+		if nodes[k] >= 0 and not m.placed.has(nodes[k]):
+			m.placed[nodes[k]] = pts[k] + snake
 		var sway := clampf(dist[k] / longest, 0.0, 1.0)
 		for s in sides + 1:
 			var a := TAU * s / sides
