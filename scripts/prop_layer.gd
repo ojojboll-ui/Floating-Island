@@ -139,7 +139,7 @@ func cliff_lean(at: Vector3, normal: Vector3) -> Vector3:
 		var d: float = data.sample_sdf(at.x, at.z)
 		return out * 0.45 * (1.0 - smoothstep(0.1, 1.0, d))
 	var below := maxf(data.sample_height(at.x, at.z) - at.y, 0.0)
-	return out * minf(0.55 + below * 0.9, 1.8)
+	return out * minf(0.55 + below * 1.8, 1.4)
 
 
 ## Where a tree on the cliff stands: upright, turned by rot, its foot sunk

@@ -1232,6 +1232,22 @@ static func run(main: Node, name: String) -> void:
 					print("  cliff tree %.1f m down, lean %s" % [depth, (rec.cliff_lean as Vector3).snapped(Vector3.ONE * 0.01)])
 			main.ui.set_collapsed(true)
 			await _frames(main, 30)
+		"tree_depth":
+			# pointing ever lower down the cliff with a tree chosen: it never
+			# goes deeper than the most a tree may hang
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Lövträd"])
+			var vp: Vector2 = main.get_viewport().get_visible_rect().size
+			var worst := 0.0
+			var sides := 0
+			for k in 30:
+				var hit: Dictionary = main.brush.pick(vp * Vector2(0.62, 0.4 + k * 0.015))
+				if hit.get("side", false):
+					sides += 1
+					var p: Vector3 = hit.pos
+					worst = maxf(worst, main.data.sample_height(p.x, p.z) - p.y)
+			print("  %d picks on the cliff, deepest %.2f m under the top" % [sides, worst])
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

@@ -469,7 +469,13 @@ func pick(screen: Vector2) -> Dictionary:
 		if not body.is_empty() and (body.pos as Vector3).y < data.sample_height(body.pos.x, body.pos.z) - 0.25:
 			body.side = true
 			body.normal = _body_normal(body.pos)
-			if not (place_kind in props.WOODY and (body.normal as Vector3).y < -0.5):
+			if place_kind in props.WOODY:
+				# a tree grows no further down the cliff than just under the rim;
+				# pointing lower, it stays at that deepest spot
+				var clamped := _tree_spot(body.pos)
+				if not clamped.is_empty():
+					return clamped
+			else:
 				return body
 	var hit := _pick_ground(o, d)
 	# the top of a stair, pillar, wall or raised floor, if the ray meets one
@@ -580,6 +586,27 @@ func _body_normal(p: Vector3) -> Vector3:
 	return (out + Vector3.DOWN * 0.15).normalized()
 
 
+## How far down the cliff a tree or bush may grow, in metres below the top.
+const TREE_DEPTH := 0.45
+
+
+## The spot on the cliff for a tree at most TREE_DEPTH under the top above
+## `p`: {pos, normal, land, side}, or {} where there is no cliff.
+func _tree_spot(p: Vector3) -> Dictionary:
+	var top: float = data.sample_height(p.x, p.z)
+	if top - p.y <= TREE_DEPTH:
+		return {"pos": p, "normal": _body_normal(p), "land": true, "side": true}
+	var out: Vector3 = data.outward(p.x, p.z)
+	var y := top - TREE_DEPTH
+	# from out in the air, in toward the island at that height
+	var start := Vector3(p.x, y, p.z) + out * 1.5
+	for step in 60:
+		var q := start - out * step * 0.05
+		if roots.inside(q):
+			return {"pos": q, "normal": _body_normal(q), "land": true, "side": true}
+	return {}
+
+
 ## A spot on the island's body within the brush round `hit`, for the next
 ## stone strewn there: {pos, normal}, or {} when it misses.
 func _side_point(hit: Dictionary) -> Dictionary:
@@ -594,6 +621,8 @@ func _side_point(hit: Dictionary) -> Dictionary:
 		var p := start - n * t
 		if roots.inside(p):
 			if p.y > data.sample_height(p.x, p.z) - 0.25:
+				return {}
+			if place_kind in props.WOODY and p.y < data.sample_height(p.x, p.z) - TREE_DEPTH:
 				return {}
 			return {"pos": p, "normal": _body_normal(p)}
 		t += 0.05
