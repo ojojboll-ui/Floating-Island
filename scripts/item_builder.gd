@@ -472,7 +472,7 @@ static func _rock(xf: Transform3D, variant: int) -> MeshInstance3D:
 	if _rock_mat == null:
 		_rock_mat = ShaderMaterial.new()
 		_rock_mat.shader = load("res://shaders/rock.gdshader")
-	var st := {"angular": 0.75, "flat": 0.45, "long": 0.35}
+	var st := {"angular": 0.2, "flat": 0.4, "long": 0.3}
 	var mi := MeshInstance3D.new()
 	mi.mesh = RockBuilder.mesh(st, variant % 8, 3)
 	mi.transform = xf
@@ -488,11 +488,12 @@ static func _rock(xf: Transform3D, variant: int) -> MeshInstance3D:
 
 ## A ring of stones round a little cone of logs on glowing embers.
 static func _firepit(k: Kit, w: WoodBuilder.Wood, rng: RandomNumberGenerator, rocks: Array) -> void:
+	# round stones in a ring, as fieldstones are
 	for s in 9:
 		var a := TAU * s / 9.0 + rng.randf_range(-0.1, 0.1)
-		var size := rng.randf_range(0.22, 0.3)
-		var turn := Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(size, size * 0.85, size))
-		rocks.append([Transform3D(turn, Vector3(cos(a) * 0.43, -0.02, sin(a) * 0.43)), rng.randi()])
+		var size := rng.randf_range(0.24, 0.32)
+		var turn := Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(size * 1.1, size * 0.9, size * 0.85))
+		rocks.append([Transform3D(turn, Vector3(cos(a) * 0.43, -0.03, sin(a) * 0.43)), rng.randi()])
 	# logs leaning into a little cone, their tops burnt off
 	for s in 4:
 		var a := TAU * s / 4.0 + 0.4 + rng.randf_range(-0.2, 0.2)
@@ -501,14 +502,12 @@ static func _firepit(k: Kit, w: WoodBuilder.Wood, rng: RandomNumberGenerator, ro
 		var r := rng.randf_range(0.04, 0.05)
 		var ring := w.trunk([foot - (top - foot).normalized() * 0.04, foot.lerp(top, 0.5), top] as Array[Vector3], [r, r, r * 0.9] as Array[float], 5, 0.14)
 		w.cap(ring, top, (top - foot).normalized(), 0.12, 0.004)
-	# embers on a bed of ash
+	# a heap of embers and charcoal under the logs, on the scorched ground
 	k.mat = PAINT
-	k.cyl(0.24, 0.27, 0.04, _at(Vector3(0, 0.02, 0)), _glow(0.9), 12)
-	k.cyl(0.33, 0.36, 0.02, _at(Vector3(0, 0.005, 0)), _fixed(0.13, 0.11, 0.1), 12)
-	for e in 7:
+	for e in 22:
 		var a := rng.randf() * TAU
-		var d := rng.randf_range(0.04, 0.2)
-		k.ball(rng.randf_range(0.025, 0.04), Transform3D(Basis().scaled(Vector3(1.2, 0.6, 1.0)), Vector3(cos(a) * d, 0.045, sin(a) * d)), _glow(rng.randf_range(0.6, 1.0)), 6)
+		var d := sqrt(rng.randf()) * 0.24
+		k.ball(rng.randf_range(0.025, 0.04), Transform3D(Basis().scaled(Vector3(1.2, 0.6, 1.0)), Vector3(cos(a) * d, 0.03 - d * 0.08, sin(a) * d)), _glow(rng.randf_range(0.6, 1.0)) if e % 3 != 0 else _fixed(0.1, 0.09, 0.08), 8)
 
 
 ## A torch: a whittled pole, a band of iron, and a head of pitch-soaked
@@ -809,32 +808,20 @@ static func _spade(k: Kit, w: WoodBuilder.Wood) -> void:
 			k.band(Vector3(-0.05 * d, 0.95, z + side * 0.03), Vector3(0.05 * d, 1.035, z + side * 0.03), Vector3(0, 0, side), 0.02, 0.008, cloth)
 
 
-## A pick: a long handle and a steel head that sweeps down to a point at
-## each end, lashed on with crossed leather straps. Lying along +y from the
-## handle's end.
+## A pick: a long wooden handle, and a steel head that curves gently back
+## to a point at each end. Lying along +y from the handle's end.
 static func _pick(k: Kit, w: WoodBuilder.Wood) -> void:
 	var z := 0.034
-	w.pole([Vector3(0, 0.0, z), Vector3(0, 0.4, z), Vector3(0, 0.8, z)] as Array[Vector3], 0.022, 6, 2, 1.12)
+	var hy := 0.88
+	w.pole([Vector3(0, 0.0, z), Vector3(0, 0.45, z), Vector3(0, hy, z)] as Array[Vector3], 0.022, 6, 2)
 	k.mat = METAL
 	var steel := _b()
-	var hy := 0.7
-	k.rbox(Vector3(0.08, 0.09, 0.062), 0.012, _at(Vector3(0, hy, z)), steel)
+	k.rbox(Vector3(0.07, 0.07, 0.068), 0.01, _at(Vector3(0, hy + 0.005, z)), steel)
 	for sx: float in [-1.0, 1.0]:
-		var prev := Vector3(sx * 0.035, hy + 0.01, z)
-		var r_prev := 0.03
-		for s in range(1, 8):
-			var t := s / 7.0
-			# rising a little out of the eye, then sweeping down to the point
-			var p := Vector3(sx * (0.035 + 0.32 * t), hy + 0.01 + 0.05 * sin(t * PI * 0.7) - 0.13 * t * t, z)
-			var r := lerpf(0.028, 0.004, pow(t, 1.3))
-			k.cone(prev, p, r_prev, r, steel, 6)
-			prev = p
-			r_prev = r
-	k.mat = LEATHER
-	var strap := _fixed(0.4, 0.24, 0.12)
-	for side: float in [1.0, -1.0]:
-		for d: float in [1.0, -1.0]:
-			k.band(Vector3(-0.055 * d, hy - 0.06, z + side * 0.033), Vector3(0.055 * d, hy + 0.06, z + side * 0.033), Vector3(0, 0, side), 0.022, 0.008, strap)
+		var mid := Vector3(sx * 0.17, hy + 0.01, z)
+		var tip := Vector3(sx * 0.32, hy - 0.035, z)
+		k.cone(Vector3(sx * 0.03, hy + 0.01, z), mid, 0.03, 0.022, steel, 6)
+		k.cone(mid, tip, 0.022, 0.004, steel, 6)
 
 
 ## An axe along +y from its head (the head at the origin, the edge to +x):

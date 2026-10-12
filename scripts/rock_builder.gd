@@ -50,15 +50,15 @@ static func mesh(style: Dictionary, variant: int, detail := 3) -> ArrayMesh:
 	var shape := style.duplicate()
 	for look in ["moss", "texture", "tint", "size", "variation"]:
 		shape.erase(look)
-	var key := "%s|%d" % [str(shape), variant]
+	var key := "%s|%d|%d" % [str(shape), variant, detail]
 	if _meshes.has(key):
 		return _meshes[key]
-	var m := _build(style, variant)
+	var m := _build(style, variant, detail)
 	_meshes[key] = m
 	return m
 
 
-static func _build(style: Dictionary, seed: int) -> ArrayMesh:
+static func _build(style: Dictionary, seed: int, detail: int) -> ArrayMesh:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed * 7919 + 13
 	var angular: float = style.angular
@@ -94,6 +94,17 @@ static func _build(style: Dictionary, seed: int) -> ArrayMesh:
 			f[k] = ((f[k] as Vector3) - mid) / across
 	# worn stones have their faces' normals rounded toward the middle
 	var round := (1.0 - angular) * 0.55
+	# no face lies quite flat: lumps and dents push the surface in and out
+	# along the line from the middle, the same for both faces at a ridge so
+	# the stone stays closed
+	var noise := FastNoiseLite.new()
+	noise.seed = seed
+	noise.frequency = 2.2
+	noise.fractal_octaves = 3
+	var lumps := lerpf(0.045, 0.028, angular)
+	var bump := func(p: Vector3) -> Vector3:
+		var dir := (p - centre).normalized()
+		return p + dir * noise.get_noise_3dv(p) * lumps
 	var verts := PackedVector3Array()
 	var nrm := PackedVector3Array()
 	var uvs := PackedVector2Array()
@@ -116,6 +127,11 @@ static func _build(style: Dictionary, seed: int) -> ArrayMesh:
 			fn = -fn
 		var shade := fposmod(sin(float(fi + seed * 3) * 12.9898) * 43758.5453, 1.0)
 		var col := Color(1.0, shade, 1.0, 1.0)
+		# the face on its own, so its normals are smoothed over it but not
+		# round the ridge into the next face
+		var fv := PackedVector3Array()
+		var fuv := PackedVector2Array()
+		var fi_idx := PackedInt32Array()
 		for k in m:
 			var a: Vector3 = f[k]
 			var b: Vector3 = f[(k + 1) % m]
@@ -124,17 +140,42 @@ static func _build(style: Dictionary, seed: int) -> ArrayMesh:
 			var h := (c - a - ab * (c - a).dot(ab) / maxf(ab.length_squared(), 1e-12)).length()
 			if ab.length() < 1e-6 or h < 1e-6:
 				continue
-			var base := verts.size()
-			for q in [[c, 1.0], [a, 0.0], [b, 0.0]]:
-				var p: Vector3 = q[0]
-				verts.append(p)
-				nrm.append(fn.lerp((p - centre).normalized(), round).normalized())
-				uvs.append(Vector2(float(q[1]), h))
-				colors.append(col)
-			if MeshUtil.face_normal(c, a, b).dot(fn) < 0.0:
-				idx.append_array([base, base + 2, base + 1])
-			else:
-				idx.append_array([base, base + 1, base + 2])
+			# split finely enough for the lumps to show (big stones finer), every
+			# face alike, so shared edges are split at the same points and leave
+			# no gaps
+			var n := clampi(detail + (1 if detail >= 5 else 0), 2, 6)
+			var row_start: Array = []
+			var base := fv.size()
+			for i in n + 1:
+				row_start.append(fv.size() - base)
+				for j in n + 1 - i:
+					var wa := float(i) / n
+					var wb := float(j) / n
+					var wc := 1.0 - wa - wb
+					fv.append(bump.call(c * wc + a * wa + b * wb))
+					fuv.append(Vector2(wc, h))
+			for i in n:
+				for j in n - i:
+					var p0: int = base + row_start[i] + j
+					var p1: int = base + row_start[i] + j + 1
+					var p2: int = base + row_start[i + 1] + j
+					var tris := [[p0, p1, p2]]
+					if j < n - i - 1:
+						tris.append([p1, base + row_start[i + 1] + j + 1, p2])
+					for tr in tris:
+						if MeshUtil.face_normal(fv[tr[0]], fv[tr[1]], fv[tr[2]]).dot(fn) < 0.0:
+							fi_idx.append_array([tr[0], tr[2], tr[1]])
+						else:
+							fi_idx.append_array([tr[0], tr[1], tr[2]])
+		var fnrm := MeshUtil.normals_by_position(fv, fi_idx)
+		var off := verts.size()
+		for k in fv.size():
+			verts.append(fv[k])
+			nrm.append(fnrm[k].lerp((fv[k] - centre).normalized(), round).normalized())
+			uvs.append(fuv[k])
+			colors.append(col)
+		for q in fi_idx:
+			idx.append(off + q)
 	var out := ArrayMesh.new()
 	MeshUtil.add_surface(out, verts, nrm, uvs, colors, idx)
 	return out

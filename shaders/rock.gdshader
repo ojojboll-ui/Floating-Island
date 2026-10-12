@@ -75,7 +75,7 @@ void fragment() {
 	float scale = length(MODEL_MATRIX[0].xyz);
 	float to_rim = UV.x * UV.y * scale;
 	float width = scale * (0.004 + 0.011 * vnoise3(opos * 7.0) + 0.006 * vnoise3(opos * 23.0)) * (0.6 + 0.5 * texture_amount);
-	float ridge = use_tex ? 0.0 : 1.0 - smoothstep(width * 0.4, width, to_rim);
+	float ridge = use_tex ? 0.0 : (1.0 - smoothstep(width * 0.4, width, to_rim)) * mix(0.35, 1.0, smoothstep(0.3, 0.55, vnoise3(opos * 3.5)));
 	float hollow = 0.0;
 	float halo = use_tex ? 0.0 : 1.0 - smoothstep(0.0, width * 5.0, to_rim);
 	// each cut face its own tone, faint plates within it
@@ -85,16 +85,29 @@ void fragment() {
 	// soft mottling, cooler and warmer
 	float mott = fbm3(opos * 2.2);
 	col *= mix(vec3(0.92, 0.95, 1.02), vec3(1.05, 1.02, 0.98), mott) * (0.86 + 0.26 * mott);
-	// a fine crack here and there, and its light chipped lip
-	float hair = abs(vnoise3(opos * 4.0 + 2.0) - 0.5);
-	float crack = (1.0 - smoothstep(0.0, 0.01, hair)) * step(0.66, vnoise3(opos * 1.4 + 8.0)) * amount;
-	float lip = (1.0 - smoothstep(0.01, 0.03, hair)) * step(0.66, vnoise3(opos * 1.4 + 8.0)) * amount;
-	col *= 1.0 + lip * 0.22 - crack * 0.5;
+	// cracks: a broken net of splits along the edges of stone cells, here
+	// and there, each a dark line with a pale chipped lip, and finer
+	// hairlines between
+	vec3 cr = cells(opos * vec3(2.4, 3.2, 2.4) + 5.0);
+	float show = smoothstep(0.36, 0.5, vnoise3(opos * 1.7 + 3.0)) * amount;
+	float split = (1.0 - smoothstep(0.01, 0.024, cr.x)) * show;
+	float lip = max((1.0 - smoothstep(0.024, 0.06, cr.x)) * show - split, 0.0);
+	float hair = abs(vnoise3(opos * 5.0 + 2.0) - 0.5);
+	float fine = (1.0 - smoothstep(0.004, 0.014, hair)) * step(0.58, vnoise3(opos * 2.0 + 8.0)) * amount;
+	// and a finer net in other places
+	vec3 cr2 = cells(opos * vec3(6.0, 7.5, 6.0) + 17.0);
+	float show2 = smoothstep(0.5, 0.62, vnoise3(opos * 2.6 + 11.0)) * amount;
+	split = max(split, (1.0 - smoothstep(0.012, 0.03, cr2.x)) * show2 * 0.8);
+	col *= 1.0 - split * 0.65 - fine * 0.3;
+	col *= 1.0 + lip * 0.2;
+	// pits and chips: small dark dents scattered over the faces
+	float pit = smoothstep(0.78, 0.86, vnoise3(opos * 14.0)) * amount;
+	col *= 1.0 - pit * 0.25;
 	// lighter on top, as painted, and the light ridges
 	col *= 0.86 + 0.22 * smoothstep(-0.3, 0.9, wn.y);
 	// the worn ridge, brightest along the tops, a soft rounding into the face
 	col *= 1.0 + halo * halo * 0.14;
-	col = mix(col, col * 1.5 + vec3(0.05), ridge * (0.5 + 0.35 * amount) * (0.55 + 0.45 * smoothstep(-0.4, 0.8, wn.y)));
+	col = mix(col, col * 1.5 + vec3(0.05), ridge * (0.3 + 0.25 * amount) * (0.55 + 0.45 * smoothstep(-0.4, 0.8, wn.y)));
 	col *= 1.0 - hollow * 0.35;
 	if (use_tex) {
 		col = texture(albedo_tex, UV).rgb * (0.85 + 0.25 * fbm3(wpos * 3.0));
@@ -131,6 +144,6 @@ void fragment() {
 	col = mix(col, mix(grass_tint(wpos.xz) * 0.55, srgb(vec3(0.36, 0.27, 0.19)), 0.4), foot);
 
 	ALBEDO = weathered(col, wn.y, wpos);
-	ROUGHNESS = weathered_rough(mix(0.9, 0.8, moss) - ridge * 0.15, wn.y, wpos);
-	SPECULAR = weathered_spec(0.2 + ridge * 0.1, wn.y, wpos);
+	ROUGHNESS = weathered_rough(mix(0.95, 0.85, moss), wn.y, wpos);
+	SPECULAR = weathered_spec(0.14, wn.y, wpos);
 }
