@@ -85,6 +85,7 @@ func _ready() -> void:
 	weather = Weather.new()
 	add_child(weather)
 	weather.setup(data, props, ruins)
+	weather.set_terrain(view.texture)
 	for key in ["hour", "moon_phase", "clouds", "fog", "rain", "snow", "wind", "fireflies"]:
 		if args.has(key):
 			weather.set(key, float(args[key]))

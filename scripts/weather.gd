@@ -55,7 +55,7 @@ var _cloud_mat: ShaderMaterial
 var _cloud_holder: Node3D
 var _clouds: Array[Node3D] = []
 var _fog_volume: FogVolume
-var _fog_mat: FogMaterial
+var _fog_mat: ShaderMaterial
 var _rain: GPUParticles3D
 var _splash: GPUParticles3D
 var _snow: GPUParticles3D
@@ -220,8 +220,15 @@ func apply() -> void:
 	# mist lying low over the island, coloured by the light
 	_fog_volume.visible = fog > 0.01
 	env.volumetric_fog_enabled = fog > 0.01
-	_fog_mat.density = fog * 0.35
-	_fog_mat.albedo = (pal[2] as Color).lerp(Color(0.85, 0.88, 0.92), 0.5) * tint_fog
+	# heavy, winding and lying low; at night it glows faintly white of its own
+	# accord, where it would only scatter the little moonlight and go black
+	_fog_mat.set_shader_parameter("density", fog * 1.1)
+	_fog_mat.set_shader_parameter("thickness", lerpf(0.5, 1.4, fog))
+	_fog_mat.set_shader_parameter("drift", 0.4 + wind * 1.6)
+	var mist_col: Color = (pal[2] as Color).lerp(Color(0.92, 0.94, 0.97), 0.8) * tint_fog
+	_fog_mat.set_shader_parameter("albedo", mist_col)
+	_fog_mat.set_shader_parameter("glow_color", Color(0.72, 0.8, 0.95).lerp(mist_col, 0.3))
+	_fog_mat.set_shader_parameter("glow", 0.02 + night * 0.22)
 
 	# falling things
 	_rain.emitting = rain > 0.01
@@ -293,7 +300,7 @@ func _build_environment() -> void:
 	env.fog_aerial_perspective = 0.5
 	env.fog_sky_affect = 0.0
 	env.volumetric_fog_density = 0.0
-	env.volumetric_fog_length = 90.0
+	env.volumetric_fog_length = 70.0
 	env.volumetric_fog_detail_spread = 1.5
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.04
@@ -357,14 +364,20 @@ func _build_clouds() -> void:
 		_clouds.append(cloud)
 
 
+## The mist (mist.gdshader): a box over the whole island, from well under
+## its rim, where the mist spills over, to above its hills.
+## The terrain texture, so the mist knows where the ground lies.
+func set_terrain(tex: Texture2D) -> void:
+	_fog_mat.set_shader_parameter("terrain", tex)
+
+
 func _build_fog() -> void:
-	_fog_mat = FogMaterial.new()
-	_fog_mat.height_falloff = 1.6
-	_fog_mat.edge_fade = 0.35
+	_fog_mat = ShaderMaterial.new()
+	_fog_mat.shader = load("res://shaders/mist.gdshader")
 	_fog_volume = FogVolume.new()
 	_fog_volume.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
-	_fog_volume.size = Vector3(34.0, 3.2, 34.0)
-	_fog_volume.position = Vector3(0.0, 1.0, 0.0)
+	_fog_volume.size = Vector3(40.0, 9.0, 40.0)
+	_fog_volume.position = Vector3(0.0, -1.0, 0.0)
 	_fog_volume.material = _fog_mat
 	add_child(_fog_volume)
 

@@ -20,6 +20,8 @@ lights_and_shadows/directional_shadow/size=8192
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=4
 camera/depth_of_field/depth_of_field_bokeh_shape=2
 camera/depth_of_field/depth_of_field_bokeh_quality=3
+environment/volumetric_fog/volume_size=128
+environment/volumetric_fog/volume_depth=96
 
 [shader_globals]
 
