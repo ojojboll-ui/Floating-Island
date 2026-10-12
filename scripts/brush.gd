@@ -538,7 +538,7 @@ func _on_plane(y: float) -> Vector2:
 ## or below. {under} says whether that is on the underside.
 func _pick_body(o: Vector3, d: Vector3) -> Dictionary:
 	var top := IslandData.MAX_HEIGHT + 0.5
-	var bottom := -IslandMesher.SKIRT_DEPTH - IslandMesher.BODY_DEPTH - 4.0
+	var bottom := -IslandMesher.SKIRT_DEPTH - IslandMesher.BODY_DEPTH * 3.0 - 4.0
 	if absf(d.y) < 0.0001:
 		return {}
 	var ta := (top - o.y) / d.y

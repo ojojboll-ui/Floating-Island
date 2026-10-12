@@ -30,6 +30,10 @@ var occupied := PackedFloat32Array()  # 1 where something stands and nothing gro
 var water := PackedFloat32Array()     # 0..1, how much a point is under water
 var wlevel := PackedFloat32Array()    # water surface height where water > 0
 var carve := PackedFloat32Array()     # metres the underside is worn away from below
+## The true distance from each point to the coast, in metres (sdf only
+## reaches as far into the land as the brush that drew it). How deep the
+## underside hangs follows it, so a bigger island hangs deeper.
+var inland := PackedFloat32Array()
 ## Where roots lie on the ground and keep the grass away. Drawn from the
 ## root records (see root_layer.gd), so it is not part of the snapshot.
 var root_mask := PackedFloat32Array()
@@ -56,6 +60,7 @@ func _init() -> void:
 	water.resize(n)
 	wlevel.resize(n)
 	carve.resize(n)
+	inland.resize(n)
 	root_mask.resize(n)
 	splat.fill(Color(0, 0, 0, 0))
 	rocks.fill(0.0)
@@ -109,6 +114,7 @@ func generate_default(seed: int) -> void:
 			# the knoll the tree stands on
 			h += 1.1 * exp(-p.distance_squared_to(Vector2(-2.4, -1.8)) / 7.0)
 			height[k] = h
+	refresh_inland()
 	dirty = full_rect()
 	dirty_shape = full_rect()
 
@@ -147,6 +153,65 @@ func _bilinear(arr: PackedFloat32Array, x: float, z: float) -> float:
 
 func sample_sdf(x: float, z: float) -> float:
 	return _bilinear(sdf, x, z)
+
+
+func sample_inland(x: float, z: float) -> float:
+	return _bilinear(inland, x, z)
+
+
+## Measure the distance to the coast anew (a two-pass chamfer over the
+## grid, seeded with sdf right at the coast where it is exact). When it
+## changes, the whole underside is rebuilt.
+func refresh_inland() -> void:
+	var n := RES * RES
+	var d := PackedFloat32Array()
+	d.resize(n)
+	for k in n:
+		var s := sdf[k]
+		d[k] = s if s < CELL * 1.5 else 1e9
+	var c1 := CELL
+	var c2 := CELL * 1.41421
+	for j in RES:
+		for i in RES:
+			var k := j * RES + i
+			var v := d[k]
+			if v <= 0.0:
+				continue
+			if i > 0:
+				v = minf(v, d[k - 1] + c1)
+			if j > 0:
+				v = minf(v, d[k - RES] + c1)
+				if i > 0:
+					v = minf(v, d[k - RES - 1] + c2)
+				if i < RES - 1:
+					v = minf(v, d[k - RES + 1] + c2)
+			d[k] = v
+	for j in range(RES - 1, -1, -1):
+		for i in range(RES - 1, -1, -1):
+			var k := j * RES + i
+			var v := d[k]
+			if v <= 0.0:
+				continue
+			if i < RES - 1:
+				v = minf(v, d[k + 1] + c1)
+			if j < RES - 1:
+				v = minf(v, d[k + RES] + c1)
+				if i < RES - 1:
+					v = minf(v, d[k + RES + 1] + c2)
+				if i > 0:
+					v = minf(v, d[k + RES - 1] + c2)
+			d[k] = v
+	# where it changed, the underside is rebuilt
+	var lo := Vector2i(RES, RES)
+	var hi := Vector2i(-1, -1)
+	if inland.size() == n:
+		for k in n:
+			if absf(d[k] - inland[k]) > 0.05:
+				lo = lo.min(Vector2i(k % RES, k / RES))
+				hi = hi.max(Vector2i(k % RES, k / RES))
+	inland = d
+	if hi.x >= 0:
+		_mark(Rect2i(lo, hi - lo + Vector2i.ONE), true)
 
 
 ## Ground surface height, rim roll included.
@@ -280,6 +345,7 @@ func edit_land(center: Vector2, radius: float, add: bool) -> void:
 			else:
 				sdf[k] = minf(sdf[k], -circle)
 	_mark(r, true)
+	refresh_inland()
 
 
 
@@ -368,6 +434,7 @@ func restore(state: Array) -> void:
 		carve = state[7].duplicate()
 	else:
 		carve.fill(0.0)
+	refresh_inland()
 	dirty = full_rect()
 	dirty_shape = full_rect()
 

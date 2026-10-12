@@ -106,7 +106,7 @@ static func _grid(data, ti: int, tj: int, with_body: bool) -> Grid:
 			g.surf[lj * g.w + li] = data.surface(k)
 			if with_body:
 				var p: Vector2 = data.grid_pos(i, j)
-				g.under[lj * g.w + li] = -SKIRT_DEPTH - maxf(0.0, _hang(data.sdf[k], p.x, p.y) - data.carve[k])
+				g.under[lj * g.w + li] = -SKIRT_DEPTH - maxf(0.0, _hang(data.inland[k], p.x, p.y) - data.carve[k])
 	for lj in g.w:
 		for li in g.w:
 			var l := lj * g.w + li
@@ -252,23 +252,27 @@ static func _under_vertex(g: Grid, s: Surface, ids: Dictionary, key) -> int:
 static func hang_at(data, k: int) -> float:
 	_init_noise()
 	var p: Vector2 = data.grid_pos_k(k)
-	return _hang(data.sdf[k], p.x, p.y)
+	return _hang(data.inland[k], p.x, p.y)
 
 
 ## The height of the underside at (x, z), as meshed (without the small
 ## sideways wobble of its vertices).
 static func underside(data, x: float, z: float) -> float:
 	_init_noise()
-	var d: float = data.sample_sdf(x, z)
+	var d: float = data.sample_inland(x, z)
 	return -SKIRT_DEPTH - maxf(0.0, _hang(d, x, z) - data.sample_carve(x, z))
 
 
-## How far the underside hangs below the skirt at coast distance d.
+## How far the underside hangs below the skirt at coast distance d (the true
+## distance, see IslandData.inland). It keeps growing the further inland, so
+## a bigger island hangs deeper in proportion: steeply near the coast, then
+## on at the same slope.
 static func _hang(d: float, x: float, z: float) -> float:
 	if d <= 0.0:
 		return 0.0
-	var t := clampf(d / 6.0, 0.0, 1.0)
-	var base := BODY_DEPTH * pow(t, 0.6)
+	var u := d / 6.0
+	var t := clampf(u, 0.0, 1.0)
+	var base := BODY_DEPTH * (pow(t, 0.6) + 0.9 * maxf(u - 1.0, 0.0))
 	var fade := smoothstep(0.0, 1.5, d)
 	var lumps := _noise.get_noise_2d(x * 1.3, z * 1.3) * 1.8
 	var steps := _chunks.get_noise_2d(x, z) * 1.4

@@ -1178,6 +1178,23 @@ static func run(main: Node, name: String) -> void:
 			menu.item_selected.emit(n)
 			await _frames(main, 150)
 			print("  %s: focal %.0f, sliders follow: %s" % [menu.get_item_text(n), main.rig.focal_mm, is_equal_approx(main.ui._cam_sliders.focal.value, main.rig.focal_mm)])
+		"big_island":
+			# a wide island drawn with the land brush in small circles: its
+			# underside should hang deep in proportion
+			var d = main.data
+			for gx in range(-11, 12, 2):
+				for gz in range(-7, 8, 2):
+					d.edit_land(Vector2(gx, gz), 2.2, true)
+			var t0 := Time.get_ticks_usec()
+			d.refresh_inland()
+			print("  inland measured in %.1f ms, deepest %.1f m inland" % [(Time.get_ticks_usec() - t0) / 1000.0, Array(d.inland).max()])
+			main.view.rebuild(d.dirty, d.dirty_shape)
+			d.dirty = Rect2i()
+			d.dirty_shape = Rect2i()
+			main.view.flush()
+			main.props.follow_ground()
+			main.ui.set_collapsed(true)
+			await _frames(main, 60)
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree
