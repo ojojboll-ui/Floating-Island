@@ -1165,6 +1165,19 @@ static func run(main: Node, name: String) -> void:
 			await _click(main, main.ui.buttons["Återställ kameran"])
 			await _frames(main, 120)
 			print("  after reset: yaw %.0f pitch %.0f zoom %.0f target %s" % [rad_to_deg(r.yaw), rad_to_deg(r.pitch), r.distance, r.target.snapped(Vector3.ONE * 0.1)])
+		"cam_preset":
+			# a camera preset chosen in the dropdown: --preset=n
+			var n := 0
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--preset="):
+					n = int(a.substr(9))
+			main.ui.tabs.current_tab = 6
+			await _frames(main, 3)
+			var menu: OptionButton = main.ui.buttons["Kameravy"]
+			menu.select(n)
+			menu.item_selected.emit(n)
+			await _frames(main, 150)
+			print("  %s: focal %.0f, sliders follow: %s" % [menu.get_item_text(n), main.rig.focal_mm, is_equal_approx(main.ui._cam_sliders.focal.value, main.rig.focal_mm)])
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

@@ -254,14 +254,37 @@ const SAVED := ["focal_mm", "focus_offset", "aperture", "spin_speed", "spin_cloc
 	"spin_period", "spin_shape", "bob", "bob_period", "bob_shape"]
 
 
-## Back to the view the program starts with: panned to the middle, the
-## first angle, height and zoom. The lens and the spin are left as they are.
-func reset_view() -> void:
+## Ready-made views: name, then angle, height (degrees), zoom (metres),
+## focal length (mm), aperture. The first is the view the program starts with.
+const PRESETS := [
+	["Standard", 40.0, 32.0, 56.0, 62.0, 0.5],
+	["Miniatyr", 35.0, 42.0, 70.0, 90.0, 0.95],
+	["Ovanifrån", 20.0, 74.0, 60.0, 50.0, 0.2],
+	["Låg vinkel", 50.0, 7.0, 40.0, 35.0, 0.45],
+	["Underifrån", 30.0, -16.0, 52.0, 45.0, 0.3],
+	["Närbild", 40.0, 22.0, 24.0, 55.0, 0.75],
+	["Vidvinkel", 40.0, 26.0, 26.0, 24.0, 0.15],
+	["Teleobjektiv", 40.0, 30.0, 120.0, 160.0, 0.35],
+]
+
+
+## Ease to one of the PRESETS, panned back to the island's middle. The spin
+## and the height wave are left as they are.
+func apply_preset(i: int) -> void:
+	var p: Array = PRESETS[i]
 	goal_target = Vector3(0.0, 1.2, 0.0)
-	goal_yaw = deg_to_rad(40.0)
-	goal_pitch = deg_to_rad(32.0)
-	goal_distance = 56.0
+	goal_yaw = deg_to_rad(p[1])
+	goal_pitch = deg_to_rad(p[2])
+	goal_distance = p[3]
+	focal_mm = p[4]
+	aperture = p[5]
+	focus_offset = 0.0
 	moved.emit()
+
+
+## Back to the view the program starts with.
+func reset_view() -> void:
+	apply_preset(0)
 
 
 func state() -> Dictionary:

@@ -447,13 +447,25 @@ func _camera_row() -> Control:
 	var lens := VBoxContainer.new()
 	lens.add_theme_constant_override("separation", 4)
 	lens.add_child(_header("Lins"))
-	lens.add_child(_slider("Brännvidd", 18.0, 200.0, r.focal_mm, func(v: float) -> void: r.focal_mm = v, "mm", 1.0).get_parent())
-	lens.add_child(_slider("Fokus", -15.0, 15.0, r.focus_offset, func(v: float) -> void: r.focus_offset = v, "m", 0.1).get_parent())
-	lens.add_child(_slider("Bländare", 0.0, 1.0, r.aperture, func(v: float) -> void: r.aperture = v, "%").get_parent())
+	_cam_sliders.focal = _slider("Brännvidd", 18.0, 200.0, r.focal_mm, func(v: float) -> void: r.focal_mm = v, "mm", 1.0)
+	_cam_sliders.focus = _slider("Fokus", -15.0, 15.0, r.focus_offset, func(v: float) -> void: r.focus_offset = v, "m", 0.1)
+	_cam_sliders.aperture = _slider("Bländare", 0.0, 1.0, r.aperture, func(v: float) -> void: r.aperture = v, "%")
+	for k in ["focal", "focus", "aperture"]:
+		lens.add_child(_cam_sliders[k].get_parent())
 	row.add_child(lens)
 	var place := VBoxContainer.new()
 	place.add_theme_constant_override("separation", 4)
 	place.add_child(_header("Bild"))
+	# ready-made views; Standard is the one the program starts with
+	var presets := OptionButton.new()
+	for p in r.PRESETS:
+		presets.add_item(p[0])
+	presets.selected = 0
+	presets.tooltip_text = "Färdiga kameravyer med vinkel, höjd, zoom och lins. Standard är startvyn"
+	presets.focus_mode = Control.FOCUS_NONE
+	presets.item_selected.connect(func(i: int) -> void: r.apply_preset(i))
+	buttons["Kameravy"] = presets
+	place.add_child(presets)
 	_cam_sliders.zoom = _slider("Zoom", 10.0, 140.0, r.goal_distance, func(v: float) -> void: r.goal_distance = v, "m", 0.5)
 	_cam_sliders.yaw = _slider("Vinkel", 0.0, 360.0, fposmod(rad_to_deg(r.goal_yaw), 360.0), func(v: float) -> void: r.goal_yaw = deg_to_rad(v), "deg", 1.0)
 	_cam_sliders.pitch = _slider("Höjd", -20.0, 80.0, rad_to_deg(r.goal_pitch), func(v: float) -> void: r.goal_pitch = deg_to_rad(v), "deg", 1.0)
@@ -461,9 +473,9 @@ func _camera_row() -> Control:
 		place.add_child(_cam_sliders[k].get_parent())
 	var reset := Button.new()
 	reset.text = "Återställ kameran"
-	reset.tooltip_text = "Tillbaka till startvyn: mitt på ön, med första vinkeln, höjden och zoomen. Linsen och rotationen ändras inte"
+	reset.tooltip_text = "Tillbaka till den valda kameravyn, eller till Standard om ingen är vald. Rotationen ändras inte"
 	reset.focus_mode = Control.FOCUS_NONE
-	reset.pressed.connect(r.reset_view)
+	reset.pressed.connect(func() -> void: r.apply_preset(maxi(presets.selected, 0)))
 	buttons["Återställ kameran"] = reset
 	place.add_child(reset)
 	row.add_child(place)
@@ -709,7 +721,10 @@ func _sync_camera() -> void:
 	_cam_sliders.zoom.set_value_no_signal(rig.goal_distance)
 	_cam_sliders.yaw.set_value_no_signal(fposmod(rad_to_deg(rig.goal_yaw), 360.0))
 	_cam_sliders.pitch.set_value_no_signal(rad_to_deg(rig.goal_pitch))
-	for k in ["zoom", "yaw", "pitch"]:
+	_cam_sliders.focal.set_value_no_signal(rig.focal_mm)
+	_cam_sliders.focus.set_value_no_signal(rig.focus_offset)
+	_cam_sliders.aperture.set_value_no_signal(rig.aperture)
+	for k in ["zoom", "yaw", "pitch", "focal", "focus", "aperture"]:
 		_show(_cam_sliders[k])
 
 
