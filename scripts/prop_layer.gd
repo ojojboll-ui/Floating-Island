@@ -120,10 +120,32 @@ func place_side(kind: String, pos: Vector3, normal: Vector3, rng: RandomNumberGe
 	rec.style = style_for(kind).duplicate(true)
 	rec.jit = rng.randf_range(-1.0, 1.0) if is_nan(jit) else jit
 	rec.size = _styled_size(rec)
+	if kind in WOODY:
+		rec.cliff_lean = cliff_lean(pos, normal)
+		_woody_rev += 1
 	records.append(rec)
 	last_stroke.append(rec.id)
 	_spawn(rec)
 	return rec
+
+
+## How a tree or bush by the edge leans out over it, in world space: out
+## from the coast, a little right at the rim, more the further down the
+## cliff it grows (`normal` is the cliff's, or zero on the top). Zero away
+## from the edge.
+func cliff_lean(at: Vector3, normal: Vector3) -> Vector3:
+	var out: Vector3 = data.outward(at.x, at.z)
+	if normal == Vector3.ZERO:
+		var d: float = data.sample_sdf(at.x, at.z)
+		return out * 0.45 * (1.0 - smoothstep(0.1, 1.0, d))
+	var below := maxf(data.sample_height(at.x, at.z) - at.y, 0.0)
+	return out * minf(0.55 + below * 0.9, 1.8)
+
+
+## Where a tree on the cliff stands: upright, turned by rot, its foot sunk
+## a little into the rock.
+static func side_tree_pose(at: Vector3, normal: Vector3, rot: float) -> Transform3D:
+	return Transform3D(Basis(Vector3.UP, rot), at - normal.normalized() * 0.12)
 
 
 ## How a stone set on the island's body sits: its flat base against the
@@ -161,7 +183,8 @@ func _check(kind: String, x: float, z: float, spread := 1.0, merge := false) -> 
 	var w: float = data.sample_water(x, z)
 	match k.where:
 		"land":
-			if d < 0.3 or w > 0.12:
+			# trees and bushes may stand right out at the edge, leaning over it
+			if d < (0.08 if kind in WOODY else 0.3) or w > 0.12:
 				return [false, blockers]
 		"shore":
 			if d < 0.1 or w < 0.04 or w > 0.75:
@@ -245,6 +268,10 @@ func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -
 		rec.jit = rng.randf_range(-1.0, 1.0) if is_nan(jit) else jit
 		if size <= 0.0:
 			rec.size = _styled_size(rec)
+	if kind in WOODY:
+		var cl := cliff_lean(Vector3(x, ground_at(x, z), z), Vector3.ZERO)
+		if cl != Vector3.ZERO:
+			rec.cliff_lean = cl
 	if kind in STONES:
 		rec.lift = stone_lift(x, z, kind)
 		if kind == "berg" and rec.lift > 0.0:
@@ -813,9 +840,12 @@ func _place(rec: Dictionary) -> void:
 	else:
 		if rec.get("side", false):
 			# on the underside or the cliff: it stays where it was set
-			node.transform = side_pose(rec.kind, rec.at, rec.normal, float(rec.rot), float(rec.size), float(node.get_meta("tall", 1.0)))
+			if rec.kind in WOODY:
+				node.transform = side_tree_pose(rec.at, rec.normal, float(rec.rot))
+			else:
+				node.transform = side_pose(rec.kind, rec.at, rec.normal, float(rec.rot), float(rec.size), float(node.get_meta("tall", 1.0)))
 			node.visible = true
-			(node.get_meta("shaded") as GeometryInstance3D).set_instance_shader_parameter("ground_y", -100.0)
+			(node.get_meta("shaded") as GeometryInstance3D).set_instance_shader_parameter("ground_y", (rec.at as Vector3).y if rec.kind in WOODY else -100.0)
 			return
 		var tall: float = node.get_meta("tall", float(rec.size))
 		# a stone set on another sinks into it less than into the ground

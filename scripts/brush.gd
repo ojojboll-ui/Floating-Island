@@ -461,14 +461,16 @@ func pick(screen: Vector2) -> Dictionary:
 	var d := camera.project_ray_normal(screen)
 	if _is_under_tool():
 		return _pick_body(o, d)
-	if tool == Tool.PLACE and place_kind in props.STONES:
-		# a stone may be set on the cliff or the underside as well: if the ray
-		# meets the island's body there first, it goes there
+	if tool == Tool.PLACE and (place_kind in props.STONES or place_kind in props.WOODY):
+		# a stone may be set on the cliff or the underside as well, a tree or
+		# bush on the cliff: if the ray meets the island's body there first,
+		# it goes there
 		var body := _pick_body(o, d)
 		if not body.is_empty() and (body.pos as Vector3).y < data.sample_height(body.pos.x, body.pos.z) - 0.25:
 			body.side = true
 			body.normal = _body_normal(body.pos)
-			return body
+			if not (place_kind in props.WOODY and (body.normal as Vector3).y < -0.5):
+				return body
 	var hit := _pick_ground(o, d)
 	# the top of a stair, pillar, wall or raised floor, if the ray meets one
 	# before the ground; {level} then says how high it is
@@ -658,13 +660,21 @@ func _update_ghost(over_ui: bool) -> void:
 	if woody:
 		# a tree's shape depends on what stands round it, and which way it
 		# is turned to that
-		key += "|%.1f,%.1f|%d" % [snappedf(p.x, 0.3), snappedf(p.z, 0.3), int(round(rad_to_deg(place_rot()) / 10.0))]
+		key += "|%.1f,%.1f|%d" % [snappedf(p.x, 0.3), snappedf(p.z, 0.3), int(round(rad_to_deg(place_rot()) / 10.0))] + ("|side%.1f" % snappedf((p as Vector3).y, 0.2) if _hit.get("side", false) else "")
 	if key != _ghost_key:
 		_ghost_key = key
 		if _ghost:
 			_ghost.queue_free()
 		var rec := {"id": -1, "kind": place_kind, "x": p.x, "z": p.z, "rot": place_rot() if woody else 0.0, "variant": _ghost_variant,
 			"hue": 0.5, "jit": _ghost_jit, "over_fire": fire != null}
+		if woody:
+			if _hit.get("side", false):
+				rec.side = true
+				rec.at = _hit.pos
+				rec.normal = _hit.normal
+				rec.cliff_lean = props.cliff_lean(_hit.pos, _hit.normal)
+			else:
+				rec.cliff_lean = props.cliff_lean(Vector3(p.x, data.sample_height(p.x, p.z), p.z), Vector3.ZERO)
 		if st != null:
 			rec.style = (st as Dictionary).duplicate(true)
 			rec.size = maxf(0.02, float(st.size) * (1.0 + float(st.variation) * 0.6 * _ghost_jit))
@@ -679,7 +689,9 @@ func _update_ghost(over_ui: bool) -> void:
 	var tall: float = _ghost.get_meta("tall", 1.0)
 	_ghost.global_position = Vector3(p.x, data.sample_height(p.x, p.z) - float(k.sink) * tall + lift, p.z)
 	_ghost.rotation.y = place_rot()
-	if _hit.get("side", false):
+	if _hit.get("side", false) and woody:
+		_ghost.global_transform = props.side_tree_pose(_hit.pos, _hit.normal, place_rot())
+	elif _hit.get("side", false):
 		var size: float = _ghost.get_meta("size")
 		_ghost.global_transform = props.side_pose(place_kind, _hit.pos, _hit.normal, place_rot(), size, float(_ghost.get_meta("tall", size)))
 	if place_kind in props.TOOLS:

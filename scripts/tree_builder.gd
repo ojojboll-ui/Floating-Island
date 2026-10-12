@@ -58,6 +58,10 @@ static func build(style: Dictionary, height: float, seed: int, env := {}) -> Nod
 	var lean := Vector3(rng.randfn(), 0.0, rng.randfn()) * 0.08 * (1.0 - float(style.crown) * 0.5)
 	# a merged neighbour of the same kind: lean away from it
 	lean += (env.get("lean", Vector3.ZERO) as Vector3) * 0.45
+	# by the edge: leaning out over it, more the further down the cliff
+	lean += env.get("cliff", Vector3.ZERO) as Vector3
+	# and it straightens up only slowly, so it hangs out and curves up
+	g.cliff = minf((env.get("cliff", Vector3.ZERO) as Vector3).length(), 1.0)
 	var foot: Vector3 = Vector3(0.0, -0.3, 0.0) + (env.get("base", Vector3.ZERO) as Vector3)
 	if style.get("conifer", false):
 		return _conifer(g, foot, (Vector3.UP + lean).normalized(), height)
@@ -161,7 +165,7 @@ static func _branch(g: Dictionary, level: int, start: Vector3, dir: Vector3, len
 				d = (d + push * (0.7 if level == 0 else 1.0)).normalized()
 			elif level == 0:
 				# clear of it: the trunk straightens up again, as a tree does
-				d = (d + Vector3.UP * 0.45).normalized()
+				d = (d + Vector3.UP * 0.45 * (1.0 - float(g.get("cliff", 0.0)) * 0.9)).normalized()
 		p += d * length / segs
 		pts.append(p)
 		radii.append(r_here)

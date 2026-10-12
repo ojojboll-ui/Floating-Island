@@ -450,7 +450,8 @@ static func _env(rec: Dictionary) -> Dictionary:
 	if context == null:
 		return {}
 	var ctx = context
-	var base_y: float = ctx.ground_at(rec.x, rec.z)
+	# a tree on the cliff stands where it was set, not on the top
+	var base_y: float = (rec.at as Vector3).y if rec.get("side", false) else float(ctx.ground_at(rec.x, rec.z))
 	var rot := Basis(Vector3.UP, float(rec.rot))
 	var inv := rot.inverse()
 	var origin := Vector3(rec.x, base_y, rec.z)
@@ -460,6 +461,7 @@ static func _env(rec: Dictionary) -> Dictionary:
 			var w := origin + rot * q
 			return float(ctx.obstacle_top(w.x, w.z)) - base_y,
 		"lean": inv * (merge[0] as Vector3),
+		"cliff": inv * (rec.get("cliff_lean", Vector3.ZERO) as Vector3),
 		"base": inv * (merge[1] as Vector3),
 	}
 

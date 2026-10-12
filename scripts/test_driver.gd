@@ -1195,6 +1195,43 @@ static func run(main: Node, name: String) -> void:
 			main.props.follow_ground()
 			main.ui.set_collapsed(true)
 			await _frames(main, 60)
+		"cliff_trees":
+			# trees at the rim and down the cliff, leaning out more the lower
+			# they grow; looked at from the side
+			main.props.remove_near(0.0, 0.0, 12.0)
+			var d = main.data
+			var p = main.props
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 8
+			var a0 := deg_to_rad(200.0)
+			for arg in OS.get_cmdline_user_args():
+				if arg.begins_with("--dir="):
+					a0 = deg_to_rad(float(arg.substr(6)))
+			for k in 3:
+				var a := a0 + (k - 1) * 0.35
+				var dir := Vector2(cos(a), sin(a))
+				var q := Vector2.ZERO
+				while d.sample_sdf(q.x, q.y) > 0.25:
+					q += dir * 0.05
+				var depth: float = [0.0, 0.45, 1.0][k]
+				if depth == 0.0:
+					var rec: Dictionary = p.add("lovtrad", q.x, q.y, rng)
+					print("  rim tree lean %s" % rec.get("cliff_lean", Vector3.ZERO))
+					continue
+				# down the cliff: march in from outside at that depth until the body
+				var y: float = d.sample_height(q.x, q.y) - depth
+				var s := Vector3(q.x, y, q.y) + Vector3(dir.x, 0, dir.y) * 2.0
+				var hit := Vector3.INF
+				for step in 80:
+					var t := s - Vector3(dir.x, 0, dir.y) * step * 0.05
+					if main.roots.inside(t):
+						hit = t
+						break
+				if hit != Vector3.INF:
+					var rec: Dictionary = p.place_side("lovtrad", hit, main.brush._body_normal(hit), rng)
+					print("  cliff tree %.1f m down, lean %s" % [depth, (rec.cliff_lean as Vector3).snapped(Vector3.ONE * 0.01)])
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

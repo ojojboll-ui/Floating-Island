@@ -46,7 +46,7 @@ void fragment() {
 	float depth_here = 0.42 + 0.56 * (mix(fbm2(vec2(wpos.z * 0.9, 3.0)), fbm2(vec2(wpos.x * 0.9, 3.0)), wz) - 0.5);
 	vec3 soil = srgb(vec3(0.32, 0.22, 0.15)) * (0.72 + 0.4 * fbm3(wpos * 5.0));
 	float clods = vnoise3(wpos * vec3(7.0, 9.0, 7.0));
-	float soil_amt = 1.0 - smoothstep(depth_here - 0.08, depth_here + 0.08, rim_depth + wobble * 0.3 + (clods - 0.5) * 0.25);
+	float soil_amt = 1.0 - smoothstep(depth_here - 0.2, depth_here + 0.22, rim_depth + wobble * 0.3 + (clods - 0.5) * 0.18);
 	// lighter clods in the soil, and the darker, damper soil toward its foot
 	soil *= 0.9 + 0.3 * smoothstep(0.62, 0.8, vnoise3(wpos * vec3(11.0, 14.0, 11.0) + 5.0));
 	soil *= mix(1.0, 0.75, smoothstep(depth_here * 0.4, depth_here, rim_depth));
