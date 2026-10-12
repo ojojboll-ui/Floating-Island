@@ -47,7 +47,7 @@ static func normals_by_position(verts: PackedVector3Array, indices: PackedInt32A
 
 static func add_surface(mesh: ArrayMesh, verts: PackedVector3Array, nrm: PackedVector3Array,
 		uvs: PackedVector2Array, colors: PackedColorArray, indices: PackedInt32Array,
-		uv2s: PackedVector2Array = PackedVector2Array()) -> void:
+		uv2s: PackedVector2Array = PackedVector2Array(), custom0: PackedFloat32Array = PackedFloat32Array()) -> void:
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
 	arr[Mesh.ARRAY_VERTEX] = verts
@@ -59,7 +59,12 @@ static func add_surface(mesh: ArrayMesh, verts: PackedVector3Array, nrm: PackedV
 	if uv2s.size() > 0:
 		arr[Mesh.ARRAY_TEX_UV2] = uv2s
 	arr[Mesh.ARRAY_INDEX] = indices
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	var flags := 0
+	if custom0.size() > 0:
+		# four floats per vertex, read as CUSTOM0 in the shader
+		arr[Mesh.ARRAY_CUSTOM0] = custom0
+		flags = Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, flags)
 
 
 ## A flat shape cut from a board: `outline` (in x-y, either winding) made

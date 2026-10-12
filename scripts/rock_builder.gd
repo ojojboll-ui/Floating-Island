@@ -112,6 +112,7 @@ static func _build(style: Dictionary, seed: int, detail: int) -> ArrayMesh:
 	var uvs := PackedVector2Array()
 	var colors := PackedColorArray()
 	var idx := PackedInt32Array()
+	var face_of := PackedInt32Array()
 	for fi in faces.size():
 		var f: Array = faces[fi]
 		var m := f.size()
@@ -169,21 +170,87 @@ static func _build(style: Dictionary, seed: int, detail: int) -> ArrayMesh:
 							fi_idx.append_array([tr[0], tr[2], tr[1]])
 						else:
 							fi_idx.append_array([tr[0], tr[1], tr[2]])
-		var fnrm := MeshUtil.normals_by_position(fv, fi_idx)
 		var off := verts.size()
 		for k in fv.size():
 			verts.append(fv[k])
-			nrm.append(fnrm[k])
+			face_of.append(fi)
 			uvs.append(fuv[k])
 			colors.append(col)
 		for q in fi_idx:
 			idx.append(off + q)
+	# a worn stone has its shape itself smoothed, ridges and all (Taubin's
+	# two steps, so it does not shrink), and its normals run on round over
+	# every ridge; a hewn one keeps each face's own
 	if smooth > 0.001:
-		var round := MeshUtil.normals_by_position(verts, idx)
-		for k in nrm.size():
-			nrm[k] = nrm[k].lerp(round[k], smooth).normalized()
+		verts = _relax(verts, idx, int(round(20.0 * smooth)), smooth)
+	var crisp := _face_normals(verts, idx, face_of)
+	var soft := MeshUtil.normals_by_position(verts, idx)
+	for k in verts.size():
+		nrm.append(crisp[k].lerp(soft[k], smooth).normalized())
 	var out := ArrayMesh.new()
 	MeshUtil.add_surface(out, verts, nrm, uvs, colors, idx)
+	return out
+
+
+## Smooth the shape: every point drawn toward the middle of its neighbours,
+## then pushed back a little further (Taubin), `iters` times. Points at one
+## place (a ridge shared by two faces) move as one.
+static func _relax(verts: PackedVector3Array, idx: PackedInt32Array, iters: int, amount: float) -> PackedVector3Array:
+	var uid := PackedInt32Array()
+	uid.resize(verts.size())
+	var seen := {}
+	var pos: Array[Vector3] = []
+	for k in verts.size():
+		var key := Vector3i((verts[k] * 10000.0).round())
+		if not seen.has(key):
+			seen[key] = pos.size()
+			pos.append(verts[k])
+		uid[k] = seen[key]
+	var nb: Array = []
+	nb.resize(pos.size())
+	for u in pos.size():
+		nb[u] = {}
+	for t in range(0, idx.size(), 3):
+		for e in 3:
+			var a := uid[idx[t + e]]
+			var b := uid[idx[t + (e + 1) % 3]]
+			if a != b:
+				nb[a][b] = true
+				nb[b][a] = true
+	for it in iters:
+		for step: float in [0.55 * amount, -0.58 * amount]:
+			var next: Array[Vector3] = pos.duplicate()
+			for u in pos.size():
+				var d: Dictionary = nb[u]
+				if d.is_empty():
+					continue
+				var avg := Vector3.ZERO
+				for v in d:
+					avg += pos[v]
+				avg /= d.size()
+				next[u] = pos[u] + (avg - pos[u]) * step
+			pos = next
+	var out := verts.duplicate()
+	for k in out.size():
+		out[k] = pos[uid[k]]
+	return out
+
+
+## Normals smoothed over each face but not round its ridges.
+static func _face_normals(verts: PackedVector3Array, idx: PackedInt32Array, face_of: PackedInt32Array) -> PackedVector3Array:
+	var acc := {}
+	for t in range(0, idx.size(), 3):
+		var n := MeshUtil.face_normal(verts[idx[t]], verts[idx[t + 1]], verts[idx[t + 2]])
+		for e in 3:
+			var k := idx[t + e]
+			var p := Vector3i((verts[k] * 10000.0).round())
+			var key := Vector4i(p.x, p.y, p.z, face_of[k])
+			acc[key] = acc.get(key, Vector3.ZERO) + n
+	var out := PackedVector3Array()
+	out.resize(verts.size())
+	for k in verts.size():
+		var p := Vector3i((verts[k] * 10000.0).round())
+		out[k] = (acc[Vector4i(p.x, p.y, p.z, face_of[k])] as Vector3).normalized()
 	return out
 
 

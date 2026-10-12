@@ -87,7 +87,7 @@ void fragment() {
 	// each cut face its own tone, faint plates within it
 	vec3 plate = cells(opos * vec3(1.6, 2.2, 1.6));
 	vec3 base = srgb(stone) * 0.72;
-	vec3 col = base * mix(mix(0.95, 0.82, hewn), mix(1.04, 1.12, hewn), vcol.g) * (0.95 + 0.08 * (plate.y - 0.5) * amount);
+	vec3 col = base * mix(mix(1.0, 0.82, hewn), mix(1.0, 1.12, hewn), vcol.g) * (0.95 + 0.08 * (plate.y - 0.5) * amount);
 	// soft mottling, cooler and warmer
 	float mott = fbm3(opos * 2.2);
 	col *= mix(vec3(0.92, 0.95, 1.02), vec3(1.05, 1.02, 0.98), mott) * (0.86 + 0.26 * mott);

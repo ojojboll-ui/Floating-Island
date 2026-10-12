@@ -1041,6 +1041,53 @@ static func run(main: Node, name: String) -> void:
 			main.weather.hour = 16.5
 			main.ui.set_collapsed(true)
 			await _frames(main, 30)
+		"berg":
+			# bare rock painted over a patch, part of it raised into a steep knoll:
+			# the rock's blocks follow up the face instead of stretching
+			main.props.remove_near(0.0, 0.0, 9.0)
+			var d = main.data
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--rough="):
+					d.berg_rough = float(a.substr(8))
+				elif a.begins_with("--vari="):
+					d.berg_variation = float(a.substr(7))
+			for k in 8:
+				d.paint(Vector2(0.4 + (k % 3) * 0.9, 0.6 + (k / 3) * 0.8), 1.6, Color(0, 0, 0, 0), 0.0, 1.0, 1.0)
+			for k in 20:
+				d.edit_height(Vector2(1.2, 1.4), 1.0, 0.12)
+			var t0 := Time.get_ticks_msec()
+			main.view.rebuild(d.dirty, d.dirty_shape)
+			d.dirty = Rect2i()
+			d.dirty_shape = Rect2i()
+			main.view.flush()
+			print("  rock built in %d ms, height at the knoll %.2f (bare %.2f)" % [Time.get_ticks_msec() - t0, d.sample_height(1.2, 1.4), d.sample_bare(1.2, 1.4)])
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--nbias="):
+					main.weather.sun.shadow_normal_bias = float(a.substr(8))
+				elif a == "--noshadow":
+					main.weather.sun.shadow_enabled = false
+			print("  sun biases ", main.weather.sun.shadow_bias, " ", main.weather.sun.shadow_normal_bias)
+			if "--nograss" in OS.get_cmdline_user_args():
+				for e in main.view._tiles.values():
+					(e.grass as Node3D).visible = false
+			main.props.follow_ground()
+			main.ui.set_collapsed(true)
+			await _frames(main, 20)
+		"berg_ui":
+			# the Berg paint shows its dials, a stroke paints rock, Undo takes it back
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			main.ui.tabs.current_tab = 0
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Berg"])
+			await _frames(main, 3)
+			print("  dials shown: ", main.ui._berg_dials.visible)
+			await _drag(main, [on.call(-1.0, 1.0), on.call(1.0, 1.2)], 30)
+			await _frames(main, 10)
+			print("  rock at (0, 1.1): %.2f" % d.sample_berg(0.0, 1.1))
+			main.brush.undo()
+			await _frames(main, 10)
+			print("  after undo: %.2f" % d.sample_berg(0.0, 1.1))
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

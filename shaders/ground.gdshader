@@ -14,6 +14,7 @@ varying vec4 weights;
 varying float coast;
 varying float rocks;  // loose stones weight
 varying vec2 wet;   // water level, water amount
+varying vec4 berg;  // bare rock: how much, block tone, metres to a crack, relief height
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -21,6 +22,7 @@ void vertex() {
 	coast = UV.x;
 	rocks = UV.y;
 	wet = UV2;
+	berg = CUSTOM0;
 }
 
 // A loose stone's height: flat-topped with rounded shoulders, its face
@@ -31,8 +33,10 @@ float stone_height(vec2 xz) {
 	return body * (0.08 + fbm2(xz * 16.0 + s.y * 40.0) * 0.035);
 }
 
-float surface_bump(vec2 xz, float stone, float loose) {
+float surface_bump(vec2 xz, float stone, float loose, float rock) {
 	float b = fbm2(xz * 5.0) * 0.03;
+	// bare rock: a fine grain, pitted
+	b += rock * (fbm2(xz * 14.0) * 0.012 - smoothstep(0.78, 0.88, vnoise2(xz * 18.0)) * 0.006);
 	b += stone * cobbles(xz / 0.3).z * 0.05;
 	if (loose > 0.001) {
 		b += loose * stone_height(xz);
@@ -85,7 +89,8 @@ void fragment() {
 		face_v = vec3(0.0, 1.0, 0.0);
 	}
 	vec3 cb = cobbles(face / 0.3);
-	float w_grass = max(0.0, 1.0 - (weights.r + weights.g + weights.b + weights.a + w_rocks));
+	float w_berg = clamp(berg.x, 0.0, 1.0);
+	float w_grass = max(0.0, 1.0 - (weights.r + weights.g + weights.b + weights.a + w_rocks + w_berg));
 	vec2 ls = vec2(0.0);
 	if (w_rocks > 0.001) {
 		ls = loose_stones(face);
@@ -101,7 +106,9 @@ void fragment() {
 	// loose stones bid with their domes too: a full patch shows gravelly soil
 	// between the stones, its edge thins out to single stones in the grass
 	float s_rocks = w_rocks + ls.x * 0.7 + fbm2(xz * 2.5 + vec2(2.7, 3.1)) * 0.15 - 0.12;
-	float top = max(max(max(s_grass, s_stone), max(s_sand, s_moss)), max(s_dirt, s_rocks));
+	// rock bids with its blocks: it frays into the grass block by block
+	float s_berg = w_berg + berg.w * 0.2 + fbm2(xz * 2.4 + vec2(6.3, 1.7)) * 0.25 - 0.05;
+	float top = max(max(max(s_grass, s_stone), max(s_sand, s_moss)), max(max(s_dirt, s_rocks), s_berg));
 	float band = 0.1;
 	float b_grass = max(s_grass - top + band, 0.0);
 	float b_stone = max(s_stone - top + band, 0.0);
@@ -109,7 +116,8 @@ void fragment() {
 	float b_moss = max(s_moss - top + band, 0.0);
 	float b_dirt = max(s_dirt - top + band, 0.0);
 	float b_rocks = max(s_rocks - top + band, 0.0);
-	float total = b_grass + b_stone + b_sand + b_moss + b_dirt + b_rocks;
+	float b_berg = max(s_berg - top + band, 0.0);
+	float total = b_grass + b_stone + b_sand + b_moss + b_dirt + b_rocks + b_berg;
 
 	float fine = vnoise2(xz * 9.0);
 	vec3 c_grass = grass_tint(xz) * (0.62 + 0.12 * fine);
@@ -130,8 +138,35 @@ void fragment() {
 	rock = mix(rock, moss_tint(wpos) * 0.85, smoothstep(0.55, 0.95, ls.x) * moss_field(wpos + vec3(ls.y * 9.0)) * 0.7);
 	vec3 soil = srgb(vec3(0.36, 0.28, 0.2)) * (0.75 + 0.3 * fbm2(face * 5.0));
 	vec3 c_rocks = mix(soil, rock, smoothstep(0.0, 0.1, ls.x));
+	// bare rock, painted like the stones: each block its own grey, mottled,
+	// lighter on top; the cracks between blocks (their distance comes from
+	// the mesher) dark, with a pale chipped lip, swelling and thinning away
+	// here and there; finer cracks and pits; moss down in the cracks and in
+	// drifts over the flatter tops. Laid on the face it sits on, so it never
+	// smears down a raised face.
+	vec3 c_berg = vec3(0.0);
+	if (w_berg > 0.001) {
+		c_berg = srgb(vec3(0.5, 0.505, 0.52)) * 0.78 * mix(0.84, 1.12, berg.y);
+		float mott = fbm2(face * 2.2 + vec2(3.0, 8.0));
+		c_berg *= mix(vec3(0.93, 0.95, 1.02), vec3(1.05, 1.02, 0.97), mott) * (0.86 + 0.26 * mott);
+		float taper = smoothstep(0.3, 0.75, vnoise2(face * 4.5 + vec2(7.0, 1.0)));
+		float w_split = 0.025 * taper;
+		float split = 1.0 - smoothstep(w_split * 0.35, w_split + 1e-4, berg.z);
+		float lip = max((1.0 - smoothstep(w_split, w_split + 0.05 * taper + 1e-4, berg.z)) * taper - split, 0.0);
+		vec3 fc = cobbles(face / 0.22 + vec2(13.0, 5.0));
+		float show = smoothstep(0.55, 0.68, vnoise2(face * 2.0 + vec2(1.0, 9.0)));
+		float w_fine = 0.05 * smoothstep(0.35, 0.8, vnoise2(face * 9.0));
+		split = max(split, (1.0 - smoothstep(w_fine * 0.35, w_fine + 1e-4, fc.x)) * show * 0.8);
+		c_berg *= 1.0 - split * 0.6;
+		c_berg *= 1.0 + lip * 0.18;
+		c_berg *= 1.0 - smoothstep(0.78, 0.86, vnoise2(face * 18.0)) * 0.2;
+		c_berg *= 0.84 + 0.24 * smoothstep(-0.3, 0.9, gn.y);
+		float berg_moss = max(split * 0.8, smoothstep(0.82, 0.97, gn.y) * smoothstep(0.55, 0.75, fbm2(xz * 1.8 + vec2(4.0, 2.0)) + (vnoise2(xz * 22.0) - 0.5) * 0.2));
+		c_berg = mix(c_berg, moss_tint(wpos) * (0.6 + 0.4 * fine), berg_moss * 0.85);
+	}
 
-	vec3 col = (c_grass * b_grass + c_stone * b_stone + c_sand * b_sand + c_moss * b_moss + c_dirt * b_dirt + c_rocks * b_rocks) / total;
+	vec3 col = (c_grass * b_grass + c_stone * b_stone + c_sand * b_sand + c_moss * b_moss + c_dirt * b_dirt + c_rocks * b_rocks + c_berg * b_berg) / total;
+	float berg_amt = b_berg / total;
 	float stone_amt = b_stone / total;
 	float loose_amt = b_rocks / total;
 
@@ -152,9 +187,9 @@ void fragment() {
 
 	// fine surface relief from the same noise, bent into the normal
 	float e = 0.02;
-	float h0 = surface_bump(face, stone_amt, loose_amt);
-	float hu = surface_bump(face + vec2(e, 0.0), stone_amt, loose_amt);
-	float hv = surface_bump(face + vec2(0.0, e), stone_amt, loose_amt);
+	float h0 = surface_bump(face, stone_amt, loose_amt, berg_amt);
+	float hu = surface_bump(face + vec2(e, 0.0), stone_amt, loose_amt, berg_amt);
+	float hv = surface_bump(face + vec2(0.0, e), stone_amt, loose_amt, berg_amt);
 	vec3 slope = face_u * (hu - h0) / e + face_v * (hv - h0) / e;
 	vec3 wn = gn;
 	wn = normalize(wn - (slope - wn * dot(slope, wn)));
@@ -163,7 +198,7 @@ void fragment() {
 	// under water stays as it is; above, snow settles and rain darkens
 	float dry = 1.0 - under;
 	ALBEDO = mix(col, weathered(col, wn.y, wpos), dry);
-	ROUGHNESS = mix(mix(mix(0.95, 0.8, stone_amt), 0.98, loose_amt), 0.45, damp * (1.0 - under));
+	ROUGHNESS = mix(mix(mix(mix(0.95, 0.8, stone_amt), 0.98, loose_amt), 0.9, berg_amt), 0.45, damp * (1.0 - under));
 	ROUGHNESS = mix(ROUGHNESS, weathered_rough(ROUGHNESS, wn.y, wpos), dry);
 	SPECULAR = mix(mix(0.3, 0.12, loose_amt), weathered_spec(mix(0.3, 0.12, loose_amt), wn.y, wpos), dry);
 }
