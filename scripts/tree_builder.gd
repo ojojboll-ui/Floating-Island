@@ -36,6 +36,17 @@ const GOLDEN := 2.39996   # radians
 static var _bark_normal: ImageTexture
 
 
+## The bark's colour and the Mossa, Struktur and Relief dials; `climb` is
+## how high the first fork sits, which moss creeps up to at full Mossa.
+static func _bark_look(trunk: GeometryInstance3D, st: Dictionary, climb: float) -> void:
+	var b: Array = st.bark_color
+	trunk.set_instance_shader_parameter("bark", Vector3(b[0], b[1], b[2]))
+	trunk.set_instance_shader_parameter("moss_amount", float(st.get("moss", 0.2)))
+	trunk.set_instance_shader_parameter("moss_climb", climb)
+	trunk.set_instance_shader_parameter("texture_amount", float(st.get("texture", 0.5)))
+	trunk.set_instance_shader_parameter("relief", float(st.get("relief", 0.5)))
+
+
 ## The tree for a style, `height` metres tall, its foot at the origin.
 static func build(style: Dictionary, height: float, seed: int, env := {}) -> Node3D:
 	var rng := RandomNumberGenerator.new()
@@ -63,9 +74,7 @@ static func build(style: Dictionary, height: float, seed: int, env := {}) -> Nod
 	MeshUtil.add_surface(bm, g.bark.v, g.bark.n, g.bark.uv, PackedColorArray(), g.bark.i)
 	trunk.mesh = bm
 	trunk.material_override = _bark_material()
-	var b: Array = style.bark_color
-	trunk.set_instance_shader_parameter("bark", Vector3(b[0], b[1], b[2]))
-	trunk.set_instance_shader_parameter("moss_amount", float(style.get("moss", 0.2)))
+	_bark_look(trunk, style, float(g.get("first_fork", trunk_len * float(style.branch_start))) + 0.3)
 	root.add_child(trunk)
 
 	if float(style.leaves) > 0.01 and not (g.clusters as Array).is_empty():
@@ -178,6 +187,9 @@ static func _branch(g: Dictionary, level: int, start: Vector3, dir: Vector3, len
 	for k in kids:
 		var t := lerpf(from, 0.97, (k + rng.randf_range(0.2, 0.8)) / kids)
 		var at := _along(pts, t)
+		if level == 0:
+			# the lowest fork, which moss creeps up to at full Mossa
+			g.first_fork = minf(float(g.get("first_fork", INF)), at.y)
 		var r_at := lerpf(radius, radius * tip_ratio, t)
 		var az := spin + k * GOLDEN + rng.randf_range(-0.3, 0.3)
 		var down := deg_to_rad(float(st.angle) + rng.randf_range(-8.0, 8.0))
@@ -248,9 +260,7 @@ static func _conifer(g: Dictionary, foot: Vector3, dir: Vector3, height: float) 
 	MeshUtil.add_surface(bm, g.bark.v, g.bark.n, g.bark.uv, PackedColorArray(), g.bark.i)
 	trunk.mesh = bm
 	trunk.material_override = _bark_material()
-	var bc: Array = st.bark_color
-	trunk.set_instance_shader_parameter("bark", Vector3(bc[0], bc[1], bc[2]))
-	trunk.set_instance_shader_parameter("moss_amount", float(st.get("moss", 0.2)))
+	_bark_look(trunk, st, trunk_len * start)
 	root.add_child(trunk)
 	var skirts := MeshInstance3D.new()
 	skirts.mesh = b.mesh()

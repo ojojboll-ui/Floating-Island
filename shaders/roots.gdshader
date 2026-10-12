@@ -17,6 +17,9 @@ instance uniform vec3 tint = vec3(0.45, 0.3, 0.2);
 instance uniform float bark = 0.35;
 // the Mossa dial: moss as on the stones
 instance uniform float moss_amount = 0.0;
+// the Struktur and Relief dials
+instance uniform float texture_amount = 0.5;
+instance uniform float relief = 0.5;
 
 varying vec3 wpos;
 varying float along;
@@ -42,7 +45,8 @@ void fragment() {
 	float ridge = smoothstep(0.15, 0.6, dot(tex, vec3(0.3, 0.59, 0.11)));
 	// seven grooves round, wandering along the root; whole turns, so no seam
 	float groove = smoothstep(-0.4, 0.7, sin(UV.x * TAU * 7.0 + (vnoise2(vec2(UV.y * 1.3, 0.5)) - 0.5) * 5.0));
-	vec3 painted = base * (0.72 + 0.5 * ridge) * mix(0.78, 1.0, groove);
+	// Struktur: how strongly the ridges and grooves show
+	vec3 painted = base * (1.0 + ((0.72 + 0.5 * ridge) * mix(0.78, 1.0, groove) - 1.0) * texture_amount * 2.0);
 	// textured: the bark itself, recoloured by the tint
 	vec3 barky = tex * base / srgb(vec3(0.45, 0.3, 0.2)) * 0.9;
 	vec3 col = mix(painted, barky, bark);
@@ -52,10 +56,20 @@ void fragment() {
 	float soil = smoothstep(0.15, 0.0, along + (fbm3(wpos * 3.0) - 0.5) * 0.1) * hanging;
 	col = mix(col, srgb(vec3(0.3, 0.21, 0.14)), soil * 0.7);
 	// moss as on the stones (the Mossa dial), less on roots hanging free
-	moss_fuzz(wpos, wpos, moss_cover(wpos, wn, moss_amount * (1.0 - hanging * 0.7), 0.0), col);
+	vec2 mf = moss_fuzz(wpos, wpos, moss_cover(wpos, wn, moss_amount * (1.0 - hanging * 0.7), 0.0), col);
+	// Relief: the grooves as a height, tipping the normal (from screen
+	// derivatives), moss lying softer over them
+	float bump_h = (groove * 0.7 + ridge * 0.3) * 0.008 * relief * (1.0 - mf.x * 0.7);
+	vec3 dpdx = dFdx(wpos);
+	vec3 dpdy = dFdy(wpos);
+	vec3 r1 = cross(dpdy, wn);
+	vec3 r2 = cross(wn, dpdx);
+	float det = dot(dpdx, r1);
+	vec3 bn = normalize(abs(det) * wn - sign(det) * (dFdx(bump_h) * r1 + dFdy(bump_h) * r2));
+	NORMAL = normalize((VIEW_MATRIX * vec4(bn, 0.0)).xyz);
 	ALBEDO = weathered(col, wn.y, wpos);
 	NORMAL_MAP = texture(normal_tex, UV).rgb;
-	NORMAL_MAP_DEPTH = mix(0.7, 1.8, bark);
+	NORMAL_MAP_DEPTH = mix(0.7, 1.8, bark) * relief * 2.0;
 	ROUGHNESS = weathered_rough(0.85, wn.y, wpos);
 	SPECULAR = weathered_spec(0.25, wn.y, wpos);
 }

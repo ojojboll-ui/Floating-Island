@@ -180,8 +180,14 @@ func _check(kind: String, x: float, z: float, spread := 1.0, merge := false) -> 
 	# others, and only what it would actually sit on is in its way. A brush
 	# keeps the kinds' own spacing, so a scatter does not clump.
 	var tight := 0.3 if merge else 1.0
+	# painting stones over stones laid before builds the rock up: a stone
+	# lying lower than where this one would rest is not in its way. The
+	# stroke's own stones are, so each stroke lays one layer.
+	var my_lift := stone_lift(x, z, kind) if kind in STONES and not merge else 0.0
 	for r in records:
 		if r.get("side", false):
+			continue
+		if my_lift > 0.0 and r.kind in STONES and not r.id in last_stroke and my_lift > float(r.get("lift", 0.0)) + _tall(r) * 0.25:
 			continue
 		var other: Dictionary = Catalog.KINDS[r.kind]
 		var dist := here.distance_to(Vector2(r.x, r.z))
@@ -240,7 +246,7 @@ func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -
 		if size <= 0.0:
 			rec.size = _styled_size(rec)
 	if kind in STONES:
-		rec.lift = stone_lift(x, z)
+		rec.lift = stone_lift(x, z, kind)
 		stones_moved = true
 	elif kind in RESTING:
 		rec.lift = rest_lift(x, z)
@@ -473,7 +479,7 @@ func rest_lift(x: float, z: float) -> float:
 ## How high something of `kind` rests at (x, z).
 func lift_for(kind: String, x: float, z: float) -> float:
 	if kind in STONES:
-		return stone_lift(x, z)
+		return stone_lift(x, z, kind)
 	if kind in RESTING:
 		return rest_lift(x, z)
 	return 0.0
@@ -487,15 +493,22 @@ func fire_near(x: float, z: float) -> Variant:
 	return null
 
 
+## How tall a placed thing stands, in metres.
+func _tall(rec: Dictionary) -> float:
+	var node: Node3D = _nodes.get(rec.id)
+	return float(node.get_meta("tall", rec.size)) if node else float(rec.size)
+
+
 ## How high a stone set down at (x, z) rests: on the ground, or, set on
 ## another stone (or a wall), sunk halfway into its top so the two read as
 ## one rock.
-func stone_lift(x: float, z: float) -> float:
+func stone_lift(x: float, z: float, kind := "") -> float:
 	var g := ground_at(x, z)
 	var top := obstacle_top(x, z)
 	if top < g + 0.08:
 		return 0.0
-	return (top - g) * 0.55
+	# rock (Berg) is built up in layers, each resting high on the last
+	return (top - g) * (0.8 if kind == "berg" else 0.55)
 
 
 func ground_at(x: float, z: float) -> float:
@@ -769,7 +782,9 @@ func _place(rec: Dictionary) -> void:
 			(node.get_meta("shaded") as GeometryInstance3D).set_instance_shader_parameter("ground_y", -100.0)
 			return
 		var tall: float = node.get_meta("tall", float(rec.size))
-		var at := Vector3(x, gy - float(k.sink) * tall + float(rec.get("lift", 0.0)), z)
+		# a stone set on another sinks into it less than into the ground
+		var sink: float = float(k.sink) if float(rec.get("lift", 0.0)) <= 0.0 else minf(float(k.sink), 0.15)
+		var at := Vector3(x, gy - sink * tall + float(rec.get("lift", 0.0)), z)
 		if rec.kind in STONES:
 			(node as GeometryInstance3D).set_instance_shader_parameter("moss_boost", _damp(rec))
 			var mates := _stack_mates(rec)

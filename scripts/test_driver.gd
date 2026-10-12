@@ -1060,6 +1060,18 @@ static func run(main: Node, name: String) -> void:
 			main.brush.radius = 1.6
 			await _drag(main, [on.call(-0.6, 0.4), on.call(1.2, 1.4), on.call(2.6, 1.0)], 60)
 			await _frames(main, 10)
+			var layers := 1
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--layers="):
+					layers = int(a.substr(9))
+			for l in layers - 1:
+				await _drag(main, [on.call(-0.3, 0.6), on.call(1.2, 1.2), on.call(2.2, 1.0)], 50)
+				await _frames(main, 10)
+			var top_lift := 0.0
+			for rr in main.props.records:
+				if rr.kind == "berg":
+					top_lift = maxf(top_lift, float(rr.get("lift", 0.0)))
+			print("  highest rock layer lifted %.2f m" % top_lift)
 			print("  rock stones: %d" % main.props.records.filter(func(r): return r.kind == "berg").size())
 			main.ui.set_collapsed(true)
 			await _frames(main, 20)
