@@ -977,6 +977,14 @@ func _ruins_row() -> Control:
 		age.set_value_no_signal(v)
 		_show(age))
 	dials.add_child(age.get_parent())
+	var square := CheckButton.new()
+	square.text = "Fyrkantig pensel"
+	square.tooltip_text = "Golv och övervåningar målas med en fyrkantig pensel längs rutnätet, så de får raka sidor och långa väggar. Håll Shift för raka streck (även murar)"
+	square.focus_mode = Control.FOCUS_NONE
+	square.button_pressed = brush.square_brush
+	square.toggled.connect(func(on: bool) -> void: brush.square_brush = on)
+	buttons["Fyrkantig pensel"] = square
+	dials.add_child(square)
 	row.add_child(dials)
 	return row
 

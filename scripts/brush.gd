@@ -24,6 +24,8 @@ const SHAPING := [Tool.RAISE, Tool.LOWER, Tool.SMOOTH, Tool.FLATTEN, Tool.LAND_A
 const IslandData := preload("res://scripts/island_data.gd")
 const IslandMesher := preload("res://scripts/island_mesher.gd")
 const Catalog := preload("res://scripts/prop_catalog.gd")
+const MeshUtil := preload("res://scripts/mesh_util.gd")
+const RuinBuilder := preload("res://scripts/ruin_builder.gd")
 const REBUILD_INTERVAL := 0.05
 ## the reversed underside tools, while Shift is held
 const UNCARVE := 100
@@ -57,6 +59,14 @@ var _undo: Array = []
 var _redo: Array = []
 var _decal: Decal
 var _ring: MeshInstance3D
+## Floors and storeys painted with a square brush, edges along the grid, so
+## they get straight sides and long walls. Shift draws them, and walls, in
+## straight lines.
+var square_brush := false
+var _round_tex: ImageTexture
+var _square_tex: ImageTexture
+var _stroke_from := Vector2.ZERO   # where the stroke began, for straight lines
+var _last_paint := Vector2.INF     # where the floor was last painted, to fill gaps
 var _hit := {}
 var _mouse := Vector2(-1, -1)
 var _stroke_time := 0.0
@@ -80,6 +90,9 @@ var _ghost_rot := 0.0
 var turn := 0.0
 var _ghost_jit := 0.0
 var _ghost_mat: ShaderMaterial
+## The ghost of a door or window, on the wall under the mouse.
+var _hole_ghost: MeshInstance3D
+var _hole_key := ""
 var _ghost_leaf_mat: ShaderMaterial
 
 
@@ -91,7 +104,9 @@ func setup(island_data, island_view, prop_layer, ruin_layer, cam: Camera3D) -> v
 	_rng.seed = 5
 	camera = cam
 	_decal = Decal.new()
-	_decal.texture_albedo = _ring_texture()
+	_round_tex = _ring_texture()
+	_square_tex = _square_texture()
+	_decal.texture_albedo = _round_tex
 	_decal.modulate = Color(1.0, 0.98, 0.92)
 	_decal.albedo_mix = 1.0
 	_decal.cull_mask = 1
@@ -179,6 +194,8 @@ func _begin_stroke(screen: Vector2) -> void:
 	# ruins: a pillar goes down at once; walls, arches and stairs are drawn.
 	# Started on a storey, they stand on that storey.
 	_ruin_seed = _rng.randi()
+	_stroke_from = Vector2(p.x, p.z)
+	_last_paint = Vector2.INF
 	ruins.build_base = hit.get("level", NAN)
 	var at: Vector2 = ruins.snap_point(Vector2(p.x, p.z))
 	match tool:
@@ -192,7 +209,7 @@ func _begin_stroke(screen: Vector2) -> void:
 		Tool.FLOOR:
 			# paving on the ground, or more of the storey it is started on
 			_floor = ruins.begin_floor(hit.get("level", NAN), _ruin_seed)
-			ruins.paint_floor(_floor, Vector2(p.x, p.z), radius)
+			ruins.paint_floor(_floor, Vector2(p.x, p.z), radius, square_brush)
 			ruins.refresh(_floor)
 		Tool.DOOR, Tool.WINDOW:
 			_open_hole(screen)
@@ -206,7 +223,7 @@ func _begin_stroke(screen: Vector2) -> void:
 			var level: float = (hit.level if hit.has("level") else data.sample_height(p.x, p.z)) + ruin_height
 			ruins.build_base = NAN
 			_floor = ruins.begin_floor(level, _ruin_seed)
-			ruins.paint_floor(_floor, _on_plane(level), radius)
+			ruins.paint_floor(_floor, _on_plane(level), radius, square_brush)
 			ruins.refresh(_floor)
 	_since_preview = 1.0
 	_flatten_h = data.sample_base_height(p.x, p.z)
@@ -380,7 +397,10 @@ func _apply(hit: Dictionary, dt: float) -> void:
 					# paints over what is there, but not over its own kind
 					props.place_over(place_kind, q.x, q.y, _rng, spread, false, true)
 		Tool.WALL:
-			if _draw.is_empty() or _draw[_draw.size() - 1].distance_to(c) > 0.25:
+			if Input.is_key_pressed(KEY_SHIFT) and not _draw.is_empty():
+				# Shift: a straight wall from where it began
+				_draw = PackedVector2Array([_draw[0], c])
+			elif _draw.is_empty() or _draw[_draw.size() - 1].distance_to(c) > 0.25:
 				_draw.append(c)
 			_preview(dt, "wall")
 		Tool.ARCH, Tool.STAIRS:
@@ -392,7 +412,19 @@ func _apply(hit: Dictionary, dt: float) -> void:
 				if _floor.raised:
 					# paint across the storey's own plane, not the ground below it
 					at = _on_plane(float(_floor.level))
-				ruins.paint_floor(_floor, at, radius)
+				if _last_paint == Vector2.INF:
+					_stroke_from = at
+				if Input.is_key_pressed(KEY_SHIFT):
+					# Shift: a straight line from where the stroke began, along
+					# whichever way it has gone further
+					var off := at - _stroke_from
+					at = _stroke_from + (Vector2(off.x, 0.0) if absf(off.x) >= absf(off.y) else Vector2(0.0, off.y))
+				# fill in between, so a quick stroke leaves no gaps
+				var from := at if _last_paint == Vector2.INF else _last_paint
+				var steps := maxi(1, int(ceil(from.distance_to(at) / maxf(radius * 0.5, 0.2))))
+				for k in steps:
+					ruins.paint_floor(_floor, from.lerp(at, float(k + 1) / steps), radius, square_brush)
+				_last_paint = at
 				_since_preview += dt
 				if _since_preview >= 0.1:
 					_since_preview = 0.0
@@ -529,7 +561,7 @@ func _open_hole(screen: Vector2) -> void:
 	var g := _pick_ground(o, d)
 	var reach: float = o.distance_to(g.pos) + 0.5 if not g.is_empty() else 200.0
 	var piece: Dictionary = ruins.pick_piece(o, d, reach)
-	if not piece.is_empty() and piece.record.kind == "wall":
+	if not piece.is_empty() and (piece.record.kind == "wall" or (piece.record.kind == "floor" and piece.record.raised)):
 		ruins.add_hole(piece.record, piece.pos, "door" if tool == Tool.DOOR else "window", ruin_height)
 
 
@@ -639,6 +671,7 @@ func _below_surface(p: Vector3) -> bool:
 func _update_cursor() -> void:
 	var over_ui := get_viewport().gui_get_hovered_control() != null
 	_update_ghost(over_ui)
+	_update_hole_ghost(over_ui)
 	if _hit.is_empty() or over_ui:
 		_decal.visible = false
 		_ring.visible = false
@@ -649,6 +682,10 @@ func _update_cursor() -> void:
 	# on the underside the ring is cast upward
 	_decal.rotation = Vector3(PI, 0.0, 0.0) if _hit.get("under", false) else Vector3.ZERO
 	_decal.size = Vector3(radius * 2.0, 4.0, radius * 2.0)
+	var squared := square_brush and (tool == Tool.FLOOR or tool == Tool.STOREY)
+	_decal.texture_albedo = _square_tex if squared else _round_tex
+	if squared:
+		_decal.rotation.y = 0.0
 	# the flat ring shows the brush over open air, where there is nothing
 	# for the decal to land on
 	_ring.visible = _is_land_tool()
@@ -735,6 +772,58 @@ func _update_ghost(over_ui: bool) -> void:
 	_ghost_leaf_mat.set_shader_parameter("tint", tint)
 
 
+## Show where a door or window would open in the wall under the mouse,
+## its shape cut through the wall: green where it fits, red where it does
+## not (too near an end, another opening, or a wall too low).
+func _update_hole_ghost(over_ui: bool) -> void:
+	var show := (tool == Tool.DOOR or tool == Tool.WINDOW) and not over_ui and _mouse.x >= 0.0
+	var fit := {}
+	if show:
+		var o := camera.project_ray_origin(_mouse)
+		var d := camera.project_ray_normal(_mouse)
+		var g := _pick_ground(o, d)
+		var reach: float = o.distance_to(g.pos) + 0.5 if not g.is_empty() else 200.0
+		var piece: Dictionary = ruins.pick_piece(o, d, reach)
+		if not piece.is_empty():
+			fit = ruins.hole_fit(piece.record, piece.pos, "door" if tool == Tool.DOOR else "window", ruin_height)
+	if fit.is_empty():
+		if _hole_ghost:
+			_hole_ghost.visible = false
+		return
+	if _hole_ghost == null:
+		_hole_ghost = MeshInstance3D.new()
+		var hm := ShaderMaterial.new()
+		hm.shader = load("res://shaders/ghost_front.gdshader")
+		_hole_ghost.material_override = hm
+		_hole_ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_hole_ghost)
+	var shape: Dictionary = fit.shape
+	var key := "%.2f|%.2f|%.2f" % [shape.hw, shape.bottom, shape.spring]
+	if key != _hole_key:
+		_hole_key = key
+		_hole_ghost.mesh = _hole_mesh(float(shape.hw), maxf(float(shape.bottom), 0.0), float(shape.spring))
+	var along: Vector2 = fit.along
+	var x := Vector3(along.x, 0.0, along.y).normalized()
+	_hole_ghost.global_transform = Transform3D(Basis(x, Vector3.UP, x.cross(Vector3.UP)), Vector3(fit.at.x, float(fit.foot), fit.at.y))
+	_hole_ghost.visible = true
+	(_hole_ghost.material_override as ShaderMaterial).set_shader_parameter("tint", Color(0.8, 1.0, 0.78) if fit.ok else Color(1.0, 0.42, 0.38))
+
+
+## A round-headed opening `hw` wide each side, from `bottom` up to where its
+## head `spring`s, as a slab through the wall.
+static func _hole_mesh(hw: float, bottom: float, spring: float) -> ArrayMesh:
+	var outline := PackedVector2Array([Vector2(-hw, bottom), Vector2(hw, bottom)])
+	for k in 13:
+		var a := PI * k / 12.0
+		outline.append(Vector2(cos(a) * hw, spring + sin(a) * hw))
+	var g := MeshUtil.extrude(outline, RuinBuilder.WALL_THICK + 0.4, 0.02)
+	var m := ArrayMesh.new()
+	var v: PackedVector3Array = g.v
+	var idx: PackedInt32Array = g.i
+	MeshUtil.add_surface(m, v, MeshUtil.normals(v, idx), PackedVector2Array(), PackedColorArray(), idx)
+	return m
+
+
 func _dress_ghost(node: Node) -> void:
 	if _ghost_mat == null:
 		_ghost_mat = ShaderMaterial.new()
@@ -770,6 +859,19 @@ static func _ring_texture() -> ImageTexture:
 			var r := Vector2(x + 0.5 - n * 0.5, y + 0.5 - n * 0.5).length() / (n * 0.5)
 			var line := 1.0 - smoothstep(0.0, 0.035, absf(r - 0.94))
 			var fill := 0.12 * (1.0 - smoothstep(0.85, 0.95, r))
+			img.set_pixel(x, y, Color(1, 1, 1, clampf(line + fill, 0.0, 1.0)))
+	return ImageTexture.create_from_image(img)
+
+
+## The square brush outline, for the decal.
+static func _square_texture() -> ImageTexture:
+	var n := 256
+	var img := Image.create_empty(n, n, false, Image.FORMAT_RGBA8)
+	for y in n:
+		for x in n:
+			var d := maxf(absf(x + 0.5 - n * 0.5), absf(y + 0.5 - n * 0.5)) / (n * 0.5)
+			var line := 1.0 - smoothstep(0.0, 0.035, absf(d - 0.94))
+			var fill := 0.12 * (1.0 - smoothstep(0.85, 0.95, d))
 			img.set_pixel(x, y, Color(1, 1, 1, clampf(line + fill, 0.0, 1.0)))
 	return ImageTexture.create_from_image(img)
 

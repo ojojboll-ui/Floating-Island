@@ -1283,6 +1283,93 @@ static func run(main: Node, name: String) -> void:
 					print("  tree at the water: lean %s" % (r.get("cliff_lean", Vector3.ZERO) as Vector3).snapped(Vector3.ONE * 0.01))
 			main.ui.set_collapsed(true)
 			await _frames(main, 30)
+		"storey_holes":
+			# the ruins, then the ghost of a door hovering over a wall, and a door
+			# and a window clicked into the walls under a storey
+			await run(main, "openings")
+			main.rig.goal_yaw = deg_to_rad(float(main.args_yaw))
+			main.rig.goal_pitch = deg_to_rad(14.0)
+			main.rig.goal_distance = 22.0
+			main.rig.goal_target = Vector3(1.5, 0.5, 1.5)
+			main.rig.settle()
+			await _frames(main, 5)
+			var storey: Dictionary = {}
+			for r in main.ruins.records:
+				if r.kind == "floor" and r.raised:
+					storey = r
+			var walls: Array = main.ruins._floor_walls(storey)
+			walls.sort_custom(func(a, b): return a[0].distance_to(a[1]) > b[0].distance_to(b[1]))
+			print("  storey walls: %d, longest %.1f m" % [walls.size(), walls[0][0].distance_to(walls[0][1])])
+			main.ui.tabs.current_tab = 2
+			await _frames(main, 3)
+			for spec in [["Dörr", 0, 0.5, 0.8], ["Fönster", 1 if walls.size() > 1 else 0, 0.5, 1.4]]:
+				await _click(main, main.ui.buttons[spec[0]])
+				var w: PackedVector2Array = walls[spec[1]]
+				var mid: Vector2 = w[0].lerp(w[1], spec[2])
+				var foot: float = main.ruins._hole_foot(storey, mid)
+				_mouse_move(main.rig.camera.unproject_position(Vector3(mid.x, foot + spec[3], mid.y)))
+				await _frames(main, 4)
+				var g: MeshInstance3D = main.brush._hole_ghost
+				print("  %s ghost shown: %s" % [spec[0], g != null and g.visible])
+				await _tap(main, Vector3(mid.x, foot + spec[3], mid.y))
+				await _frames(main, 3)
+			print("  holes in the storey: %d" % storey.get("holes", []).size())
+			# the ghost left showing on another of the storey's walls
+			await _click(main, main.ui.buttons["Dörr"])
+			var w2: PackedVector2Array = walls[2 if walls.size() > 2 else 0]
+			var m2: Vector2 = w2[0].lerp(w2[1], 0.5)
+			_mouse_move(main.rig.camera.unproject_position(Vector3(m2.x, main.ruins._hole_foot(storey, m2) + 0.8, m2.y)))
+			await _frames(main, 10)
+		"square_storey":
+			# a storey painted with the square brush along a straight Shift-free
+			# stroke on a pillar, a door clicked into one of its walls, and the
+			# ghost of a window over another
+			main.props.remove_near(0.0, 0.0, 9.0)
+			main.rig.goal_yaw = deg_to_rad(float(main.args_yaw))
+			main.rig.goal_pitch = deg_to_rad(16.0)
+			main.rig.goal_distance = 24.0
+			main.rig.goal_target = Vector3(1.0, 1.0, 1.0)
+			main.rig.settle()
+			main.ui.tabs.current_tab = 2
+			await _frames(main, 3)
+			var d = main.data
+			main.brush.ruin_height = 2.4
+			await _click(main, main.ui.buttons["Pelare"])
+			var gp: float = d.sample_height(0.0, 1.0)
+			await _tap(main, Vector3(0.0, gp, 1.0))
+			main.ui.buttons["Fyrkantig pensel"].button_pressed = true
+			await _click(main, main.ui.buttons["Övervåning"])
+			main.brush.radius = 1.0
+			await _drag(main, [Vector3(0.0, gp + 0.6, 1.0), Vector3(1.0, gp + 2.3, 1.0), Vector3(2.2, gp + 2.3, 1.0)], 30)
+			await _frames(main, 5)
+			var storey: Dictionary = {}
+			for r in main.ruins.records:
+				if r.kind == "floor" and r.raised:
+					storey = r
+			if storey.is_empty():
+				print("  no storey")
+				return
+			var walls: Array = main.ruins._floor_walls(storey)
+			print("  storey walls: %s" % [walls.map(func(w): return "%.1f m" % w[0].distance_to(w[1]))])
+			walls.sort_custom(func(a, b): return a[0].distance_to(a[1]) > b[0].distance_to(b[1]))
+			var cam: Vector3 = main.rig.camera.global_position
+			# the long walls facing the camera
+			var c2 := Vector2(cam.x, cam.z)
+			var long: Array = walls.filter(func(w): return w[0].distance_to(w[1]) >= 1.9 and ((w[0] + w[1]) * 0.5).distance_to(Vector2(1.1, 1.0)) < 2.2)
+			long.sort_custom(func(a, b): return c2.distance_to((a[0] + a[1]) * 0.5) < c2.distance_to((b[0] + b[1]) * 0.5))
+			var w0: PackedVector2Array = long[0] if not long.is_empty() else walls[0]
+			var m0: Vector2 = w0[0].lerp(w0[1], 0.35)
+			await _click(main, main.ui.buttons["Dörr"])
+			await _tap(main, Vector3(m0.x, main.ruins._hole_foot(storey, m0) + 0.8, m0.y))
+			await _frames(main, 5)
+			print("  holes in the storey: %d" % storey.get("holes", []).size())
+			await _click(main, main.ui.buttons["Fönster"])
+			var m1: Vector2 = w0[0].lerp(w0[1], 0.8)
+			_mouse_move(main.rig.camera.unproject_position(Vector3(m1.x, main.ruins._hole_foot(storey, m1) + 1.2, m1.y)))
+			await _frames(main, 10)
+			print("  window ghost shown: %s at %s, screen %s, wall %.1f m" % [main.brush._hole_ghost.visible, main.brush._hole_ghost.global_position.snapped(Vector3.ONE * 0.01), main.rig.camera.unproject_position(main.brush._hole_ghost.global_position).round(), w0[0].distance_to(w0[1])])
+			await RenderingServer.frame_post_draw
+			main.get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("res://shots/sq_ghost.png"))
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

@@ -54,6 +54,8 @@ class Ground:
 		return data.sample_sdf(x, z)
 
 
+var _wall_cache := {}   # floor id -> [revision, the walls under it]
+
 func setup(island_data, prop_layer) -> void:
 	data = island_data
 	props = prop_layer
@@ -223,7 +225,7 @@ func begin_floor(level: float, seed: int) -> Dictionary:
 
 
 ## Add the cells under a brush to a floor being painted.
-func paint_floor(rec: Dictionary, c: Vector2, radius: float) -> void:
+func paint_floor(rec: Dictionary, c: Vector2, radius: float, square := false) -> void:
 	var have := {}
 	for cell in rec.cells:
 		have[Vector2i(cell[0], cell[1])] = true
@@ -234,7 +236,9 @@ func paint_floor(rec: Dictionary, c: Vector2, radius: float) -> void:
 		for i in range(lo.x, hi.x + 1):
 			var key := Vector2i(i, j)
 			var centre := (Vector2(key) + Vector2(0.5, 0.5)) * CELL
-			if have.has(key) or centre.distance_to(c) > radius:
+			# a square brush: every cell inside the square, edges along the grid
+			var outside := maxf(absf(centre.x - c.x), absf(centre.y - c.y)) > radius if square else centre.distance_to(c) > radius
+			if have.has(key) or outside:
 				continue
 			if not data.in_bounds(centre.x, centre.y) or data.sample_sdf(centre.x, centre.y) < 0.2:
 				continue
@@ -365,11 +369,31 @@ func pick_piece(o: Vector3, d: Vector3, t_max: float) -> Dictionary:
 			var g := _ground_for(r)
 			var foot: float = g.sample_height(p.x, p.y) - 0.2
 			if r.kind == "floor":
+				# a storey: its slab, and the walls under it down to the ground
 				foot = float(r.level) - 0.3
+				if _near_floor_wall(r, p):
+					foot = _ground_below(float(r.level)).sample_height(p.x, p.y) - 0.2
 			if q.y >= foot and q.y <= _top(r) + 0.05:
 				return {"record": r, "pos": q}
 		t += 0.05
 	return {}
+
+
+## The walls under a storey, worked out once per change of the ruins.
+func _floor_walls(r: Dictionary) -> Array:
+	var c: Array = _wall_cache.get(r.id, [])
+	if c.is_empty() or c[0] != revision:
+		c = [revision, RuinBuilder.floor_walls(r.cells, float(r.level), _holds)]
+		_wall_cache[r.id] = c
+	return c[1]
+
+
+## Whether p lies in one of the walls under a storey.
+func _near_floor_wall(r: Dictionary, p: Vector2) -> bool:
+	for path in _floor_walls(r):
+		if _project(path, p)[1] < RuinBuilder.WALL_THICK * 0.5 + 0.08:
+			return true
+	return false
 
 
 ## Where a storey goes when it is started on piece r: on top of it, or for
@@ -512,55 +536,109 @@ func _holds(p: Vector2, level := -INF) -> bool:
 
 # --- doors and windows ---------------------------------------------------------
 
-const DOOR_HALF := 0.45
-const WINDOW_HALF := 0.3
+const DOOR_HALF := RuinBuilder.DOOR_HALF
+const WINDOW_HALF := RuinBuilder.WINDOW_HALF
 
 
-## Open a door or a window in `wall` where `pos` meets it. It goes in only
-## where it fits: clear of the ends, other holes and arches, and for a
-## window, in a wall tall enough. Returns whether one was made.
-func add_hole(wall: Dictionary, pos: Vector3, type: String, sill := 1.0) -> bool:
-	var path := _path(wall)
+## The walls of piece r a door or window can go in, each a path: a wall
+## itself, or the walls under a raised floor (a storey).
+func _hole_paths(r: Dictionary) -> Array:
+	match r.kind:
+		"wall":
+			return [_path(r)]
+		"floor":
+			if r.raised:
+				return _floor_walls(r)
+	return []
+
+
+## How tall the wall `path` of piece r stands at `at`.
+func _hole_height(r: Dictionary, at: Vector2) -> float:
+	if r.kind == "floor":
+		return float(r.level) - _ground_below(float(r.level)).sample_height(at.x, at.y)
+	return float(r.height)
+
+
+## The ground a hole in piece r is reckoned from at `at`.
+func _hole_foot(r: Dictionary, at: Vector2) -> float:
+	if r.kind == "floor":
+		return _ground_below(float(r.level)).sample_height(at.x, at.y)
+	return _ground_for(r).sample_height(at.x, at.y)
+
+
+## Whether a door or a window fits in piece r where `pos` meets it: clear of
+## the wall's ends, other holes and arches, and for a window, in a wall tall
+## enough. {ok, path, s, at, shape, foot, along} (along: the wall's
+## direction there), or {} where r has no wall to take one.
+func hole_fit(r: Dictionary, pos: Vector3, type: String, sill := 1.0) -> Dictionary:
+	var paths := _hole_paths(r)
+	if paths.is_empty():
+		return {}
+	var p2 := Vector2(pos.x, pos.z)
+	var path: PackedVector2Array = paths[0]
+	var best := INF
+	for candidate in paths:
+		var c: PackedVector2Array = candidate
+		var d: float = _project(c, p2)[1]
+		if d < best:
+			best = d
+			path = c
 	var length := RuinBuilder.path_length(path)
-	var s: float = _project(path, Vector2(pos.x, pos.z))[0]
-	var hw := DOOR_HALF if type == "door" else WINDOW_HALF
-	if s < hw + 0.4 or s > length - hw - 0.4:
-		return false
-	if type == "window" and float(wall.height) < 1.75:
-		return false
-	for h in _holes(wall):
+	# a storey's walls are short straight runs round a stepped outline, the
+	# next run carrying on at each corner: an opening may come nearer the end
+	var margin := 0.05 if r.kind == "floor" else 0.4
+	var hw: float = RuinBuilder.DOOR_HALF if type == "door" else RuinBuilder.WINDOW_HALF
+	# pointed at too near an end, the opening slides along to where it fits
+	var s: float = _project(path, p2)[0]
+	var ok := length >= 2.0 * (hw + margin)
+	if ok:
+		s = clampf(s, hw + margin, length - hw - margin)
+	var along: Array = RuinBuilder._along(path, s)
+	var at: Vector2 = along[0]
+	var height := _hole_height(r, at)
+	var shape := RuinBuilder.hole_shape(type, s, height, sill)
+	if type == "window" and height < 1.75:
+		ok = false
+	if type == "door" and r.kind == "floor" and height < 1.4:
+		ok = false
+	for h in _holes_on(r, path):
 		# leave a pier of wall at least half a metre wide between round heads
 		if absf(float(h.s) - s) < hw + float(h.hw) + 0.4 + 0.5:
-			return false
+			ok = false
 	for a in records:
-		if a.kind == "arch" and a.get("wall", -1) == wall.id:
+		if a.kind == "arch" and a.get("wall", -1) == r.id:
 			if s > float(a.s0) - hw - 0.55 and s < float(a.s1) + hw + 0.55:
-				return false
-	var at: Vector2 = RuinBuilder._along(path, s)[0]
-	if not wall.has("holes"):
-		wall.holes = []
-	wall.holes.append({"type": type, "at": [at.x, at.y], "sill": sill})
-	_rebuild(wall)
+				ok = false
+	return {"ok": ok, "path": path, "s": s, "at": at, "shape": shape, "foot": _hole_foot(r, at), "along": along[1]}
+
+
+## Open a door or a window in piece r (a wall, or a storey's walls) where
+## `pos` meets it, if it fits. Returns whether one was made.
+func add_hole(r: Dictionary, pos: Vector3, type: String, sill := 1.0) -> bool:
+	var fit := hole_fit(r, pos, type, sill)
+	if fit.is_empty() or not fit.ok:
+		return false
+	if not r.has("holes"):
+		r.holes = []
+	r.holes.append({"type": type, "at": [fit.at.x, fit.at.y], "sill": sill})
+	_rebuild(r)
 	return true
 
 
-## The holes of a wall as the builder wants them: where along the wall, how
-## wide, from what height and where its round head springs, and whether a
-## sill goes in.
+## The holes of piece r on `path`, shaped as the builder wants them.
+func _holes_on(r: Dictionary, path: PackedVector2Array) -> Array:
+	if r.kind == "wall":
+		return _holes(r)
+	return RuinBuilder.holes_on(path, _hole_height(r, (path[0] + path[path.size() - 1]) * 0.5), r.get("holes", []))
+
+
+## The holes of a wall as the builder wants them.
 func _holes(wall: Dictionary) -> Array:
 	var out := []
 	var path := _path(wall)
-	var height := float(wall.height)
 	for h in wall.get("holes", []):
 		var s: float = _project(path, _v(h.at))[0]
-		if h.type == "door":
-			# a round-headed doorway, as tall as the wall allows
-			var spring := clampf(height - 0.75, 0.9, 1.45)
-			out.append({"s": s, "hw": DOOR_HALF, "bottom": -0.3, "spring": spring, "sill": false})
-		else:
-			# the sill where it was asked for, as far as the wall allows
-			var bottom := clampf(float(h.get("sill", 1.0)), 0.5, height - 1.1)
-			out.append({"s": s, "hw": WINDOW_HALF, "bottom": bottom, "spring": bottom + 0.45, "sill": true})
+		out.append(RuinBuilder.hole_shape(h.type, s, float(wall.height), float(h.get("sill", 1.0))))
 	return out
 
 
@@ -764,7 +842,7 @@ func _rebuild(r: Dictionary) -> void:
 			node.mesh = RuinBuilder.stairs(_ground_for(r), _v(r.a), _v(r.b), seed, age, _carries(r), float(r.height))
 		"floor":
 			var below := _ground_below(float(r.level)) if r.raised else ground
-			node.mesh = RuinBuilder.paving(below, r.cells, float(r.level), r.raised, seed, age, _holds)
+			node.mesh = RuinBuilder.paving(below, r.cells, float(r.level), r.raised, seed, age, _holds, r.get("holes", []))
 
 
 ## The doorways the arches set into this wall cut through it.

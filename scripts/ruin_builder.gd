@@ -721,7 +721,7 @@ const FLOOR_CELL := 0.5
 ## flagstones following the terrain. Raised, it is a slab of flags on a dark
 ## bed, with a low broken parapet round its open edges and walls under
 ## them down to the ground. Age lifts out flags.
-static func paving(terrain, cells: Array, level: float, raised: bool, seed: int, age: float, held: Callable) -> ArrayMesh:
+static func paving(terrain, cells: Array, level: float, raised: bool, seed: int, age: float, held: Callable, hole_pts: Array = []) -> ArrayMesh:
 	var st := Stones.new()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
@@ -759,55 +759,99 @@ static func paving(terrain, cells: Array, level: float, raised: bool, seed: int,
 			block(st, Vector3(centre.x, y - 0.03, centre.y), turn, flag, _stone_tint(rng))
 	if raised:
 		# walls under the open edges, from the ground up to the floor, so a
-		# storey stands on walls like a little tower. Edges are gathered into
-		# straight runs so the courses run on; an edge something else already
-		# holds up (a wall, a stair) is left open.
-		var runs := {}   # "axis|line|side" -> Array of cell indices along it
-		for key in have:
-			var cell: Vector2i = key
-			for side in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-				if have.has(cell + side):
-					continue
-				var centre := (Vector2(cell) + Vector2(0.5, 0.5)) * FLOOR_CELL
-				var edge_mid := centre + Vector2(side) * (FLOOR_CELL * 0.5 - WALL_THICK * 0.5)
-				if held.call(edge_mid, level):
-					continue
-				var along_x: bool = side.y != 0
-				var line := cell.y if along_x else cell.x
-				var id := "%s|%d|%d" % ["x" if along_x else "z", line, side.x + side.y]
-				if not runs.has(id):
-					runs[id] = []
-				runs[id].append(cell.x if along_x else cell.y)
+		# storey stands on walls like a little tower, with the doors and
+		# windows opened in them
 		var k := 0
-		for id in runs:
-			var parts: PackedStringArray = id.split("|")
-			var along_x := parts[0] == "x"
-			var line := int(parts[1])
-			var sign := int(parts[2])
-			var idx: Array = runs[id]
-			idx.sort()
-			var start: int = idx[0]
-			for n in idx.size():
-				var last := n == idx.size() - 1
-				if not last and idx[n + 1] == idx[n] + 1:
-					continue
-				var stop: int = idx[n] + 1
-				# the wall's centre line, half a wall in from the edge
-				var off := (line + (1.0 if sign > 0 else 0.0)) * FLOOR_CELL - sign * WALL_THICK * 0.5
-				var p0: Vector2
-				var p1: Vector2
-				# reach half a wall past each end, so runs meet at the corners of a
-				# stepped outline instead of leaving slits
-				var e0 := start * FLOOR_CELL - WALL_THICK * 0.5
-				var e1 := stop * FLOOR_CELL + WALL_THICK * 0.5
-				if along_x:
-					p0 = Vector2(e0, off)
-					p1 = Vector2(e1, off)
-				else:
-					p0 = Vector2(off, e0)
-					p1 = Vector2(off, e1)
-				k += 1
-				wall(terrain, PackedVector2Array([p0, p1]), seed + k * 17, level, age, [], true, [], level - 0.32, st)
-				if not last:
-					start = idx[n + 1]
+		for path in floor_walls(cells, level, held):
+			k += 1
+			var mid: Vector2 = (path[0] + path[1]) * 0.5
+			var tall: float = level - terrain.sample_height(mid.x, mid.y)
+			wall(terrain, path, seed + k * 17, level, age, [], true, holes_on(path, tall, hole_pts), level - 0.32, st)
 	return finish(st)
+
+
+## The walls under a raised floor's open edges, each a straight run
+## [start, end]. Edges are gathered into straight runs so the courses run
+## on; an edge something else already holds up (a wall, a stair) is left
+## open.
+static func floor_walls(cells: Array, level: float, held: Callable) -> Array:
+	var out: Array = []
+	var have := {}
+	for c in cells:
+		have[Vector2i(c[0], c[1])] = true
+	var runs := {}   # "axis|line|side" -> Array of cell indices along it
+	for key in have:
+		var cell: Vector2i = key
+		for side in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			if have.has(cell + side):
+				continue
+			var centre := (Vector2(cell) + Vector2(0.5, 0.5)) * FLOOR_CELL
+			var edge_mid := centre + Vector2(side) * (FLOOR_CELL * 0.5 - WALL_THICK * 0.5)
+			if held.call(edge_mid, level):
+				continue
+			var along_x: bool = side.y != 0
+			var line := cell.y if along_x else cell.x
+			var id := "%s|%d|%d" % ["x" if along_x else "z", line, side.x + side.y]
+			if not runs.has(id):
+				runs[id] = []
+			runs[id].append(cell.x if along_x else cell.y)
+	var ids: Array = runs.keys()
+	ids.sort()
+	for id in ids:
+		var parts: PackedStringArray = id.split("|")
+		var along_x := parts[0] == "x"
+		var line := int(parts[1])
+		var sign := int(parts[2])
+		var idx: Array = runs[id]
+		idx.sort()
+		var start: int = idx[0]
+		for n in idx.size():
+			var last := n == idx.size() - 1
+			if not last and idx[n + 1] == idx[n] + 1:
+				continue
+			var stop: int = idx[n] + 1
+			# the wall's centre line, half a wall in from the edge
+			var off := (line + (1.0 if sign > 0 else 0.0)) * FLOOR_CELL - sign * WALL_THICK * 0.5
+			# reach half a wall past each end, so runs meet at the corners of a
+			# stepped outline instead of leaving slits
+			var e0 := start * FLOOR_CELL - WALL_THICK * 0.5
+			var e1 := stop * FLOOR_CELL + WALL_THICK * 0.5
+			if along_x:
+				out.append(PackedVector2Array([Vector2(e0, off), Vector2(e1, off)]))
+			else:
+				out.append(PackedVector2Array([Vector2(off, e0), Vector2(off, e1)]))
+			if not last:
+				start = idx[n + 1]
+	return out
+
+
+## The shape of a door or window `s` along a wall `height` tall, as wall()
+## wants it: a round-headed doorway as tall as the wall allows, or a window
+## from its sill (as far as the wall allows) with a round head.
+const DOOR_HALF := 0.45
+const WINDOW_HALF := 0.3
+
+
+static func hole_shape(type: String, s: float, height: float, sill: float) -> Dictionary:
+	if type == "door":
+		var spring := clampf(height - 0.75, 0.9, 1.45)
+		return {"s": s, "hw": DOOR_HALF, "bottom": -0.3, "spring": spring, "sill": false}
+	var bottom := clampf(sill, 0.5, height - 1.1)
+	return {"s": s, "hw": WINDOW_HALF, "bottom": bottom, "spring": bottom + 0.45, "sill": true}
+
+
+## The doors and windows among `pts` (each {type, at, sill}, at a world
+## point) that lie on `path`, shaped for wall().
+static func holes_on(path: PackedVector2Array, height: float, pts: Array) -> Array:
+	var out: Array = []
+	if pts.is_empty():
+		return out
+	var a := path[0]
+	var b := path[path.size() - 1]
+	var len := a.distance_to(b)
+	for h in pts:
+		var p := Vector2(h.at[0], h.at[1])
+		var s := clampf((p - a).dot((b - a) / maxf(len, 1e-4)), 0.0, len)
+		if a.lerp(b, s / maxf(len, 1e-4)).distance_to(p) < WALL_THICK:
+			out.append(hole_shape(h.type, s, height, float(h.get("sill", 1.0))))
+	return out
