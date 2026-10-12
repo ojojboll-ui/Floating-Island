@@ -1370,6 +1370,22 @@ static func run(main: Node, name: String) -> void:
 			print("  window ghost shown: %s at %s, screen %s, wall %.1f m" % [main.brush._hole_ghost.visible, main.brush._hole_ghost.global_position.snapped(Vector3.ONE * 0.01), main.rig.camera.unproject_position(main.brush._hole_ghost.global_position).round(), w0[0].distance_to(w0[1])])
 			await RenderingServer.frame_post_draw
 			main.get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("res://shots/sq_ghost.png"))
+		"wall_close":
+			# a straight wall seen close from one side (--yaw picks the side)
+			main.props.remove_near(0.0, 0.0, 9.0)
+			main.ruins.add_wall(PackedVector2Array([Vector2(-2.0, 1.0), Vector2(2.0, 1.0)]), 2.4, 11)
+			main.rig.aperture = 0.0
+			var side_yaw := 0.0
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--side="):
+					side_yaw = float(a.substr(7))
+			main.rig.goal_yaw = deg_to_rad(side_yaw)
+			main.rig.goal_pitch = deg_to_rad(8.0)
+			main.rig.goal_distance = 4.5
+			main.rig.goal_target = Vector3(0.0, 1.5, 1.0)
+			main.rig.settle()
+			main.ui.set_collapsed(true)
+			await _frames(main, 20)
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

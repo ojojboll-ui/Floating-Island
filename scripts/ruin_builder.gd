@@ -83,7 +83,10 @@ static func drum(st: Stones, bottom: Vector3, basis: Basis, rad: float, ht: floa
 ## A plain box of mortar behind the stones, showing in the joints. Its edges
 ## are sharp, so neighbouring boxes meet as one flat face with no grooves.
 static func core(st: Stones, center: Vector3, basis: Basis, size: Vector3) -> void:
-	block(st, center, basis, size, Color(0.0, 0.0, 0.0, 0.0), 0.003)
+	# square-edged and a little longer, so the pieces of mortar behind a wall
+	# overlap into one even face instead of showing a lit crease where each
+	# rounded piece ends
+	block(st, center, basis, size + Vector3(0.03, 0.0, 0.0), Color(0.0, 0.0, 0.0, 0.0), 0.0)
 
 static func finish(st: Stones) -> ArrayMesh:
 	if st.idx.is_empty():
