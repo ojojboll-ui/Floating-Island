@@ -97,6 +97,60 @@ func place_over(kind: String, x: float, z: float, rng: RandomNumberGenerator, sp
 	return add(kind, x, z, rng, -1.0, variant, rot, jit)
 
 
+## Stones on the island's underside and cliff, set where `pos` is on the
+## body, sunk into it and bulging out along `normal`. A brush (spread > 0)
+## keeps them `spread` times their spacing apart; a click may set one right
+## against another. Returns the new record, or {}.
+func place_side(kind: String, pos: Vector3, normal: Vector3, rng: RandomNumberGenerator, variant := -1,
+		rot := NAN, jit := NAN, spread := 0.0) -> Dictionary:
+	var k: Dictionary = Catalog.KINDS[kind]
+	if spread > 0.0:
+		for r in records:
+			if r.get("side", false) and (r.at as Vector3).distance_to(pos) < (float(k.spacing) + float(Catalog.KINDS[r.kind].spacing)) * 0.5 * spread:
+				return {}
+	var rec := {
+		"id": _next_id, "kind": kind, "x": pos.x, "z": pos.z,
+		"rot": rng.randf() * TAU if is_nan(rot) else rot,
+		"size": 1.0,
+		"variant": variant if variant >= 0 else rng.randi() % Catalog.variants(kind),
+		"hue": rng.randf(),
+		"side": true, "at": pos, "normal": normal.normalized(),
+	}
+	_next_id += 1
+	rec.style = style_for(kind).duplicate(true)
+	rec.jit = rng.randf_range(-1.0, 1.0) if is_nan(jit) else jit
+	rec.size = _styled_size(rec)
+	records.append(rec)
+	last_stroke.append(rec.id)
+	_spawn(rec)
+	return rec
+
+
+## How a stone set on the island's body sits: its flat base against the
+## body, sunk in by the kind's sink, bulging out along the normal, turned
+## about it by rot.
+static func side_pose(kind: String, at: Vector3, normal: Vector3, rot: float, size: float, tall: float) -> Transform3D:
+	var n := normal.normalized()
+	var b := Basis(Quaternion(Vector3.UP, n)) * Basis(Vector3.UP, rot)
+	var sink: float = Catalog.KINDS[kind].sink
+	return Transform3D(b.scaled(Vector3.ONE * size), at - n * (sink * tall + 0.05))
+
+
+## Take away stones on the island's body within `radius` of `pos`.
+func remove_side_near(pos: Vector3, radius: float) -> int:
+	var gone: Array = records.filter(func(r): return r.get("side", false) and (r.at as Vector3).distance_to(pos) <= radius)
+	for r in gone:
+		records.erase(r)
+		var node: Node = _nodes.get(r.id)
+		if node:
+			node.queue_free()
+		_nodes.erase(r.id)
+	if not gone.is_empty():
+		revision += 1
+		_things_rev += 1
+	return gone.size()
+
+
 ## [whether the ground allows it, the things standing in its way]
 func _check(kind: String, x: float, z: float, spread := 1.0, merge := false) -> Array:
 	var k: Dictionary = Catalog.KINDS[kind]
@@ -127,6 +181,8 @@ func _check(kind: String, x: float, z: float, spread := 1.0, merge := false) -> 
 	# keeps the kinds' own spacing, so a scatter does not clump.
 	var tight := 0.3 if merge else 1.0
 	for r in records:
+		if r.get("side", false):
+			continue
 		var other: Dictionary = Catalog.KINDS[r.kind]
 		var dist := here.distance_to(Vector2(r.x, r.z))
 		if kind == "gryta" and r.kind == "eldstad":
@@ -597,7 +653,7 @@ func remove_near(x: float, z: float, radius: float, kind := "") -> int:
 	var here := Vector2(x, z)
 	var gone := []
 	for r in records:
-		if (kind == "" or r.kind == kind) and here.distance_to(Vector2(r.x, r.z)) <= radius:
+		if not r.get("side", false) and (kind == "" or r.kind == kind) and here.distance_to(Vector2(r.x, r.z)) <= radius:
 			gone.append(r)
 	if gone.is_empty():
 		return 0
@@ -642,7 +698,7 @@ func reclaim(here: Vector2, reach: float) -> void:
 func stone_meshes() -> Array:
 	var out: Array = []
 	for r in records:
-		if not r.kind in STONES:
+		if not r.kind in STONES or r.get("side", false):
 			continue
 		var node: Node3D = _nodes.get(r.id)
 		if node == null or not node.visible:
@@ -706,6 +762,12 @@ func _place(rec: Dictionary) -> void:
 		node.position = Vector3(x, data.sample_wlevel(x, z) + 0.004, z)
 		node.visible = w > 0.4
 	else:
+		if rec.get("side", false):
+			# on the underside or the cliff: it stays where it was set
+			node.transform = side_pose(rec.kind, rec.at, rec.normal, float(rec.rot), float(rec.size), float(node.get_meta("tall", 1.0)))
+			node.visible = true
+			(node.get_meta("shaded") as GeometryInstance3D).set_instance_shader_parameter("ground_y", -100.0)
+			return
 		var tall: float = node.get_meta("tall", float(rec.size))
 		var at := Vector3(x, gy - float(k.sink) * tall + float(rec.get("lift", 0.0)), z)
 		if rec.kind in STONES:
@@ -737,6 +799,8 @@ func _mark(rec: Dictionary) -> void:
 
 
 func _claim(rec: Dictionary) -> void:
+	if rec.get("side", false):
+		return
 	var occ: float = Catalog.KINDS[rec.kind].get("occupied", 0.0)
 	if occ > 0.0:
 		data.stamp_occupied(Vector2(rec.x, rec.z), occ * _ratio(rec))

@@ -171,7 +171,10 @@ func _begin_stroke(screen: Vector2) -> void:
 	var p: Vector3 = hit.pos
 	props.begin_stroke()
 	if tool == Tool.PLACE and not Input.is_key_pressed(KEY_SHIFT):
-		if not props.place_over(place_kind, p.x, p.z, _rng, 1.0, true, false, _ghost_variant, place_rot(), _ghost_jit).is_empty():
+		if hit.get("side", false):
+			if not props.place_side(place_kind, hit.pos, hit.normal, _rng, _ghost_variant, place_rot(), _ghost_jit).is_empty():
+				_reroll_ghost()
+		elif not props.place_over(place_kind, p.x, p.z, _rng, 1.0, true, false, _ghost_variant, place_rot(), _ghost_jit).is_empty():
 			_reroll_ghost()
 	# ruins: a pillar goes down at once; walls, arches and stairs are drawn.
 	# Started on a storey, they stand on that storey.
@@ -365,6 +368,12 @@ func _apply(hit: Dictionary, dt: float) -> void:
 			# spread evenly or gather in groups (pebbles round a boulder's foot).
 			if _stroke_time > 0.12:
 				var spread := lerpf(2.6, 0.8, density)
+				if hit.get("side", false):
+					for attempt in 14:
+						var s := _side_point(hit)
+						if not s.is_empty():
+							props.place_side(place_kind, s.pos, s.normal, _rng, -1, NAN, NAN, spread)
+					return
 				for attempt in 14:
 					var q := _scatter_point(c)
 					# paints over what is there, but not over its own kind
@@ -414,6 +423,9 @@ func _apply(hit: Dictionary, dt: float) -> void:
 		Tool.REMOVE:
 			# Shift with a kind chosen takes away only that kind; the eraser
 			# takes everything
+			if hit.get("side", false):
+				props.remove_side_near(hit.pos, radius)
+				return
 			props.remove_near(c.x, c.y, radius, place_kind if tool == Tool.PLACE else "")
 
 
@@ -449,6 +461,14 @@ func pick(screen: Vector2) -> Dictionary:
 	var d := camera.project_ray_normal(screen)
 	if _is_under_tool():
 		return _pick_body(o, d)
+	if tool == Tool.PLACE and place_kind in props.STONES:
+		# a stone may be set on the cliff or the underside as well: if the ray
+		# meets the island's body there first, it goes there
+		var body := _pick_body(o, d)
+		if not body.is_empty() and (body.pos as Vector3).y < data.sample_height(body.pos.x, body.pos.z) - 0.25:
+			body.side = true
+			body.normal = _body_normal(body.pos)
+			return body
 	var hit := _pick_ground(o, d)
 	# the top of a stair, pillar, wall or raised floor, if the ray meets one
 	# before the ground; {level} then says how high it is
@@ -545,6 +565,39 @@ func _pick_body(o: Vector3, d: Vector3) -> Dictionary:
 	return {}
 
 
+## Which way the island's body faces at p: down on the underside, out on
+## the cliff.
+func _body_normal(p: Vector3) -> Vector3:
+	var under: float = IslandMesher.underside(data, p.x, p.z)
+	var out: Vector3 = data.outward(p.x, p.z)
+	if p.y - under < 0.35:
+		var e := 0.15
+		var ux: float = IslandMesher.underside(data, p.x + e, p.z) - IslandMesher.underside(data, p.x - e, p.z)
+		var uz: float = IslandMesher.underside(data, p.x, p.z + e) - IslandMesher.underside(data, p.x, p.z - e)
+		return Vector3(ux / (2.0 * e), -1.0, uz / (2.0 * e)).normalized()
+	return (out + Vector3.DOWN * 0.15).normalized()
+
+
+## A spot on the island's body within the brush round `hit`, for the next
+## stone strewn there: {pos, normal}, or {} when it misses.
+func _side_point(hit: Dictionary) -> Dictionary:
+	var n: Vector3 = hit.normal
+	var t1 := n.cross(Vector3.UP if absf(n.y) < 0.9 else Vector3.RIGHT).normalized()
+	var t2 := n.cross(t1)
+	var a := _rng.randf() * TAU
+	var start: Vector3 = hit.pos + (t1 * cos(a) + t2 * sin(a)) * sqrt(_rng.randf()) * radius + n * 1.5
+	# back in along the normal until it meets the body
+	var t := 0.0
+	while t < 3.5:
+		var p := start - n * t
+		if roots.inside(p):
+			if p.y > data.sample_height(p.x, p.z) - 0.25:
+				return {}
+			return {"pos": p, "normal": _body_normal(p)}
+		t += 0.05
+	return {}
+
+
 func _below_surface(p: Vector3) -> bool:
 	if not data.in_bounds(p.x, p.z):
 		return false
@@ -626,12 +679,15 @@ func _update_ghost(over_ui: bool) -> void:
 	var tall: float = _ghost.get_meta("tall", 1.0)
 	_ghost.global_position = Vector3(p.x, data.sample_height(p.x, p.z) - float(k.sink) * tall + lift, p.z)
 	_ghost.rotation.y = place_rot()
+	if _hit.get("side", false):
+		var size: float = _ghost.get_meta("size")
+		_ghost.global_transform = props.side_pose(place_kind, _hit.pos, _hit.normal, place_rot(), size, float(_ghost.get_meta("tall", size)))
 	if place_kind in props.TOOLS:
 		# a tool shows lying down or leaning on what is in its way
 		_ghost.global_transform = props.tool_pose(p.x, p.z, place_rot(), float(_ghost.get_meta("size")), float(_ghost.get_meta("reach", 1.0)))
 	# green: it fits; red: it will take away what is in its way; grey: it
 	# cannot go there at all
-	var check: int = props.place_check(place_kind, p.x, p.z, 1.0, true)
+	var check: int = 0 if _hit.get("side", false) else props.place_check(place_kind, p.x, p.z, 1.0, true)
 	var tint: Color = [Color(0.8, 1.0, 0.78), Color(1.0, 0.42, 0.38), Color(0.55, 0.55, 0.58)][check]
 	_ghost_mat.set_shader_parameter("tint", tint)
 	_ghost_leaf_mat.set_shader_parameter("tint", tint)

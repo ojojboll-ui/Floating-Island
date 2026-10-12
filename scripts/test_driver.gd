@@ -1083,6 +1083,29 @@ static func run(main: Node, name: String) -> void:
 			var t1 := Time.get_ticks_usec()
 			main.roots.ensure_raster()
 			print("  raster after a stone: %.0f ms" % ((Time.get_ticks_usec() - t1) / 1000.0))
+		"stones_under":
+			# boulders clicked onto the cliff and the underside from below, then a
+			# brush of pebbles strewn under the island
+			main.props.remove_near(0.0, 0.0, 9.0)
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Stenblock"])
+			var vp: Vector2 = main.get_viewport().get_visible_rect().size
+			for at in [Vector2(0.58, 0.5), Vector2(0.64, 0.62), Vector2(0.55, 0.68)]:
+				var hit: Dictionary = main.brush.pick(vp * at)
+				print("  pick %s: side %s" % [at, hit.get("side", false)])
+				if not hit.is_empty():
+					await _tap(main, hit.pos)
+					await _frames(main, 3)
+			await _click(main, main.ui.buttons["Småsten"])
+			main.brush.radius = 1.4
+			var a: Dictionary = main.brush.pick(vp * Vector2(0.5, 0.72))
+			var b: Dictionary = main.brush.pick(vp * Vector2(0.62, 0.75))
+			if not a.is_empty() and not b.is_empty():
+				await _drag(main, [a.pos, b.pos], 40)
+			print("  on the body: %d" % main.props.records.filter(func(r): return r.get("side", false)).size())
+			main.ui.set_collapsed(true)
+			await _frames(main, 20)
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree
