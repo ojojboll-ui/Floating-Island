@@ -22,6 +22,8 @@ instance uniform vec3 stone = vec3(0.56, 0.55, 0.52);
 instance uniform float moss_amount = 0.5;
 instance uniform float moss_boost = 0.0;
 instance uniform float texture_amount = 0.5;
+// how deep cracks, pits and lips show in the light (the Relief dial)
+instance uniform float relief = 0.5;
 // stones this one is stacked with: centre and radius, w 0 for none, so the
 // seam where they meet fills with moss and soil and sits in shade
 instance uniform vec4 touch_a = vec4(0.0);
@@ -68,47 +70,74 @@ vec3 cells(vec3 p) {
 void fragment() {
 	vec3 wn = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	float amount = 0.25 + 0.75 * texture_amount;
+	// how much this stone shows its ridges: none on a worn one (Kantighet at
+	// zero), fully on a hewn one (vertex blue, from the builder)
+	float hewn = smoothstep(0.05, 0.6, vcol.b);
 	// the ridges where two faces meet are worn pale, as on hand-painted
 	// rocks: how far this spot lies from its face's rim comes from the
 	// builder (UV: share of the way from the rim to the middle, and that
-	// distance), the line a little ragged, as if chipped
+	// distance). The line swells and thins away to nothing here and there.
 	float scale = length(MODEL_MATRIX[0].xyz);
 	float to_rim = UV.x * UV.y * scale;
-	float width = scale * (0.004 + 0.011 * vnoise3(opos * 7.0) + 0.006 * vnoise3(opos * 23.0)) * (0.6 + 0.5 * texture_amount);
-	float ridge = use_tex ? 0.0 : (1.0 - smoothstep(width * 0.4, width, to_rim)) * mix(0.35, 1.0, smoothstep(0.3, 0.55, vnoise3(opos * 3.5)));
+	float taper_r = smoothstep(0.25, 0.7, vnoise3(opos * 3.2 + 1.0));
+	float width = scale * (0.003 + 0.01 * vnoise3(opos * 7.0) + 0.005 * vnoise3(opos * 23.0)) * (0.6 + 0.5 * texture_amount) * taper_r;
+	float ridge = use_tex ? 0.0 : (1.0 - smoothstep(width * 0.4, width + 1e-5, to_rim)) * hewn;
 	float hollow = 0.0;
-	float halo = use_tex ? 0.0 : 1.0 - smoothstep(0.0, width * 5.0, to_rim);
+	float halo = use_tex ? 0.0 : (1.0 - smoothstep(0.0, scale * 0.06, to_rim)) * hewn;
 	// each cut face its own tone, faint plates within it
 	vec3 plate = cells(opos * vec3(1.6, 2.2, 1.6));
 	vec3 base = srgb(stone) * 0.72;
-	vec3 col = base * mix(0.82, 1.12, vcol.g) * (0.95 + 0.08 * (plate.y - 0.5) * amount);
+	vec3 col = base * mix(mix(0.95, 0.82, hewn), mix(1.04, 1.12, hewn), vcol.g) * (0.95 + 0.08 * (plate.y - 0.5) * amount);
 	// soft mottling, cooler and warmer
 	float mott = fbm3(opos * 2.2);
 	col *= mix(vec3(0.92, 0.95, 1.02), vec3(1.05, 1.02, 0.98), mott) * (0.86 + 0.26 * mott);
-	// cracks: a broken net of splits along the edges of stone cells, here
-	// and there, each a dark line with a pale chipped lip, and finer
-	// hairlines between
+	// cracks along the edges of stone cells, only here and there, each a dark
+	// split with a pale chipped lip; both swell and thin away to nothing
+	// along their length, so they read as cracks and not as a net
 	vec3 cr = cells(opos * vec3(2.4, 3.2, 2.4) + 5.0);
-	float show = smoothstep(0.36, 0.5, vnoise3(opos * 1.7 + 3.0)) * amount;
-	float split = (1.0 - smoothstep(0.01, 0.024, cr.x)) * show;
-	float lip = max((1.0 - smoothstep(0.024, 0.06, cr.x)) * show - split, 0.0);
-	float hair = abs(vnoise3(opos * 5.0 + 2.0) - 0.5);
-	float fine = (1.0 - smoothstep(0.004, 0.014, hair)) * step(0.58, vnoise3(opos * 2.0 + 8.0)) * amount;
-	// and a finer net in other places
+	float show = smoothstep(0.45, 0.6, vnoise3(opos * 1.7 + 3.0)) * amount;
+	float taper_a = smoothstep(0.3, 0.75, vnoise3(opos * 4.5 + 7.0));
+	float taper_b = smoothstep(0.3, 0.75, vnoise3(opos * 3.8 + 21.0));
+	float w_split = 0.026 * taper_a;
+	float split = (1.0 - smoothstep(w_split * 0.35, w_split + 1e-4, cr.x)) * show;
+	float w_lip = 0.06 * taper_b;
+	float lip = max((1.0 - smoothstep(w_split, w_split + w_lip + 1e-4, cr.x)) * show * taper_b - split, 0.0);
+	// and finer ones in other places
 	vec3 cr2 = cells(opos * vec3(6.0, 7.5, 6.0) + 17.0);
-	float show2 = smoothstep(0.5, 0.62, vnoise3(opos * 2.6 + 11.0)) * amount;
-	split = max(split, (1.0 - smoothstep(0.012, 0.03, cr2.x)) * show2 * 0.8);
-	col *= 1.0 - split * 0.65 - fine * 0.3;
-	col *= 1.0 + lip * 0.2;
+	float show2 = smoothstep(0.62, 0.72, vnoise3(opos * 2.6 + 11.0)) * amount;
+	float w2 = 0.03 * smoothstep(0.35, 0.8, vnoise3(opos * 9.0 + 4.0));
+	split = max(split, (1.0 - smoothstep(w2 * 0.35, w2 + 1e-4, cr2.x)) * show2 * 0.8);
+	float hair = abs(vnoise3(opos * 5.0 + 2.0) - 0.5);
+	float w_hair = 0.014 * smoothstep(0.3, 0.8, vnoise3(opos * 11.0 + 6.0));
+	float fine = (1.0 - smoothstep(w_hair * 0.3, w_hair + 1e-4, hair)) * step(0.58, vnoise3(opos * 2.0 + 8.0)) * amount;
+	col *= 1.0 - split * 0.6 - fine * 0.3;
+	col *= 1.0 + lip * 0.16;
 	// pits and chips: small dark dents scattered over the faces
 	float pit = smoothstep(0.78, 0.86, vnoise3(opos * 14.0)) * amount;
-	col *= 1.0 - pit * 0.25;
+	col *= 1.0 - pit * 0.22;
 	// lighter on top, as painted, and the light ridges
 	col *= 0.86 + 0.22 * smoothstep(-0.3, 0.9, wn.y);
 	// the worn ridge, brightest along the tops, a soft rounding into the face
-	col *= 1.0 + halo * halo * 0.14;
-	col = mix(col, col * 1.5 + vec3(0.05), ridge * (0.3 + 0.25 * amount) * (0.55 + 0.45 * smoothstep(-0.4, 0.8, wn.y)));
+	col *= 1.0 + halo * halo * 0.08;
+	col = mix(col, col * 1.35 + vec3(0.03), ridge * (0.22 + 0.18 * amount) * (0.55 + 0.45 * smoothstep(-0.4, 0.8, wn.y)));
 	col *= 1.0 - hollow * 0.35;
+	// relief: the cracks, pits and lips as a height, tipping the normal so
+	// they catch the light (bump mapping from screen derivatives). The height
+	// is a softer, wider version of the painted lines, or it would shimmer.
+	float s_split = (1.0 - smoothstep(0.0, w_split * 3.2 + 1e-4, cr.x)) * show;
+	s_split = max(s_split, (1.0 - smoothstep(0.0, w2 * 3.2 + 1e-4, cr2.x)) * show2 * 0.8);
+	float s_lip = (1.0 - smoothstep(w_split, w_split * 2.0 + w_lip * 1.5 + 1e-4, cr.x)) * show * taper_b;
+	float s_pit = smoothstep(0.74, 0.9, vnoise3(opos * 14.0)) * amount;
+	float bump_h = -s_split - s_pit * 0.6 + s_lip * 0.3 + (fbm3(opos * 9.0) - 0.5) * 0.4 * amount;
+	bump_h *= 0.007 * relief;
+	vec3 dpdx = dFdx(wpos);
+	vec3 dpdy = dFdy(wpos);
+	float dhdx = dFdx(bump_h);
+	float dhdy = dFdy(bump_h);
+	vec3 r1 = cross(dpdy, wn);
+	vec3 r2 = cross(wn, dpdx);
+	float det = dot(dpdx, r1);
+	vec3 bn = use_tex ? wn : normalize(abs(det) * wn - sign(det) * (dhdx * r1 + dhdy * r2));
 	if (use_tex) {
 		col = texture(albedo_tex, UV).rgb * (0.85 + 0.25 * fbm3(wpos * 3.0));
 	}
@@ -143,6 +172,10 @@ void fragment() {
 	float foot = smoothstep(0.12, -0.02, wpos.y - ground_y + (fbm3(wpos * 4.0) - 0.5) * 0.1);
 	col = mix(col, mix(grass_tint(wpos.xz) * 0.55, srgb(vec3(0.36, 0.27, 0.19)), 0.4), foot);
 
+	// moss lies soft over the relief
+	NORMAL = normalize((VIEW_MATRIX * vec4(normalize(mix(bn, wn, moss * 0.8)), 0.0)).xyz);
+	// moss lies soft over the relief
+	NORMAL = normalize((VIEW_MATRIX * vec4(normalize(mix(bn, wn, moss * 0.8)), 0.0)).xyz);
 	ALBEDO = weathered(col, wn.y, wpos);
 	ROUGHNESS = weathered_rough(mix(0.95, 0.85, moss), wn.y, wpos);
 	SPECULAR = weathered_spec(0.14, wn.y, wpos);

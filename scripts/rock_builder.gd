@@ -28,7 +28,8 @@ const STYLE := {
 	"flat": 0.25,         # 0 as tall as wide .. 1 a slab
 	"long": 0.2,          # 0 round .. 1 twice as long as wide
 	"moss": 0.5,
-	"texture": 0.5,       # cracks and layers in the stone
+	"texture": 0.5,       # cracks, pits and ridge lines
+	"relief": 0.5,        # how deep they show in the light
 	"tint": [0.5, 0.51, 0.53],
 }
 
@@ -48,7 +49,7 @@ static func style_of(base: Dictionary, s) -> Dictionary:
 ## Shapes are cached: many pebbles share a handful of them.
 static func mesh(style: Dictionary, variant: int, detail := 3) -> ArrayMesh:
 	var shape := style.duplicate()
-	for look in ["moss", "texture", "tint", "size", "variation"]:
+	for look in ["moss", "texture", "relief", "tint", "size", "variation"]:
 		shape.erase(look)
 	var key := "%s|%d|%d" % [str(shape), variant, detail]
 	if _meshes.has(key):
@@ -92,8 +93,9 @@ static func _build(style: Dictionary, seed: int, detail: int) -> ArrayMesh:
 	for f in faces:
 		for k in (f as Array).size():
 			f[k] = ((f[k] as Vector3) - mid) / across
-	# worn stones have their faces' normals rounded toward the middle
-	var round := (1.0 - angular) * 0.55
+	# worn stones have their ridges smoothed away: their normals run on round
+	# from one face into the next, wholly so at no angularity at all
+	var smooth := pow(1.0 - angular, 1.5)
 	# no face lies quite flat: lumps and dents push the surface in and out
 	# along the line from the middle, the same for both faces at a ridge so
 	# the stone stays closed
@@ -126,7 +128,7 @@ static func _build(style: Dictionary, seed: int, detail: int) -> ArrayMesh:
 		if fn.dot(c - centre) < 0.0:
 			fn = -fn
 		var shade := fposmod(sin(float(fi + seed * 3) * 12.9898) * 43758.5453, 1.0)
-		var col := Color(1.0, shade, 1.0, 1.0)
+		var col := Color(1.0, shade, angular, 1.0)
 		# the face on its own, so its normals are smoothed over it but not
 		# round the ridge into the next face
 		var fv := PackedVector3Array()
@@ -171,11 +173,15 @@ static func _build(style: Dictionary, seed: int, detail: int) -> ArrayMesh:
 		var off := verts.size()
 		for k in fv.size():
 			verts.append(fv[k])
-			nrm.append(fnrm[k].lerp((fv[k] - centre).normalized(), round).normalized())
+			nrm.append(fnrm[k])
 			uvs.append(fuv[k])
 			colors.append(col)
 		for q in fi_idx:
 			idx.append(off + q)
+	if smooth > 0.001:
+		var round := MeshUtil.normals_by_position(verts, idx)
+		for k in nrm.size():
+			nrm[k] = nrm[k].lerp(round[k], smooth).normalized()
 	var out := ArrayMesh.new()
 	MeshUtil.add_surface(out, verts, nrm, uvs, colors, idx)
 	return out

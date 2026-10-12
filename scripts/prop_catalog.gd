@@ -94,13 +94,13 @@ const KINDS := {
 		"spacing": 0.25, "layer": "small", "where": "land",
 		"mark": [Color(0, 0, 0.5, 0.2), 0.35], "occupied": 0.0, "sink": 0.0},
 	"stenblock": {"label": "Stenblock", "builder": "rock", "variants": 1000, "detail": 5,
-		"style": {"size": 1.4, "variation": 0.3, "angular": 0.72, "flat": 0.25, "long": 0.2, "moss": 0.5, "texture": 0.5, "tint": [0.5, 0.51, 0.53]},
+		"style": {"size": 1.4, "variation": 0.3, "angular": 0.72, "flat": 0.25, "long": 0.2, "moss": 0.5, "texture": 0.5, "relief": 0.5, "tint": [0.5, 0.51, 0.53]},
 		"spacing": 1.6, "layer": "big", "where": "land", "occupied": 0.75, "sink": 0.15, "sway": 0.0},
 	"smasten": {"label": "Småsten", "builder": "rock", "variants": 10, "detail": 3,
-		"style": {"size": 0.16, "variation": 0.45, "angular": 0.55, "flat": 0.45, "long": 0.3, "moss": 0.25, "texture": 0.3, "tint": [0.54, 0.52, 0.5]},
+		"style": {"size": 0.16, "variation": 0.45, "angular": 0.55, "flat": 0.45, "long": 0.3, "moss": 0.25, "texture": 0.3, "relief": 0.5, "tint": [0.54, 0.52, 0.5]},
 		"spacing": 0.3, "layer": "small", "where": "land", "occupied": 0.1, "sink": 0.3, "sway": 0.0},
 	"trampsten": {"label": "Trampstenar", "builder": "rock", "variants": 10, "detail": 2,
-		"style": {"size": 0.6, "variation": 0.2, "angular": 0.68, "flat": 0.85, "long": 0.25, "moss": 0.3, "texture": 0.4, "tint": [0.57, 0.55, 0.52]},
+		"style": {"size": 0.6, "variation": 0.2, "angular": 0.68, "flat": 0.85, "long": 0.25, "moss": 0.3, "texture": 0.4, "relief": 0.5, "tint": [0.57, 0.55, 0.52]},
 		"spacing": 0.75, "layer": "small", "where": "any", "occupied": 0.4, "sink": 0.45, "sway": 0.0},
 	"stock": {"label": "Stock", "builder": "item", "gen": "log", "dials": "deadwood", "variants": 1000,
 		"style": {"size": 1.0, "variation": 0.2, "thick": 1.0, "moss": 0.35, "fungi": 0.4, "color_a": [0.45, 0.34, 0.25], "wood_color": [0.84, 0.66, 0.44], "color_b": [0.82, 0.62, 0.36]},
@@ -182,7 +182,8 @@ const STONE_DIALS := [
 	["Platthet", "flat", 0.0, 1.0, "%", "Lika höga som breda, eller flata hällar"],
 	["Avlånghet", "long", 0.0, 1.0, "%", "Runda, eller dubbelt så långa som breda"],
 	["Mossa", "moss", 0.0, 1.0, "%", "Hur mycket mossa; mer nära vatten och under träd"],
-	["Textur", "texture", 0.0, 1.0, "%", "Sprickor och skikt i stenen"],
+	["Textur", "texture", 0.0, 1.0, "%", "Sprickor, gropar och kantlinjer i stenen"],
+	["Relief", "relief", 0.0, 1.0, "%", "Hur djupt sprickor och gropar syns i ljuset"],
 ]
 const TREE_DIALS := [
 	["Höjd", "size", 1.5, 12.0, "m", "Hur högt trädet är"],
@@ -351,6 +352,7 @@ static func build(rec: Dictionary) -> Node3D:
 			mi.set_instance_shader_parameter("stone", Vector3(t[0], t[1], t[2]) * (0.9 + 0.2 * hue))
 			mi.set_instance_shader_parameter("moss_amount", st.moss)
 			mi.set_instance_shader_parameter("texture_amount", st.texture)
+			mi.set_instance_shader_parameter("relief", float(st.get("relief", 0.5)))
 			mi.set_meta("tall", mi.mesh.get_aabb().size.y * size)
 			mi.rotation.y = rec.rot
 			mi.set_meta("shaded", mi)

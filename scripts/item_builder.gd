@@ -481,6 +481,7 @@ static func _rock(xf: Transform3D, variant: int) -> MeshInstance3D:
 	mi.set_instance_shader_parameter("stone", Vector3(g, g, g * 1.03))
 	mi.set_instance_shader_parameter("moss_amount", 0.05)
 	mi.set_instance_shader_parameter("texture_amount", 0.5)
+	mi.set_instance_shader_parameter("relief", 0.5)
 	return mi
 
 
