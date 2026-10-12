@@ -40,8 +40,8 @@ void fragment() {
 	float up = h / max(climb, 0.01);
 	// patches: solid low down, ever fewer and smaller higher up, a last few
 	// flecks by the fork
-	float blotch = fbm3(wpos * vec3(3.5, 1.6, 3.5)) * 0.75 + vnoise3(wpos * 11.0) * 0.25;
-	float patches = smoothstep(0.46, 0.54, blotch + 0.38 - up * 0.4);
+	float blotch = fbm3(wpos * vec3(8.0, 3.5, 8.0)) * 0.7 + vnoise3(wpos * 26.0) * 0.3;
+	float patches = smoothstep(0.46, 0.54, blotch + 0.24 - up * 0.36);
 	float trunk_moss = (1.0 - smoothstep(0.92, 1.08, up)) * patches * step(0.05, climb);
 	vec2 mf = moss_fuzz(wpos, wpos, moss_cover(wpos, wn, moss_amount, max(foot * moss_amount * 1.5, trunk_moss)), col);
 	// Relief: the grain as a height, tipping the normal (from screen

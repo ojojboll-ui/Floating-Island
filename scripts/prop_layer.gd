@@ -247,6 +247,13 @@ func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -
 			rec.size = _styled_size(rec)
 	if kind in STONES:
 		rec.lift = stone_lift(x, z, kind)
+		if kind == "berg" and rec.lift > 0.0:
+			# laid over rock: high where the rock is deepest, sinking gradually
+			# into the layer under it toward the rock's edge, so the outcrop
+			# grows as one dome instead of a pile
+			var t := berg_depth(x, z)
+			rec.lift = (obstacle_top(x, z) - ground_at(x, z)) * lerpf(0.15, 0.6, t)
+			rec.sink = lerpf(float(k.sink), 0.22, t)
 		stones_moved = true
 	elif kind in RESTING:
 		rec.lift = rest_lift(x, z)
@@ -493,6 +500,36 @@ func fire_near(x: float, z: float) -> Variant:
 	return null
 
 
+## How deep inside the rock (Berg) outcrop (x, z) lies, 0 at its edge .. 1
+## at its middle: the outcrop is the Berg stones linked to the nearest one,
+## each within reach of the next, and its size is how far they spread.
+func berg_depth(x: float, z: float) -> float:
+	var rocks: Array = records.filter(func(r): return r.kind == "berg" and not r.get("side", false))
+	if rocks.is_empty():
+		return 0.0
+	var here := Vector2(x, z)
+	var start: Dictionary = rocks[0]
+	for r in rocks:
+		if here.distance_to(Vector2(r.x, r.z)) < here.distance_to(Vector2(start.x, start.z)):
+			start = r
+	var group: Array = [start]
+	var todo: Array = [start]
+	while not todo.is_empty():
+		var a: Dictionary = todo.pop_back()
+		for r in rocks:
+			if not r in group and Vector2(a.x, a.z).distance_to(Vector2(r.x, r.z)) < (float(a.size) + float(r.size)) * 0.6:
+				group.append(r)
+				todo.append(r)
+	var c := Vector2.ZERO
+	for r in group:
+		c += Vector2(r.x, r.z)
+	c /= group.size()
+	var reach := 0.0
+	for r in group:
+		reach = maxf(reach, c.distance_to(Vector2(r.x, r.z)) + float(r.size) * 0.5)
+	return smoothstep(0.0, 1.0, 1.0 - here.distance_to(c) / maxf(reach, 0.5))
+
+
 ## How tall a placed thing stands, in metres.
 func _tall(rec: Dictionary) -> float:
 	var node: Node3D = _nodes.get(rec.id)
@@ -507,8 +544,7 @@ func stone_lift(x: float, z: float, kind := "") -> float:
 	var top := obstacle_top(x, z)
 	if top < g + 0.08:
 		return 0.0
-	# rock (Berg) is built up in layers, each resting high on the last
-	return (top - g) * (0.8 if kind == "berg" else 0.55)
+	return (top - g) * 0.55
 
 
 func ground_at(x: float, z: float) -> float:
@@ -783,7 +819,7 @@ func _place(rec: Dictionary) -> void:
 			return
 		var tall: float = node.get_meta("tall", float(rec.size))
 		# a stone set on another sinks into it less than into the ground
-		var sink: float = float(k.sink) if float(rec.get("lift", 0.0)) <= 0.0 else minf(float(k.sink), 0.15)
+		var sink: float = float(rec.get("sink", k.sink)) if float(rec.get("lift", 0.0)) > 0.0 else float(k.sink)
 		var at := Vector3(x, gy - sink * tall + float(rec.get("lift", 0.0)), z)
 		if rec.kind in STONES:
 			(node as GeometryInstance3D).set_instance_shader_parameter("moss_boost", _damp(rec))
