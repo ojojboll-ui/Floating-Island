@@ -137,9 +137,36 @@ func cliff_lean(at: Vector3, normal: Vector3) -> Vector3:
 	var out: Vector3 = data.outward(at.x, at.z)
 	if normal == Vector3.ZERO:
 		var d: float = data.sample_sdf(at.x, at.z)
-		return out * 0.45 * (1.0 - smoothstep(0.1, 1.0, d))
+		var lean := out * 0.45 * (1.0 - smoothstep(0.1, 1.0, d))
+		# by a pond or stream the same: out over the water, a little at the
+		# top of the bank, more the lower down toward the water it stands
+		var wet := _water_near(at)
+		if not wet.is_empty():
+			var toward: Vector3 = wet[0]
+			var dist: float = wet[1]
+			var above := maxf(at.y - data.sample_wlevel(at.x + toward.x * dist, at.z + toward.z * dist), 0.0)
+			var w := toward * (0.45 * (1.0 - smoothstep(0.2, 1.2, dist)) + 0.9 * (1.0 - smoothstep(0.0, 0.45, above)) * (1.0 - smoothstep(0.3, 1.0, dist)))
+			if w.length() > lean.length():
+				lean = w
+		return lean.limit_length(1.4)
 	var below := maxf(data.sample_height(at.x, at.z) - at.y, 0.0)
 	return out * minf(0.55 + below * 1.8, 1.4)
+
+
+## The nearest water within 1.2 m of `at`: [direction to it, distance], or [].
+func _water_near(at: Vector3) -> Array:
+	for ring in [0.25, 0.5, 0.8, 1.2]:
+		var best := -1.0
+		var dir := Vector3.ZERO
+		for s in 12:
+			var a := TAU * s / 12.0
+			var w: float = data.sample_water(at.x + cos(a) * ring, at.z + sin(a) * ring)
+			if w > 0.4 and w > best:
+				best = w
+				dir = Vector3(cos(a), 0.0, sin(a))
+		if best > 0.0:
+			return [dir, ring]
+	return []
 
 
 ## Where a tree on the cliff stands: upright, turned by rot, its foot sunk
@@ -156,6 +183,22 @@ static func side_pose(kind: String, at: Vector3, normal: Vector3, rot: float, si
 	var b := Basis(Quaternion(Vector3.UP, n)) * Basis(Vector3.UP, rot)
 	var sink: float = Catalog.KINDS[kind].sink
 	return Transform3D(b.scaled(Vector3.ONE * size), at - n * (sink * tall + 0.05))
+
+
+## Water filled in among stones lying on the ground: those well inside the
+## new water (round `here`, within `radius`) give way to it, so a pond can
+## be dug in rock; the ones round its edge stay as its rim. Stones set into
+## water afterwards stay.
+func clear_for_water(here: Vector2, radius: float) -> void:
+	var gone: Array = []
+	for r in records:
+		if not r.kind in STONES or r.get("side", false) or r.id in last_stroke:
+			continue
+		var at := Vector2(r.x, r.z)
+		if at.distance_to(here) < radius * 0.7 and data.sample_water(r.x, r.z) > 0.6:
+			gone.append(r)
+	if not gone.is_empty():
+		_remove(gone, here, radius)
 
 
 ## Take away stones on the island's body within `radius` of `pos`.
@@ -184,7 +227,7 @@ func _check(kind: String, x: float, z: float, spread := 1.0, merge := false) -> 
 	match k.where:
 		"land":
 			# trees and bushes may stand right out at the edge, leaning over it
-			if d < (0.08 if kind in WOODY else 0.3) or w > 0.12:
+			if d < (0.08 if kind in WOODY else 0.3) or w > (0.3 if kind in WOODY else 0.12):
 				return [false, blockers]
 		"shore":
 			if d < 0.1 or w < 0.04 or w > 0.75:

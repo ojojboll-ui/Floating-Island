@@ -1248,6 +1248,41 @@ static func run(main: Node, name: String) -> void:
 					var p: Vector3 = hit.pos
 					worst = maxf(worst, main.data.sample_height(p.x, p.z) - p.y)
 			print("  %d picks on the cliff, deepest %.2f m under the top" % [sides, worst])
+		"water_rock":
+			# Berg painted, then a pond dug in the middle of it; stones clicked into
+			# the water; a tree at the water's edge
+			main.props.remove_near(0.0, 0.0, 9.0)
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Berg"])
+			main.brush.radius = 2.2
+			await _drag(main, [on.call(0.0, 0.5), on.call(2.5, 1.0)], 50)
+			var rocks_before: int = main.props.records.filter(func(r): return r.kind == "berg").size()
+			main.ui.tabs.current_tab = 0
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Vatten"])
+			main.brush.radius = 1.0
+			await _drag(main, [on.call(1.0, 0.7), on.call(1.6, 0.9)], 40)
+			await _frames(main, 10)
+			print("  rock stones %d before the pond, %d after; water at (1.3,0.8): %.2f" % [rocks_before, main.props.records.filter(func(r): return r.kind == "berg").size(), d.sample_water(1.3, 0.8)])
+			main.ui.tabs.current_tab = 1
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Stenblock"])
+			await _tap(main, on.call(1.3, 0.8))
+			print("  boulder in the water: %s" % main.props.records.any(func(r): return r.kind == "stenblock"))
+			await _click(main, main.ui.buttons["Lövträd"])
+			# at the pond's edge, out from its middle
+			var q := Vector2(1.3, 0.8)
+			while d.sample_water(q.x, q.y) > 0.15:
+				q += Vector2(-0.6, -0.8) * 0.05
+			await _tap(main, on.call(q.x, q.y))
+			for r in main.props.records:
+				if r.kind == "lovtrad":
+					print("  tree at the water: lean %s" % (r.get("cliff_lean", Vector3.ZERO) as Vector3).snapped(Vector3.ONE * 0.01))
+			main.ui.set_collapsed(true)
+			await _frames(main, 30)
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

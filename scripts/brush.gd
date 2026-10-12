@@ -360,6 +360,7 @@ func _apply(hit: Dictionary, dt: float) -> void:
 			if data.sample_water(c.x, c.y) < 0.3 and data.sample_sdf(c.x, c.y) > 0.0:
 				_water_level = minf(_water_level, data.sample_base_height_in(_stroke_ground, c.x, c.y) - IslandData.WATERLINE)
 			data.edit_water(c, radius, _water_level, 4.0 * rate * dt, true)
+			props.clear_for_water(c, radius)
 		Tool.DRY:
 			data.edit_water(c, radius, _water_level, 4.0 * rate * dt, false)
 		Tool.PLACE:
