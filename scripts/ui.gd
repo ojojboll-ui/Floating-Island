@@ -459,6 +459,13 @@ func _camera_row() -> Control:
 	_cam_sliders.pitch = _slider("Höjd", -20.0, 80.0, rad_to_deg(r.goal_pitch), func(v: float) -> void: r.goal_pitch = deg_to_rad(v), "deg", 1.0)
 	for k in ["zoom", "yaw", "pitch"]:
 		place.add_child(_cam_sliders[k].get_parent())
+	var reset := Button.new()
+	reset.text = "Återställ kameran"
+	reset.tooltip_text = "Tillbaka till startvyn: mitt på ön, med första vinkeln, höjden och zoomen. Linsen och rotationen ändras inte"
+	reset.focus_mode = Control.FOCUS_NONE
+	reset.pressed.connect(r.reset_view)
+	buttons["Återställ kameran"] = reset
+	place.add_child(reset)
 	row.add_child(place)
 	r.moved.connect(_sync_camera)
 	var spin := VBoxContainer.new()

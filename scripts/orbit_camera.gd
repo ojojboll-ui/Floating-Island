@@ -254,6 +254,16 @@ const SAVED := ["focal_mm", "focus_offset", "aperture", "spin_speed", "spin_cloc
 	"spin_period", "spin_shape", "bob", "bob_period", "bob_shape"]
 
 
+## Back to the view the program starts with: panned to the middle, the
+## first angle, height and zoom. The lens and the spin are left as they are.
+func reset_view() -> void:
+	goal_target = Vector3(0.0, 1.2, 0.0)
+	goal_yaw = deg_to_rad(40.0)
+	goal_pitch = deg_to_rad(32.0)
+	goal_distance = 56.0
+	moved.emit()
+
+
 func state() -> Dictionary:
 	var out := {"target": [goal_target.x, goal_target.y, goal_target.z], "yaw": goal_yaw, "pitch": goal_pitch,
 		"distance": goal_distance}

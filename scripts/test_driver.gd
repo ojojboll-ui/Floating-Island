@@ -1153,6 +1153,18 @@ static func run(main: Node, name: String) -> void:
 			main.weather.hour = 14.0
 			main.ui.set_collapsed(true)
 			await _frames(main, 30)
+		"cam_reset":
+			# the camera moved away, then the reset button brings it back
+			var r = main.rig
+			r.goal_yaw = deg_to_rad(200.0)
+			r.goal_pitch = deg_to_rad(-10.0)
+			r.goal_distance = 20.0
+			r.goal_target = Vector3(4.0, 0.0, -3.0)
+			main.ui.tabs.current_tab = 6
+			await _frames(main, 60)
+			await _click(main, main.ui.buttons["Återställ kameran"])
+			await _frames(main, 120)
+			print("  after reset: yaw %.0f pitch %.0f zoom %.0f target %s" % [rad_to_deg(r.yaw), rad_to_deg(r.pitch), r.distance, r.target.snapped(Vector3.ONE * 0.1)])
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

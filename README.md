@@ -50,7 +50,7 @@ Fliken **Väder**: Tid (dygnet runt), Måne (faser), Moln · Dimma, Regn, Snö �
 
 Fliken **Ljus**: färgton för himmel, horisont, under, moln, sol och dimma (vit = dygnets egen färg) · Sol, Omgivning, Exponering · Återställ ljuset.
 
-Fliken **Kamera**: Lins (Brännvidd, Fokus, Bländare) · Bild (Zoom, Vinkel, Höjd; följer musen) · **Rotation**: Fart (°/s), Variation, Tid, Medsols/Motsols · **Höjdvåg**: Styrka (m upp och ner), Tid. Båda vågorna formas för hand genom att dra punkterna i kurvan; Sinus återställer. Kameran kretsar runt öns mitt och står längre bort ju större ön är; moln och skärpedjup följer med.
+Fliken **Kamera**: Lins (Brännvidd, Fokus, Bländare) · Bild (Zoom, Vinkel, Höjd; följer musen; **Återställ kameran** går tillbaka till startvyn utan att röra linsen eller rotationen) · **Rotation**: Fart (°/s), Variation, Tid, Medsols/Motsols · **Höjdvåg**: Styrka (m upp och ner), Tid. Båda vågorna formas för hand genom att dra punkterna i kurvan; Sinus återställer. Kameran kretsar runt öns mitt och står längre bort ju större ön är; moln och skärpedjup följer med.
 
 Fliken **Effekter**:
 - **Glöd**: Styrka, Bloom, Tröskel.
