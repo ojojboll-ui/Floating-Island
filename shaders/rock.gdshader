@@ -40,33 +40,6 @@ void vertex() {
 	opos = VERTEX * length(MODEL_MATRIX[0].xyz);
 }
 
-// The nearest cell in a 3D Voronoi pattern: distance to its edge (x) and
-// two ids for it (y, z), for faint plates within a face.
-vec3 cells(vec3 p) {
-	vec3 i = floor(p);
-	vec3 f = fract(p);
-	float d1 = 8.0;
-	float d2 = 8.0;
-	vec3 best = vec3(0.0);
-	for (int z = -1; z <= 1; z++) {
-		for (int y = -1; y <= 1; y++) {
-			for (int x = -1; x <= 1; x++) {
-				vec3 g = vec3(float(x), float(y), float(z));
-				vec3 o = vec3(hash13(i + g), hash13(i + g + 17.3), hash13(i + g + 41.7));
-				float d = length(g + o - f);
-				if (d < d1) {
-					d2 = d1;
-					d1 = d;
-					best = i + g;
-				} else if (d < d2) {
-					d2 = d;
-				}
-			}
-		}
-	}
-	return vec3(d2 - d1, hash13(best), hash13(best + 3.3));
-}
-
 void fragment() {
 	vec3 wn = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	float amount = 0.25 + 0.75 * texture_amount;
@@ -148,39 +121,13 @@ void fragment() {
 	// moss: in broad drifts over the tops, in the hollows and the seams, more
 	// the damper the stone lies; never on the worn ridges
 	float wet_moss = clamp(moss_amount + moss_boost * 0.45, 0.0, 1.2);
-	float field = moss_field(wpos);
-	float drift = fbm3(wpos * 1.6 + 4.0) * 0.8 + field * 0.3;
-	float on_top = smoothstep(0.9 - wet_moss * 0.45, 1.06 - wet_moss * 0.35, wn.y * 0.55 + drift * 0.6 + (fbm3(wpos * 4.0) - 0.5) * 0.35);
 	float in_hollows = hollow * smoothstep(0.4, 1.0, wet_moss) * 0.5;
-	float moss = clamp(on_top + in_hollows + seam * (0.3 + wet_moss * 0.6), 0.0, 1.0) * step(0.01, wet_moss + seam);
+	float moss = moss_cover(wpos, wn, wet_moss, in_hollows + seam * (0.3 + wet_moss * 0.6));
 	moss *= 1.0 - ridge * 0.9;
-	// a speckled edge, as painted
-	// moss is a fuzz of shoots packed tight, each claiming the ground round it
-	// from its neighbours (Voronoi cells, domed at their tips). The fuzz comes
-	// in three sizes, each fading in only once it is bigger than a pixel, so
-	// whatever the distance there is grain at the scale you look at, and none
-	// of it shimmers. Under it, soft swells: the moss lies thicker in some
-	// places than others, with no edges between.
-	float dome = smoothstep(0.25, 0.75, fbm3(opos * 4.0 + 31.0));
-	float tip = 0.0;
-	float seen = 0.0;
-	for (int k = 0; k < 3; k++) {
-		float freq = 48.0 * pow(2.2, float(k));
-		vec3 sh = cells(opos * freq + 13.0 * float(k + 1));
-		float vis = 1.0 - smoothstep(0.3, 0.9, length(fwidth(opos * freq)));
-		tip += (smoothstep(0.0, 0.65, sh.x) - 0.5) * vis * (0.7 + 0.15 * float(k));
-		seen += vis * (0.7 + 0.15 * float(k));
-	}
-	tip = tip / max(seen, 1.0);
-	float moss_h = dome * 0.6 + tip * 0.8;
-	moss = smoothstep(0.3, 0.6, moss + (dome - 0.5) * 0.2 + (vnoise3(wpos * 6.0) - 0.5) * 0.12 + tip * 0.3);
-	// darker down between the shoots, the tips catching the light a little
-	// yellower, drifts of greener and yellower moss
-	vec3 moss_col = moss_tint(wpos) * (0.5 + 0.55 * fbm3(wpos * 3.0));
-	moss_col *= mix(vec3(0.94, 0.98, 1.04), vec3(1.06, 1.03, 0.92), fbm3(opos * 2.0 + 5.0));
-	moss_col *= mix(0.82, 1.06, dome) * (1.0 + tip * 0.55);
-	moss_col += srgb(vec3(0.75, 0.8, 0.3)) * max(tip, 0.0) * 0.12;
-	col = mix(col, moss_col, moss * 0.95);
+	// the moss itself (noise.gdshaderinc), the same as on roots and trees
+	vec2 mf = moss_fuzz(wpos, opos, moss, col);
+	moss = mf.x;
+	float moss_h = mf.y;
 	// stone and moss as one height: the moss lies over the stone's relief,
 	// filling its cracks and thinning over the ridges, its fuzz on top
 	float moss_depth = 0.0015 + 0.005 * relief;

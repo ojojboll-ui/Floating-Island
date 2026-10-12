@@ -580,7 +580,8 @@ func _root_box() -> Control:
 			["Slingring", "curl", 0.0, 1.0, "%", "Raka, eller slingrande som ormar"],
 			["Klättra", "climb", 0.0, 1.0, "%", "Hur gärna rötterna klättrar över murar, pelare och stenar i stället för att gå runt dem"],
 			["Tyngd", "hang", 0.0, 1.0, "%", "Hängande rötter: rakt ner, eller ut åt sidan. På marken: hur långt de faller över kanten"],
-			["Bark", "bark", 0.0, 1.0, "%", "Slät målad färg, eller full barktextur"]]:
+			["Bark", "bark", 0.0, 1.0, "%", "Slät målad färg, eller full barktextur"],
+			["Mossa", "moss", 0.0, 1.0, "%", "Mossa ovanpå rötterna, samma som på stenarna"]]:
 		var key: String = spec[1]
 		var sl := _slider(spec[0], spec[2], spec[3], r.style[key], func(v: float) -> void: r.set_style(key, v), spec[4], spec[6] if spec.size() > 6 else 0.01)
 		sl.drag_started.connect(func() -> void: brush.push_undo())

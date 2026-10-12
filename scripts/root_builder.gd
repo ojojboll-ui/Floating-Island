@@ -52,6 +52,7 @@ const STYLE := {
 	"climb": 0.5,           # 0 roots go round walls and stones .. 1 they climb over them
 	"hang": 0.6,            # 0 reach out sideways .. 1 straight down
 	"bark": 0.6,            # 0 smooth painted colour .. 1 full bark texture
+	"moss": 0.0,            # moss as on the stones, only a look
 	"tint": [0.45, 0.3, 0.2],
 }
 

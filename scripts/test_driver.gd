@@ -1117,8 +1117,15 @@ static func run(main: Node, name: String) -> void:
 			var rng := RandomNumberGenerator.new()
 			rng.seed = 3
 			p.style_for("lovtrad").moss = 0.0
+			var root_moss := 0.0
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--treemoss="):
+					p.style_for("lovtrad").moss = float(a.substr(11))
+				elif a.begins_with("--rootmoss="):
+					root_moss = float(a.substr(11))
 			p.add("lovtrad", 0.0, 0.0, rng)
 			var r = main.roots
+			r.style["moss"] = root_moss
 			if "--userroots" in OS.get_cmdline_user_args():
 				for kv in [["size", 0.39], ["length", 1.0], ["spread", 2.1], ["thickness", 3.0], ["fork_gap", 1.5], ["fork_angle", 24.0], ["bark", 0.0]]:
 					r.style[kv[0]] = kv[1]

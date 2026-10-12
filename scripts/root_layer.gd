@@ -388,6 +388,7 @@ static func _set_look(mi: MeshInstance3D, s: Dictionary) -> void:
 	var tint: Array = s.tint
 	mi.set_instance_shader_parameter("tint", Vector3(tint[0], tint[1], tint[2]))
 	mi.set_instance_shader_parameter("bark", s.bark)
+	mi.set_instance_shader_parameter("moss_amount", float(s.get("moss", 0.0)))
 
 
 func _refresh() -> void:
@@ -404,6 +405,7 @@ func _refresh() -> void:
 		var shape := st.duplicate()
 		shape.erase("tint")
 		shape.erase("bark")
+		shape.erase("moss")
 		var key := str(resolved) + str(shape) + ("%d/%d" % [_raster_rev, _stones_rev] if _crawls(rec) else "")
 		if _built.get(seed, "") == key:
 			continue

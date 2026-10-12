@@ -3,7 +3,7 @@ render_mode cull_back;
 
 // Roots, stylized: a painted colour with soft light and shade, and as much
 // of the Quaternius twisted-tree bark (CC0) as the Bark dial asks for. They keep their
-// own colour on the ground (no moss from it); soil clings where hanging
+// own colour (moss only as much as their Mossa dial says); soil clings where hanging
 // roots leave the rock; hanging roots sway in the wind toward their tips.
 // Vertex colour red is how far along the root a point is, green is 1 where
 // the root hangs free.
@@ -15,6 +15,8 @@ uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap;
 
 instance uniform vec3 tint = vec3(0.45, 0.3, 0.2);
 instance uniform float bark = 0.35;
+// the Mossa dial: moss as on the stones
+instance uniform float moss_amount = 0.0;
 
 varying vec3 wpos;
 varying float along;
@@ -49,6 +51,8 @@ void fragment() {
 	// soil still clinging where a hanging root leaves the rock
 	float soil = smoothstep(0.15, 0.0, along + (fbm3(wpos * 3.0) - 0.5) * 0.1) * hanging;
 	col = mix(col, srgb(vec3(0.3, 0.21, 0.14)), soil * 0.7);
+	// moss as on the stones (the Mossa dial), less on roots hanging free
+	moss_fuzz(wpos, wpos, moss_cover(wpos, wn, moss_amount * (1.0 - hanging * 0.7), 0.0), col);
 	ALBEDO = weathered(col, wn.y, wpos);
 	NORMAL_MAP = texture(normal_tex, UV).rgb;
 	NORMAL_MAP_DEPTH = mix(0.7, 1.8, bark);

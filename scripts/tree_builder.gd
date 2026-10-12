@@ -65,6 +65,7 @@ static func build(style: Dictionary, height: float, seed: int, env := {}) -> Nod
 	trunk.material_override = _bark_material()
 	var b: Array = style.bark_color
 	trunk.set_instance_shader_parameter("bark", Vector3(b[0], b[1], b[2]))
+	trunk.set_instance_shader_parameter("moss_amount", float(style.get("moss", 0.2)))
 	root.add_child(trunk)
 
 	if float(style.leaves) > 0.01 and not (g.clusters as Array).is_empty():
@@ -249,6 +250,7 @@ static func _conifer(g: Dictionary, foot: Vector3, dir: Vector3, height: float) 
 	trunk.material_override = _bark_material()
 	var bc: Array = st.bark_color
 	trunk.set_instance_shader_parameter("bark", Vector3(bc[0], bc[1], bc[2]))
+	trunk.set_instance_shader_parameter("moss_amount", float(st.get("moss", 0.2)))
 	root.add_child(trunk)
 	var skirts := MeshInstance3D.new()
 	skirts.mesh = b.mesh()
