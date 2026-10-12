@@ -130,14 +130,6 @@ void fragment() {
 	float s_pit = smoothstep(0.74, 0.9, vnoise3(opos * 14.0)) * amount;
 	float bump_h = -s_split - s_pit * 0.6 + s_lip * 0.3 + (fbm3(opos * 9.0) - 0.5) * 0.4 * amount;
 	bump_h *= 0.007 * relief;
-	vec3 dpdx = dFdx(wpos);
-	vec3 dpdy = dFdy(wpos);
-	float dhdx = dFdx(bump_h);
-	float dhdy = dFdy(bump_h);
-	vec3 r1 = cross(dpdy, wn);
-	vec3 r2 = cross(wn, dpdx);
-	float det = dot(dpdx, r1);
-	vec3 bn = use_tex ? wn : normalize(abs(det) * wn - sign(det) * (dhdx * r1 + dhdy * r2));
 	if (use_tex) {
 		col = texture(albedo_tex, UV).rgb * (0.85 + 0.25 * fbm3(wpos * 3.0));
 	}
@@ -163,8 +155,31 @@ void fragment() {
 	float moss = clamp(on_top + in_hollows + seam * (0.3 + wet_moss * 0.6), 0.0, 1.0) * step(0.01, wet_moss + seam);
 	moss *= 1.0 - ridge * 0.9;
 	// a speckled edge, as painted
-	moss = smoothstep(0.3, 0.6, moss + (vnoise3(wpos * 6.0) - 0.5) * 0.15 + (vnoise3(wpos * 26.0) - 0.5) * 0.3);
-	col = mix(col, moss_tint(wpos) * (0.5 + 0.55 * fbm3(wpos * 3.0)), moss * 0.92);
+	// moss grows as cushions of shoots packed tight, each shoot claiming the
+	// ground round it from its neighbours: so both the cushions and the shoot
+	// tips in them are cells of a Voronoi pattern (two sizes), domed in the
+	// middle and parted by grooves where neighbours meet. A patch ends in
+	// whole cushions, not a smooth line.
+	vec3 cush = cells(opos * vec3(4.5, 5.5, 4.5) + 31.0);
+	vec3 shoot = cells(opos * 130.0 + 13.0);
+	float dome = sqrt(smoothstep(0.0, 0.7, cush.x));
+	// the shoots are a fine fuzz, fading out where they get smaller than a
+	// pixel so they never shimmer
+	float fuzz_fade = 1.0 - smoothstep(0.25, 0.8, length(fwidth(opos * 130.0)));
+	float tip = smoothstep(0.0, 0.45, shoot.x) * fuzz_fade;
+	float moss_h = dome * 0.8 + (tip - 0.5 * fuzz_fade) * 0.3;
+	moss = smoothstep(0.3, 0.6, moss + (dome - 0.6) * 0.3 + (vnoise3(wpos * 6.0) - 0.5) * 0.12 + (tip - 0.5 * fuzz_fade) * 0.15);
+	// darker down between the cushions and the shoots, the tips catching
+	// the light a little yellower, each cushion its own green
+	vec3 moss_col = moss_tint(wpos) * (0.5 + 0.55 * fbm3(wpos * 3.0));
+	moss_col *= mix(vec3(0.92, 0.96, 1.04), vec3(1.08, 1.04, 0.9), cush.y);
+	moss_col *= mix(0.64, 1.1, dome) * (1.0 + (tip - 0.5 * fuzz_fade) * 0.25);
+	moss_col += srgb(vec3(0.75, 0.8, 0.3)) * pow(tip, 4.0) * dome * 0.06;
+	col = mix(col, moss_col, moss * 0.95);
+	// stone and moss as one height: the moss lies over the stone's relief,
+	// filling its cracks and thinning over the ridges, its cushions on top
+	float moss_depth = 0.0015 + 0.005 * relief;
+	float surface_h = mix(bump_h, bump_h * 0.35 + moss_h * moss_depth, moss);
 	// soil and shade down in the seam
 	col = mix(col, srgb(vec3(0.3, 0.24, 0.17)), seam * seam * 0.45);
 	col *= 1.0 - seam * 0.35;
@@ -172,10 +187,18 @@ void fragment() {
 	float foot = smoothstep(0.12, -0.02, wpos.y - ground_y + (fbm3(wpos * 4.0) - 0.5) * 0.1);
 	col = mix(col, mix(grass_tint(wpos.xz) * 0.55, srgb(vec3(0.36, 0.27, 0.19)), 0.4), foot);
 
-	// moss lies soft over the relief
-	NORMAL = normalize((VIEW_MATRIX * vec4(normalize(mix(bn, wn, moss * 0.8)), 0.0)).xyz);
-	// moss lies soft over the relief
-	NORMAL = normalize((VIEW_MATRIX * vec4(normalize(mix(bn, wn, moss * 0.8)), 0.0)).xyz);
+	// the relief: stone and moss as one height, tipping the normal so cracks,
+	// pits and moss cushions catch the light (bump mapping from screen
+	// derivatives)
+	vec3 dpdx = dFdx(wpos);
+	vec3 dpdy = dFdy(wpos);
+	float dhdx = dFdx(surface_h);
+	float dhdy = dFdy(surface_h);
+	vec3 r1 = cross(dpdy, wn);
+	vec3 r2 = cross(wn, dpdx);
+	float det = dot(dpdx, r1);
+	vec3 bn = use_tex ? wn : normalize(abs(det) * wn - sign(det) * (dhdx * r1 + dhdy * r2));
+	NORMAL = normalize((VIEW_MATRIX * vec4(bn, 0.0)).xyz);
 	ALBEDO = weathered(col, wn.y, wpos);
 	ROUGHNESS = weathered_rough(mix(0.95, 0.85, moss), wn.y, wpos);
 	SPECULAR = weathered_spec(0.14, wn.y, wpos);
