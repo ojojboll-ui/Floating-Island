@@ -9,7 +9,6 @@ shader_type spatial;
 // shafts. A full-screen quad, drawn after everything and added on top.
 render_mode unshaded, blend_add, depth_test_disabled, depth_draw_never, cull_disabled, skip_vertex_transform, fog_disabled;
 
-uniform sampler2D screen : hint_screen_texture, filter_linear_mipmap, repeat_disable;
 uniform sampler2D depth : hint_depth_texture, filter_nearest, repeat_disable;
 
 uniform vec2 sun_uv = vec2(0.5, 0.0);
@@ -33,7 +32,7 @@ void fragment() {
 	vec2 uv = SCREEN_UV;
 	// march toward the sun, gathering the open sky near it; the march starts
 	// at a random offset so its steps melt into fine noise, not bands
-	const int N = 40;
+	const int N = 24;
 	vec2 stride = (sun_uv - uv) * ray_length / float(N);
 	vec2 p = uv + stride * hash(FRAGCOORD.xy + fract(TIME) * 61.0);
 	float decay = 1.0;
@@ -43,14 +42,13 @@ void fragment() {
 		vec2 q = clamp(p, vec2(0.001), vec2(0.999));
 		// reverse z: the sky is at depth 0
 		float sky = step(textureLod(depth, q, 0.0).r, 0.000001);
-		vec3 s = textureLod(screen, q, 1.5).rgb;
 		vec2 d = (p - sun_uv) * vec2(aspect, 1.0);
-		// the brightest sky right round the sun, so the light gathers in streaks
-		// rather than a veil over everything
-		float glow = pow(max(dot(s, vec3(0.2126, 0.7152, 0.0722)), 0.0), 1.5);
-		sum += sky * s * glow * exp(-dot(d, d) * 9.0) * decay;
-		decay *= 0.955;
+		// the light gathers right round the sun, so it falls in streaks rather
+		// than a veil over everything (no copy of the screen is read: only
+		// where the sky is open, and how near the sun)
+		sum += vec3(sky * exp(-dot(d, d) * 14.0) * decay);
+		decay *= 0.925;
 	}
-	// the decay series sums to about 19 when every step is open sky
-	ALBEDO = sum / 19.0 * sun_color * rays * sun_on * 1.4;
+	// the decay series sums to about 12 when every step is open sky
+	ALBEDO = sum / 12.0 * sun_color * rays * sun_on * 1.1;
 }

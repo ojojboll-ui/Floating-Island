@@ -31,9 +31,10 @@ void fragment() {
 
 	vec3 col;
 	if (tint.a < 0.5) {
-		// mortar: lime and earth, a shade darker than the stones so the
-		// joints read, gritty, greening a little with age
+		// mortar: lime and earth, a shade darker than the stones so the joints
+		// read, with a fine gritty grain, greening a little with age
 		col = srgb(vec3(0.38, 0.35, 0.30)) * (0.85 + 0.3 * vnoise3(wpos * 14.0));
+		col *= 0.86 + 0.28 * hash13(floor(wpos * 180.0)) * 0.5 + 0.14 * vnoise3(wpos * 60.0);
 		col = mix(col, moss_tint(wpos) * 0.7, age * 0.4);
 	} else {
 		col = srgb(tint.rgb) * (0.78 + 0.32 * h0);

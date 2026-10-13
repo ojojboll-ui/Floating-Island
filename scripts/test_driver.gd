@@ -1386,6 +1386,123 @@ static func run(main: Node, name: String) -> void:
 			main.rig.settle()
 			main.ui.set_collapsed(true)
 			await _frames(main, 20)
+		"perf":
+			# GPU time per frame with everything on, then with each costly part off
+			var vp: RID = main.get_viewport().get_viewport_rid()
+			RenderingServer.viewport_set_measure_render_time(vp, true)
+			var env: Environment = main.weather.env
+			var p = main.post
+			var w = main.weather
+			var cam: Camera3D = main.rig.camera
+			var measure := func(label: String) -> void:
+				await _frames(main, 20)
+				var sum := 0.0
+				for k in 60:
+					await _frames(main, 1)
+					sum += RenderingServer.viewport_get_measured_render_time_gpu(vp)
+				print("  %-26s %5.2f ms  (render cpu %.2f, scripts %.2f ms, fps %d)" % [label, sum / 60.0, RenderingServer.viewport_get_measured_render_time_cpu(vp), Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Engine.get_frames_per_second()])
+			w.fog = 0.6
+			p.volume = 0.5
+			p.rays = 0.6
+			main.ui.set_collapsed(true)
+			await measure.call("everything on")
+			p.volume = 0.0
+			await measure.call("no volumetric light")
+			w.fog = 0.0
+			await measure.call("no mist either")
+			w.fog = 0.6
+			p.volume = 0.5
+			p.rays = 0.0
+			await measure.call("no light shafts")
+			p.rays = 0.6
+			env.ssil_enabled = false
+			await measure.call("no SSIL")
+			env.ssil_enabled = true
+			p.occlusion = 0.0
+			await measure.call("no SSAO")
+			p.occlusion = 1.0
+			var dof: CameraAttributesPractical = cam.attributes
+			dof.dof_blur_near_enabled = false
+			dof.dof_blur_far_enabled = false
+			await measure.call("no depth of field")
+			dof.dof_blur_near_enabled = true
+			dof.dof_blur_far_enabled = true
+			p.glow = 0.0
+			env.glow_enabled = false
+			await measure.call("no glow")
+			env.glow_enabled = true
+			p.glow = 0.4
+			main.get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+			await measure.call("no MSAA")
+			main.get_viewport().msaa_3d = Viewport.MSAA_2X
+			w.sun.shadow_enabled = false
+			await measure.call("no sun shadows")
+			w.sun.shadow_enabled = true
+			for e in main.view._tiles.values():
+				(e.grass as Node3D).visible = false
+			await measure.call("no grass")
+			for e in main.view._tiles.values():
+				(e.grass as Node3D).visible = true
+			env.volumetric_fog_enabled = false
+			p.volume = 0.0
+			w.fog = 0.0
+			p.rays = 0.0
+			env.ssil_enabled = false
+			await measure.call("cheap set")
+		"perf_sun":
+			# against the sun: shafts and soft shadows
+			var vp: RID = main.get_viewport().get_viewport_rid()
+			RenderingServer.viewport_set_measure_render_time(vp, true)
+			var p = main.post
+			var w = main.weather
+			w.hour = 17.5
+			w.settle()
+			await _frames(main, 5)
+			# turn the camera to look toward the sun, low over the island
+			var toward: Vector3 = w.sun.global_basis.z
+			main.rig.goal_yaw = atan2(-toward.x, -toward.z)
+			main.rig.goal_pitch = deg_to_rad(6.0)
+			main.rig.settle()
+			var measure := func(label: String) -> void:
+				await _frames(main, 20)
+				var sum := 0.0
+				for k in 60:
+					await _frames(main, 1)
+					sum += RenderingServer.viewport_get_measured_render_time_gpu(vp)
+				print("  %-26s %5.2f ms" % [label, sum / 60.0])
+			main.ui.set_collapsed(true)
+			p.rays = 0.8
+			await measure.call("shafts on, toward the sun")
+			print("  sun on screen: %.2f" % float(p._shafts_mat.get_shader_parameter("sun_on")))
+			p.rays = 0.0
+			await measure.call("shafts off")
+			p.rays = 0.8
+			var ang: float = w.sun.light_angular_distance
+			w.sun.light_angular_distance = 0.0
+			await measure.call("hard-edged shadows")
+			w.sun.light_angular_distance = ang
+			await _frames(main, 10)
+		"perf_cpu":
+			# script time per frame, with each part's _process switched off in turn
+			main.weather.fog = 0.6
+			main.ui.set_collapsed(true)
+			var avg := func() -> float:
+				await _frames(main, 10)
+				var sum := 0.0
+				for k in 60:
+					await _frames(main, 1)
+					sum += Performance.get_monitor(Performance.TIME_PROCESS)
+				return sum / 60.0 * 1000.0
+			await _frames(main, 400)
+			print("  all: %.2f ms" % await avg.call())
+			var parts := {"weather": main.weather, "post": main.post, "props": main.props, "roots": main.roots, "ruins": main.ruins,
+				"view": main.view, "brush": main.brush, "rig": main.rig, "ui": main.ui, "fish": main.fish}
+			for part in parts:
+				var n: Node = parts[part]
+				n.process_mode = Node.PROCESS_MODE_DISABLED
+				print("  without %s: %.2f ms" % [part, await avg.call()])
+				n.process_mode = Node.PROCESS_MODE_INHERIT
+				print("  all: %.2f ms" % await avg.call())
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

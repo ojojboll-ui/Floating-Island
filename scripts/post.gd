@@ -117,8 +117,9 @@ func apply() -> void:
 	weather.sun.light_volumetric_fog_energy = volume_glow
 	weather.moon.light_volumetric_fog_energy = volume_glow
 
-	_shafts.visible = rays > 0.01
 	_aim(_shafts_mat, rig.camera, get_viewport().get_visible_rect().size)
+	# only drawn while the sun is in or near the picture
+	_shafts.visible = rays > 0.01 and float(_shafts_mat.get_shader_parameter("sun_on")) > 0.001
 	_shafts_mat.set_shader_parameter("rays", rays)
 	_shafts_mat.set_shader_parameter("ray_length", ray_length)
 	var size := get_viewport().get_visible_rect().size
