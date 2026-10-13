@@ -42,8 +42,8 @@ func _ready() -> void:
 	var args := _parse_args()
 	# a film export leaves this behind for its own window size; it must not
 	# outlive that start
-	if FileAccess.file_exists("res://override.cfg"):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path("res://override.cfg"))
+	if FileAccess.file_exists(IslandFile.override_path()):
+		DirAccess.remove_absolute(IslandFile.override_path())
 	args_age = float(args.get("age", -1.0))
 	args_yaw = float(args.get("view_yaw", -12.0))
 	args_dist = float(args.get("view_dist", 12.0))

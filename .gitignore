@@ -5,3 +5,6 @@ override.cfg
 
 # renders from snap.sh and the tests
 shots/
+
+# exported builds (put on GitHub Releases, not in git)
+builds/

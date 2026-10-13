@@ -122,6 +122,15 @@ static func still(main: Node, size: Vector2i) -> String:
 
 ## Start a film or a wallpaper loop rendering in a second window. Returns the
 ## path the film will be written to.
+## Where a temporary override.cfg goes: the project folder when run from
+## the editor, beside the program in an exported build (its res:// is packed
+## and read-only, and Godot looks for the file beside the program).
+static func override_path() -> String:
+	if OS.has_feature("template"):
+		return OS.get_executable_path().get_base_dir().path_join("override.cfg")
+	return ProjectSettings.globalize_path("res://override.cfg")
+
+
 static func film(main: Node, seconds: float, size: Vector2i, wallpaper: bool) -> String:
 	var temp := OS.get_user_data_dir().path_join("export.island")
 	if wallpaper:
@@ -137,15 +146,17 @@ static func film(main: Node, seconds: float, size: Vector2i, wallpaper: bool) ->
 	# Movie Maker records at the project's window size, so the second copy
 	# gets its size from a temporary override.cfg; it removes the file as
 	# soon as it has started (see main._ready).
-	var cfg := FileAccess.open("res://override.cfg", FileAccess.WRITE)
+	var cfg := FileAccess.open(override_path(), FileAccess.WRITE)
 	cfg.store_string("[display]\n\nwindow/size/viewport_width=%d\nwindow/size/viewport_height=%d\n" % [size.x, size.y])
 	cfg.close()
 	var args := PackedStringArray([
-		"--path", ProjectSettings.globalize_path("res://"),
 		"--write-movie", out,
 		"--fixed-fps", "30",
 		"--", "--open=" + temp, "--record=%.2f" % seconds,
 	])
+	if not OS.has_feature("template"):
+		# run from the editor's project folder: the copy needs to be told where it is
+		args = PackedStringArray(["--path", ProjectSettings.globalize_path("res://")]) + args
 	if wallpaper:
 		args.append("--loop")
 	OS.create_process(OS.get_executable_path(), args)

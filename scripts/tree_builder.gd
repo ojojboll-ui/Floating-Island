@@ -113,7 +113,7 @@ static func _bark_material() -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/bark.gdshader")
 	if _bark_normal == null:
-		var img := Image.load_from_file(ProjectSettings.globalize_path("res://assets/quaternius/Bark_NormalTree_Normal.png"))
+		var img := Image.load_from_file("res://assets/quaternius/Bark_NormalTree_Normal.png")
 		if img:
 			img.generate_mipmaps()
 			_bark_normal = ImageTexture.create_from_image(img)

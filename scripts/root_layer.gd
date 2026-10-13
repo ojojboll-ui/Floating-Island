@@ -62,7 +62,7 @@ func setup(island_data, ruin_layer) -> void:
 
 
 static func _texture(file: String) -> ImageTexture:
-	var img := Image.load_from_file(ProjectSettings.globalize_path("res://assets/quaternius/" + file))
+	var img := Image.load_from_file("res://assets/quaternius/" + file)
 	if img == null:
 		return null
 	img.generate_mipmaps()

@@ -472,7 +472,7 @@ static func _model(name: String, sway: float, recolor: Color, lawn: bool) -> Dic
 		return _models[name]
 	var doc := GLTFDocument.new()
 	var state := GLTFState.new()
-	var err := doc.append_from_file(ProjectSettings.globalize_path(MODELS + name + ".gltf"), state)
+	var err := doc.append_from_file(MODELS + name + ".gltf", state)
 	if err != OK:
 		push_error("could not load model " + name)
 		return {"mesh": BoxMesh.new(), "height": 1.0}
