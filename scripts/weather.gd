@@ -237,9 +237,17 @@ func apply() -> void:
 	_splash.amount_ratio = rain
 	_snow.emitting = snow > 0.01
 	_snow.amount_ratio = snow
-	var drift := Vector3(1.0, 0.0, 0.45) * wind
-	(_rain.process_material as ParticleProcessMaterial).gravity = Vector3(0.0, -14.0, 0.0) + drift * 8.0
-	(_snow.process_material as ParticleProcessMaterial).gravity = Vector3(0.0, -0.9, 0.0) + drift * 1.5
+	var drift := Vector3(1.0, 0.0, 0.45).normalized() * wind
+	# rain driven slanting by the wind, snow blown along and swirling more
+	var rain_pm := _rain.process_material as ParticleProcessMaterial
+	rain_pm.direction = (Vector3(0.0, -1.0, 0.0) + drift * 0.9).normalized()
+	rain_pm.gravity = Vector3(0.0, -14.0, 0.0) + drift * 14.0
+	var snow_pm := _snow.process_material as ParticleProcessMaterial
+	snow_pm.gravity = Vector3(0.0, -0.9, 0.0) + drift * 3.5
+	snow_pm.turbulence_influence_max = 0.15 + wind * 0.35
+	# the cloud of falling things starts upwind, so it still covers the island
+	_rain.position = Vector3(0.0, 16.0, 0.0) - drift * 9.0
+	_snow.position = Vector3(0.0, 13.0, 0.0) - drift * 18.0
 	var leaf_pm := _leaves.process_material as ParticleProcessMaterial
 	leaf_pm.gravity = Vector3(0.0, -0.55, 0.0) + drift * 2.2
 	_leaves.amount_ratio = clampf((wind - 0.15) * 1.4, 0.0, 1.0) * (1.0 - snow)
@@ -425,17 +433,38 @@ func _particles(amount: int, lifetime: float, mesh: Mesh, pm: ParticleProcessMat
 	return p
 
 
+## Two quads crossed along y, w wide and h tall: a streak seen from any side.
+func _crossed_quads(w: float, h: float) -> ArrayMesh:
+	var v := PackedVector3Array()
+	var uv := PackedVector2Array()
+	var idx := PackedInt32Array()
+	for k in 2:
+		var side := Vector3(w * 0.5, 0, 0) if k == 0 else Vector3(0, 0, w * 0.5)
+		var b := v.size()
+		for c in [[-1.0, -0.5, 0.0, 1.0], [1.0, -0.5, 1.0, 1.0], [1.0, 0.5, 1.0, 0.0], [-1.0, 0.5, 0.0, 0.0]]:
+			v.append(side * float(c[0]) + Vector3(0, float(c[1]) * h, 0))
+			uv.append(Vector2(c[2], c[3]))
+		idx.append_array([b, b + 1, b + 2, b, b + 2, b + 3])
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = v
+	arr[Mesh.ARRAY_TEX_UV] = uv
+	arr[Mesh.ARRAY_INDEX] = idx
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return m
+
+
 func _build_rain() -> void:
-	var streak := QuadMesh.new()
-	streak.size = Vector2(0.035, 0.5)
+	# two crossed quads, so a streak turned along its flight shows from any side
+	var streak := _crossed_quads(0.035, 0.5)
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.albedo_color = Color(0.85, 0.9, 1.0, 0.55)
 	mat.albedo_texture = _streak_texture()
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
-	mat.billboard_keep_scale = true
-	streak.material = mat
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	streak.surface_set_material(0, mat)
 	var pm := ParticleProcessMaterial.new()
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	pm.emission_box_extents = Vector3(17.0, 0.5, 17.0)
@@ -443,6 +472,8 @@ func _build_rain() -> void:
 	pm.spread = 2.0
 	pm.initial_velocity_min = 11.0
 	pm.initial_velocity_max = 14.0
+	# each streak turned along the way it flies, so in wind the rain slants
+	pm.particle_flag_align_y = true
 	pm.collision_mode = ParticleProcessMaterial.COLLISION_HIDE_ON_CONTACT
 	_rain = _particles(9000, 2.6, streak, pm)
 	_rain.position = Vector3(0.0, 16.0, 0.0)

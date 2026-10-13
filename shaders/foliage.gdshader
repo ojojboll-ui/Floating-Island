@@ -31,6 +31,9 @@ void vertex() {
 	vec2 push = vec2(sin(TIME * 1.3 + w.x * 0.4 + w.z * 0.3) * 0.5 + gust - 0.5, cos(TIME * 1.1 + w.z * 0.4) * 0.4);
 	float flutter = sin(TIME * 5.0 + w.x * 7.0 + w.y * 5.0) * 0.15;
 	VERTEX.xz += (push + flutter) * up * up * sway * 0.05 * height * wind_sway();
+	// the steady lean of the wind, in the model's own frame
+	vec3 lean = (inverse(MODEL_MATRIX) * vec4(wind_dir() * wind_lean() * up * up * sway * 0.18 * height * length(MODEL_MATRIX[1].xyz), 0.0)).xyz;
+	VERTEX += lean;
 	wup = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz).y;
 	wpos = w;
 }

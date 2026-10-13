@@ -62,6 +62,9 @@ void vertex() {
 	float gust = vnoise2(VERTEX.xz * 0.18 + vec2(TIME * 0.35, TIME * 0.21));
 	float sway = sin(TIME * 1.7 + VERTEX.x * 0.8 + VERTEX.z * 0.6) * 0.35 + gust * 1.1 - 0.4;
 	VERTEX.xz += vec2(1.0, 0.45) * sway * along * along * 0.07 * tall * wind_sway();
+	// the steady lean of the wind, the tips bowed down a little with it
+	VERTEX.xz += wind_dir().xz * wind_lean() * along * along * 0.28 * tall;
+	VERTEX.y -= wind_lean() * along * along * 0.08 * tall;
 	wpos = VERTEX;
 	wnormal = NORMAL;
 }

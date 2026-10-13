@@ -260,7 +260,18 @@ float weathered_spec(float sp, float up, vec3 wp) {
 
 // Wind as a multiplier for anything that sways.
 float wind_sway() {
-	return 0.4 + wind_strength * 1.8;
+	return 0.35 + wind_strength * 3.2;
+}
+
+// The way the wind blows (the same as rain, snow and blown leaves drift),
+// and how far it bends things: a steady push that grows with the square
+// of its strength, so a breeze barely leans and a gale bows everything.
+vec3 wind_dir() {
+	return normalize(vec3(1.0, 0.0, 0.45));
+}
+
+float wind_lean() {
+	return wind_strength * wind_strength;
 }
 
 // The nearest cell in a 3D Voronoi pattern: distance to its edge (x) and

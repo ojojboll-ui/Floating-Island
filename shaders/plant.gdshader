@@ -31,6 +31,8 @@ void vertex() {
 	float flutter = sin(TIME * 5.0 + COLOR.b * 30.0) * 0.12;
 	float sway = COLOR.a * COLOR.a;
 	vec3 move = vec3(push.x + flutter, 0.0, push.y) * sway * 0.07 * length(MODEL_MATRIX[1].xyz) * wind_sway();
+	// and the steady lean of the wind
+	move += wind_dir() * wind_lean() * sway * 0.25 * length(MODEL_MATRIX[1].xyz);
 	VERTEX += (inverse(MODEL_MATRIX) * vec4(move, 0.0)).xyz;
 	wpos = w + move;
 }

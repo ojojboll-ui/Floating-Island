@@ -32,6 +32,10 @@ void vertex() {
 	float sway = sin(TIME * 1.2 + p.x * 0.45 + p.y * 0.3) + 0.6 * vnoise2(p.xz * 0.2 + TIME * 0.3);
 	float flutter = sin(TIME * 5.5 + rnd * 40.0) * 0.5;
 	VERTEX += vec3(sway * 0.05, flutter * 0.02, sway * 0.03) * (0.4 + outer) * wind_sway();
+	// the whole crown streams with the wind, the outer leaves most, and they
+	// shiver faster as it rises
+	VERTEX += wind_dir() * wind_lean() * (0.15 + outer) * 0.22;
+	VERTEX.y += sin(TIME * (7.0 + wind_strength * 9.0) + rnd * 60.0) * 0.012 * wind_strength * outer;
 	wleaf = VERTEX;
 	wnormal = NORMAL;
 }

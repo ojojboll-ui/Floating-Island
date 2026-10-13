@@ -9,6 +9,8 @@ render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabl
 
 instance uniform float seed = 0.0;
 
+varying float lean;
+
 void vertex() {
 	// turn the card to face the camera, keeping it upright
 	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(
@@ -16,6 +18,9 @@ void vertex() {
 		vec4(0.0, 1.0, 0.0, 0.0),
 		vec4(normalize(cross(INV_VIEW_MATRIX[0].xyz, vec3(0.0, 1.0, 0.0))), 0.0),
 		MODEL_MATRIX[3]);
+	// the wind bends the flame over: how much of its way runs across the card
+	vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), INV_VIEW_MATRIX[2].xyz));
+	lean = dot(wind_dir(), right) * (wind_strength * 0.5 + wind_lean() * 0.6);
 	float s = length(MODEL_MATRIX[0].xyz);
 	MODELVIEW_MATRIX = MODELVIEW_MATRIX * mat4(vec4(s, 0.0, 0.0, 0.0), vec4(0.0, s, 0.0, 0.0), vec4(0.0, 0.0, s, 0.0), vec4(0.0, 0.0, 0.0, 1.0));
 }
@@ -25,7 +30,9 @@ void fragment() {
 	float t = TIME * 2.2 + seed;
 	float y = 1.0 - uv.y;
 	// sway and lick: the flame's middle wanders, its edge is torn by noise
-	float x = (uv.x - 0.5) + sin(t * 1.7 + y * 4.0) * 0.06 * y + (vnoise2(vec2(uv.x * 4.0, y * 3.0 - t * 1.6)) - 0.5) * 0.18 * y;
+	// it leans with the wind, more toward its tip, and licks faster
+	t *= 1.0 + wind_strength * 0.8;
+	float x = (uv.x - 0.5) - lean * y * y * 0.5 + sin(t * 1.7 + y * 4.0) * 0.06 * y + (vnoise2(vec2(uv.x * 4.0, y * 3.0 - t * 1.6)) - 0.5) * 0.18 * y;
 	// a teardrop: wide at the foot, drawn to a point
 	float width = 0.42 * (1.0 - y) * smoothstep(0.0, 0.25, y + 0.06) + 0.02;
 	width *= 0.85 + 0.15 * sin(t * 3.1);

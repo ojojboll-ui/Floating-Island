@@ -1503,6 +1503,17 @@ static func run(main: Node, name: String) -> void:
 				print("  without %s: %.2f ms" % [part, await avg.call()])
 				n.process_mode = Node.PROCESS_MODE_INHERIT
 				print("  all: %.2f ms" % await avg.call())
+		"pond_rain":
+			# a pond dug, then seen close in the rain and wind
+			await run(main, "water")
+			await _frames(main, 20)
+			main.rig.aperture = 0.0
+			main.rig.goal_target = Vector3(2.6, 0.3, -1.1)
+			main.rig.goal_distance = 9.0
+			main.rig.goal_pitch = deg_to_rad(30.0)
+			main.rig.settle()
+			main.ui.set_collapsed(true)
+			await _frames(main, 40)
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree
