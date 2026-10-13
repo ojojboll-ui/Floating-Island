@@ -92,3 +92,16 @@ Renderar en bild till `shots/namn.png` och skriver ut fps. `--test` kör ett ins
 - `scripts/brush.gd` – musstrålen marscheras genom höjdfältet (ingen fysik). Varje drag är ett ångra-steg.
 - `scripts/root_builder.gd`, `scripts/root_layer.gd`, `shaders/roots.gdshader` – rötter. Space colonization (Runions m.fl. 2007) upp och ner: ett moln av attraktionspunkter hänger under varje startpunkt och rötterna växer mot det; tjockleken följer rörmodellen. Barken är Quaternius Bark_TwistedTree (CC0). Förhandsvisningen växer i en arbetstråd.
 - `scripts/post.gd`, `shaders/post.gdshader`, `shaders/shafts.gdshader` – effekterna. Glöd, volymljus och hörnskugga är Godots egna. Solstrålarna är en radiell oskärpa mot solen (Mitchell, GPU Gems 3 kap. 13, samma idé som CC0-shadern "Screen Space God Rays" på godotshaders.com), där djupbufferten avgör vad som är öppen himmel. Färg, vinjett, korn och fransar är ett skärmpass under panelen.
+
+## Bygga och köra på Linux och Windows
+
+`./build.sh` exporterar Linux- och Windows-versionen till `builds/` (som inte ligger i git) och zippar dem: `builds/FloatingIsland-linux.zip` och `builds/FloatingIsland-windows.zip`. Det kräver Godots exportmallar för 4.7.2. Mappen `assets/` följer med bredvid programmet, eftersom den inte packas in. Lägg upp zip-filerna som en Release på GitHub.
+
+På Linux: packa upp zip-filen, gör programmet körbart och starta det:
+
+```
+chmod +x FloatingIsland.x86_64
+./FloatingIsland.x86_64
+```
+
+Det behöver en grafikdrivare med Vulkan.

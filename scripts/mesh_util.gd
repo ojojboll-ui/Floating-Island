@@ -3,6 +3,15 @@ extends RefCounted
 ## Winding follows Godot: front faces are clockwise seen from outside.
 
 
+## Where a raw asset file is (the Quaternius files, read as they are): in the
+## project when run from the editor, or in the assets folder shipped beside
+## an exported program (the folder is .gdignore'd, so it is not packed).
+static func asset(rel: String) -> String:
+	if OS.has_feature("template"):
+		return OS.get_executable_path().get_base_dir().path_join("assets").path_join(rel)
+	return "res://assets/" + rel
+
+
 static func face_normal(a: Vector3, b: Vector3, c: Vector3) -> Vector3:
 	return (c - a).cross(b - a)
 

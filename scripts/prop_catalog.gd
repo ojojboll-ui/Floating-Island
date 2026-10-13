@@ -21,6 +21,7 @@ extends RefCounted
 ##   sink       how far into the ground, as a share of its height
 
 const TreeBuilder := preload("res://scripts/tree_builder.gd")
+const MeshUtil := preload("res://scripts/mesh_util.gd")
 const PlantGen := preload("res://scripts/plant_gen.gd")
 const ItemBuilder := preload("res://scripts/item_builder.gd")
 const RockBuilder := preload("res://scripts/rock_builder.gd")
@@ -472,7 +473,7 @@ static func _model(name: String, sway: float, recolor: Color, lawn: bool) -> Dic
 		return _models[name]
 	var doc := GLTFDocument.new()
 	var state := GLTFState.new()
-	var err := doc.append_from_file(MODELS + name + ".gltf", state)
+	var err := doc.append_from_file(MeshUtil.asset("quaternius/" + name + ".gltf"), state)
 	if err != OK:
 		push_error("could not load model " + name)
 		return {"mesh": BoxMesh.new(), "height": 1.0}

@@ -19,6 +19,7 @@ extends Node3D
 
 const RootBuilder := preload("res://scripts/root_builder.gd")
 const IslandMesher := preload("res://scripts/island_mesher.gd")
+const MeshUtil := preload("res://scripts/mesh_util.gd")
 
 enum On { SIDE, UNDER, GROUND }
 
@@ -62,7 +63,7 @@ func setup(island_data, ruin_layer) -> void:
 
 
 static func _texture(file: String) -> ImageTexture:
-	var img := Image.load_from_file("res://assets/quaternius/" + file)
+	var img := Image.load_from_file(MeshUtil.asset("quaternius/" + file))
 	if img == null:
 		return null
 	img.generate_mipmaps()
