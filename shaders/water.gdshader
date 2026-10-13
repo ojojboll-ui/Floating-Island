@@ -48,19 +48,35 @@ void fragment() {
 	float bumpiness = mix(0.012, 0.03, steep);
 	vec3 n = normalize(vec3(-(hx - h0) / e * bumpiness, 1.0, -(hz - h0) / e * bumpiness));
 	// rain: rings spreading where drops land, two sizes overlapping, more
-	// of them the harder it rains; a stream carries them off downstream
+	// of them the harder it rains. A stream carries them off downstream: two
+	// layers each carried along only for a short while before starting over,
+	// half a cycle apart and faded across, so however long it runs the rings
+	// are never smeared out by the current (the usual flow-map trick)
 	float rain_crest = 0.0;
 	if (rain_amount > 0.01) {
-		vec2 rp = wpos.xz * 3.2 - flow * TIME * 1.5;
-		vec2 ra = rain_rings(rp, TIME * 1.6);
-		vec2 rb = rain_rings(rp * 1.7 + 13.0, TIME * 1.9 + 0.5);
+		float cycle = 1.2;
+		float ph_a = fract(TIME / cycle);
+		float ph_b = fract(TIME / cycle + 0.5);
+		float w_a = 1.0 - abs(ph_a * 2.0 - 1.0);
 		float re = 0.01;
-		vec2 rx = rain_rings(rp + vec2(re, 0.0), TIME * 1.6) + rain_rings((rp + vec2(re, 0.0)) * 1.7 + 13.0, TIME * 1.9 + 0.5);
-		vec2 rz = rain_rings(rp + vec2(0.0, re), TIME * 1.6) + rain_rings((rp + vec2(0.0, re)) * 1.7 + 13.0, TIME * 1.9 + 0.5);
-		float r0 = ra.x + rb.x;
+		vec3 acc = vec3(0.0);   // ring height, slope x, slope z
+		float crest = 0.0;
+		for (int layer = 0; layer < 2; layer++) {
+			float ph = layer == 0 ? ph_a : ph_b;
+			float wgt = layer == 0 ? w_a : 1.0 - w_a;
+			vec2 carry = flow / max(1.0, length(flow));
+			vec2 rp = wpos.xz * 3.2 - carry * ph * cycle * 1.2 + float(layer) * vec2(17.3, 5.1);
+			vec2 ra = rain_rings(rp, TIME * 1.6);
+			vec2 rb = rain_rings(rp * 1.7 + 13.0, TIME * 1.9 + 0.5);
+			vec2 rx = rain_rings(rp + vec2(re, 0.0), TIME * 1.6) + rain_rings((rp + vec2(re, 0.0)) * 1.7 + 13.0, TIME * 1.9 + 0.5);
+			vec2 rz = rain_rings(rp + vec2(0.0, re), TIME * 1.6) + rain_rings((rp + vec2(0.0, re)) * 1.7 + 13.0, TIME * 1.9 + 0.5);
+			float r0 = ra.x + rb.x;
+			acc += vec3(r0, (rx.x - r0) / re, (rz.x - r0) / re) * wgt;
+			crest += max(ra.y, rb.y) * wgt;
+		}
 		float strength = rain_amount * 0.012;
-		n = normalize(n + vec3(-(rx.x - r0) / re, 0.0, -(rz.x - r0) / re) * strength);
-		rain_crest = max(ra.y, rb.y) * rain_amount;
+		n = normalize(n + vec3(-acc.y, 0.0, -acc.z) * strength);
+		rain_crest = crest * rain_amount;
 	}
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 

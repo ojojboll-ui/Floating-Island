@@ -1507,9 +1507,15 @@ static func run(main: Node, name: String) -> void:
 			# a pond dug, then seen close in the rain and wind
 			await run(main, "water")
 			await _frames(main, 20)
+			for a in OS.get_cmdline_user_args():
+				if a == "--stream":
+					main.rig.goal_target = Vector3(5.5, 0.2, -1.7)
 			main.rig.aperture = 0.0
 			main.rig.goal_target = Vector3(2.6, 0.3, -1.1)
 			main.rig.goal_distance = 9.0
+			if "--stream" in OS.get_cmdline_user_args():
+				main.rig.goal_target = Vector3(5.5, 0.2, -1.7)
+				main.rig.goal_distance = 6.0
 			main.rig.goal_pitch = deg_to_rad(30.0)
 			main.rig.settle()
 			main.ui.set_collapsed(true)
