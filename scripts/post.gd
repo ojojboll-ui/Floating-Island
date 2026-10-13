@@ -29,10 +29,14 @@ var vignette := 0.25
 var grain := 0.0
 var aberration := 0.0
 var sharpen := 0.0
+## Snabbläge: cheaper edges (FXAA instead of MSAA) and no indirect light
+## bounce (SSIL), about 2 ms a frame, for slower machines. Exports keep
+## their own full quality.
+var fast := false
 
 const SETTINGS := ["glow", "glow_bloom", "glow_threshold", "rays", "ray_length", "volume", "volume_glow",
 	"occlusion", "contrast", "brightness", "temperature", "tint", "shadow_tint", "highlight_tint",
-	"vignette", "grain", "aberration", "sharpen"]
+	"vignette", "grain", "aberration", "sharpen", "fast"]
 
 var material: ShaderMaterial
 var weather
@@ -100,6 +104,12 @@ func apply() -> void:
 	env.ssao_enabled = occlusion > 0.01
 	env.adjustment_contrast = contrast
 	env.adjustment_brightness = brightness
+	# a film renders in full quality whatever Snabbläge says
+	var cheap := fast and OS.get_cmdline_args().find("--write-movie") < 0
+	env.ssil_enabled = not cheap
+	var vp := get_viewport()
+	vp.msaa_3d = Viewport.MSAA_DISABLED if cheap else Viewport.MSAA_2X
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if cheap else Viewport.SCREEN_SPACE_AA_DISABLED
 
 	# volumetric light: a thin haze all through the air, lit by the sun and
 	# shadowed by everything on the island, so shafts fall between them

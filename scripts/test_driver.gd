@@ -1514,6 +1514,23 @@ static func run(main: Node, name: String) -> void:
 			main.rig.settle()
 			main.ui.set_collapsed(true)
 			await _frames(main, 40)
+		"fast_mode":
+			# GPU time with Snabbläge off and on, switched through its button
+			var vp: RID = main.get_viewport().get_viewport_rid()
+			RenderingServer.viewport_set_measure_render_time(vp, true)
+			main.ui.tabs.current_tab = 7
+			await _frames(main, 3)
+			var measure := func(label: String) -> void:
+				await _frames(main, 20)
+				var sum := 0.0
+				for k in 60:
+					await _frames(main, 1)
+					sum += RenderingServer.viewport_get_measured_render_time_gpu(vp)
+				print("  %-12s %5.2f ms" % [label, sum / 60.0])
+			await measure.call("full")
+			await _click(main, main.ui.buttons["Snabbläge"])
+			await measure.call("Snabbläge")
+			print("  fast: %s, msaa %d, ssil %s" % [main.post.fast, main.get_viewport().msaa_3d, main.weather.env.ssil_enabled])
 		"paint_over":
 			# flowers painted over a bush and stones: they are taken away, flowers
 			# stay where they were; then the ghost of a boulder over a tree

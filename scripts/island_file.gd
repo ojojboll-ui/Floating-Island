@@ -106,11 +106,15 @@ static func still(main: Node, size: Vector2i) -> String:
 	cam.global_transform = src.global_transform
 	cam.current = true
 	sub.add_child(main.Post.make_layer(main.post.material_for(Vector2(size))))
+	# full quality for the picture, whatever Snabbläge says for the live view
+	var was_fast: bool = main.post.fast
+	main.post.weather.env.ssil_enabled = true
 	# a few frames so screen-space effects settle at the new size
 	for k in 4:
 		await RenderingServer.frame_post_draw
 	var img := sub.get_texture().get_image()
 	sub.queue_free()
+	main.post.weather.env.ssil_enabled = not was_fast
 	var path := export_folder().path_join("Ö %s.png" % stamp())
 	img.save_png(path)
 	return path

@@ -564,6 +564,14 @@ func _effects_row() -> Control:
 	add.call(lens, "Skärpa", p, "sharpen", 0.0, 1.0, "%", "Skärper kanterna")
 	add.call(lens, "Hörnskugga", p, "occlusion", 0.0, 2.0, "x", "Skuggan i vrår och där saker möter marken")
 	row.add_child(lens)
+	var fast := CheckButton.new()
+	fast.text = "Snabbläge"
+	fast.tooltip_text = "Billigare kantutjämning och inget studsande ljus (SSIL): ungefär 2 ms snabbare per bild. Gräset blir lite mjukare i kanterna. Bilder och filmer som exporteras får full kvalitet ändå"
+	fast.focus_mode = Control.FOCUS_NONE
+	fast.button_pressed = p.fast
+	fast.toggled.connect(func(on: bool) -> void: p.fast = on)
+	buttons["Snabbläge"] = fast
+	row.add_child(fast)
 	var reset := Button.new()
 	reset.text = "Återställ effekterna"
 	reset.focus_mode = Control.FOCUS_NONE
@@ -571,6 +579,7 @@ func _effects_row() -> Control:
 	reset.pressed.connect(func() -> void:
 		p.reset()
 		w.saturation = 1.0
+		fast.set_pressed_no_signal(p.fast)
 		for d in dials:
 			(d[0] as HSlider).set_value_no_signal(d[1].get(d[2]))
 			_show(d[0])

@@ -54,7 +54,7 @@ Fliken **Ljus**: färgton för himmel, horisont, under, moln, sol och dimma (vit
 
 Fliken **Kamera**: Lins (Brännvidd, Fokus, Bländare) · Bild (Zoom, Vinkel, Höjd; följer musen; en rullgardin **Kameravyer** (Standard, Miniatyr, Ovanifrån, Låg vinkel, Underifrån, Närbild, Vidvinkel, Teleobjektiv) sätter vinkel, höjd, zoom och lins; **Återställ kameran** går tillbaka till den valda vyn; rotationen ändras inte) · **Rotation**: Fart (°/s), Variation, Tid, Medsols/Motsols · **Höjdvåg**: Styrka (m upp och ner), Tid. Båda vågorna formas för hand genom att dra punkterna i kurvan; Sinus återställer. Kameran kretsar runt öns mitt och står längre bort ju större ön är; moln och skärpedjup följer med.
 
-Fliken **Effekter**:
+Fliken **Effekter**: **Snabbläge** (längst ner) byter kantutjämningen mot en billigare (FXAA) och stänger av det studsande ljuset (SSIL), ungefär 2 ms snabbare per bild; exporterade bilder och filmer får full kvalitet ändå.
 - **Glöd**: Styrka, Bloom, Tröskel.
 - **Ljusstrålar**: Strålar och Längd (solstrålar när solen syns i eller strax utanför bild), Volymljus och Ljus i dis (ett dis runt ön som solen lyser upp, så ljuset faller i skaft mellan träd och murar).
 - **Färg**: Kontrast, Ljushet, Mättnad, Temperatur, Färgton, och en färg för Skuggor och en för Högdagrar.
