@@ -1381,7 +1381,7 @@ static func run(main: Node, name: String) -> void:
 					side_yaw = float(a.substr(7))
 			main.rig.goal_yaw = deg_to_rad(side_yaw)
 			main.rig.goal_pitch = deg_to_rad(8.0)
-			main.rig.goal_distance = 4.5
+			main.rig.goal_distance = 7.0
 			main.rig.goal_target = Vector3(0.0, 1.5, 1.0)
 			main.rig.settle()
 			main.ui.set_collapsed(true)

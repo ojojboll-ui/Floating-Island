@@ -342,8 +342,19 @@ static func wall(data, path: PackedVector2Array, seed: int, height: float, age: 
 		tall = top_abs - ground_ref
 	var y := 0.0
 	var thick := WALL_THICK
+	# the stretches of the course below where stones stand, so a stone only
+	# stays up when at least half of it rests on something: the course below,
+	# the ground, or the ring over a door, window or arch
+	var below: Array = []
+	# how high the stones stand unbroken from the foot, every 10 cm along the
+	# wall, so the mortar core behind stops where they do
+	var solid := PackedFloat32Array()
+	solid.resize(int(length / 0.1) + 2)
+	for i in solid.size():
+		solid[i] = lift.call(i * 0.1)
 	while y < tall - 0.05:
 		var ch := rng.randf_range(0.22, 0.3)
+		var here: Array = []
 		var s := -rng.randf_range(0.0, 0.3)
 		while s < length:
 			var len := rng.randf_range(0.34, 0.62)
@@ -396,14 +407,21 @@ static func wall(data, path: PackedVector2Array, seed: int, height: float, age: 
 				var standing: bool = yl + ch * 0.5 < top.call(mid)
 				if standing and doorway.call(mid) > 0.0 and unsupported.call(mid):
 					standing = false
+				if standing and not _rests(s0, s1, yl, below, rings, doorway, unsupported):
+					standing = false
 				if standing:
 					var out := Vector2(-dir.y, dir.x) * rng.randf_range(-0.01, 0.01)
+					here.append([s0, s1])
+					for i in range(int(s0 / 0.1), mini(int(s1 / 0.1) + 1, solid.size())):
+						if solid[i] >= y - 0.06:
+							solid[i] = maxf(solid[i], y + sh)
 					block(st, Vector3(p.x + out.x, ground_ref + y + sh * 0.5, p.y + out.y), basis, size, _stone_tint(rng))
 				elif rng.randf() < 0.3 * age:
 					var side := 1.0 if rng.randf() < 0.5 else -1.0
 					var drop := p + Vector2(-dir.y, dir.x) * side * rng.randf_range(0.45, 1.3) + dir * rng.randf_range(-0.3, 0.3)
 					if data.sample_sdf(drop.x, drop.y) > 0.2:
 						_fallen(st, data, rng, drop, size * 0.9)
+		below = here
 		y += ch
 	# round heads over doors and windows: small wedge stones round the arc
 	for rg in rings:
@@ -430,6 +448,15 @@ static func wall(data, path: PackedVector2Array, seed: int, height: float, age: 
 		var dir: Vector2 = at[1]
 		var ground: float = data.sample_height(p.x, p.y) - 0.12
 		block(st, Vector3(p.x, ground + float(h.bottom) - 0.07, p.y), Basis(Vector3.UP, atan2(-dir.y, dir.x)), Vector3(float(h.hw) * 2.0 + 0.2, 0.13, thick + 0.12), _stone_tint(rng))
+	# over doors, windows and arches the ring carries the wall: the core is
+	# not cut short there
+	for i in solid.size():
+		var si := i * 0.1
+		if doorway.call(si) > 0.0:
+			solid[i] = INF
+		for rg in rings:
+			if absf(si - float(rg[0])) < float(rg[1]) + 0.3:
+				solid[i] = INF
 	# a dark mortar core, so the gaps show joints and not daylight
 	var step := 0.2
 	# stop short of the ends, where the stones should show and not the core
@@ -442,6 +469,9 @@ static func wall(data, path: PackedVector2Array, seed: int, height: float, age: 
 		var ground: float = data.sample_height(p.x, p.y) - 0.12
 		# kept below the top course, which may stand half a stone lower
 		var h: float = minf(top.call(s), top.call(s1)) - 0.2
+		# and no higher than the stones in front of it still stand
+		var lc0: float = ground - ground_ref
+		h = minf(h, minf(solid[mini(int(s / 0.1), solid.size() - 1)], solid[mini(int(s1 / 0.1), solid.size() - 1)]) - lc0 - 0.08)
 		if not is_nan(top_abs):
 			h = minf(h, top_abs - ground - 0.05)
 		var bottom: float = maxf(doorway.call(s), doorway.call(s1))
@@ -486,6 +516,29 @@ static func wall(data, path: PackedVector2Array, seed: int, height: float, age: 
 
 
 # --- pillars, arches, stairs -----------------------------------------------------
+
+## Whether a stone from s0 to s1 along a wall, `yl` above its foot, rests
+## on something for at least half its length, its middle over it: the ground, the stones of the
+## course below (`below`, stretches along the wall), or the ring of wedge
+## stones over a door, window or arch.
+static func _rests(s0: float, s1: float, yl: float, below: Array, rings: Array, doorway: Callable, unsupported: Callable) -> bool:
+	if yl < 0.12:
+		return true
+	var mid := (s0 + s1) * 0.5
+	if doorway.call(mid) > 0.0 and not unsupported.call(mid):
+		return true
+	for rg in rings:
+		if absf(mid - float(rg[0])) < float(rg[1]) + 0.3 and yl > float(rg[2]):
+			return true
+	# as a real stone: its middle must lie over something, or it tips off
+	var held := 0.0
+	var centred := false
+	for b in below:
+		held += maxf(0.0, minf(s1, float(b[1])) - maxf(s0, float(b[0])))
+		if mid >= float(b[0]) - 0.02 and mid <= float(b[1]) + 0.02:
+			centred = true
+	return centred and held >= (s1 - s0) * 0.5
+
 
 ## A column: square plinth, a shaft of drums, a capital. Age breaks it off
 ## partway and lays a drum or two in the grass.
@@ -753,9 +806,10 @@ static func paving(terrain, cells: Array, level: float, raised: bool, seed: int,
 				# a band of edge stones in front of the dark bed
 				var band := centre + Vector2(side) * (FLOOR_CELL * 0.5 - 0.14)
 				block(st, Vector3(band.x, level - 0.2, band.y), basis, Vector3(FLOOR_CELL - GAP, 0.22, 0.28), _stone_tint(rng))
+				# a course falls with all that stood on it
 				for course in 2:
 					if rng.randf() < age * (0.35 + course * 0.4):
-						continue
+						break
 					block(st, Vector3(edge.x, level + 0.13 + course * 0.24, edge.y), basis, Vector3(FLOOR_CELL - GAP, 0.22, 0.24), _stone_tint(rng))
 		elif not hole:
 			var y: float = terrain.sample_height(centre.x, centre.y)
