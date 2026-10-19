@@ -1520,6 +1520,41 @@ static func run(main: Node, name: String) -> void:
 			main.rig.settle()
 			main.ui.set_collapsed(true)
 			await _frames(main, 40)
+		"warmup":
+			# the loading screen (run with --warmup, and --gpu=weak to pretend the
+			# graphics are built in), then the picture after it
+			if main.warmup != null:
+				await main.warmup.finished
+			print("  fast: %s, msaa %d, ssil %s, gpu %s (type %d)" % [main.post.fast, main.get_viewport().msaa_3d, main.weather.env.ssil_enabled, RenderingServer.get_video_adapter_name(), RenderingServer.get_video_adapter_type()])
+		"hitches":
+			# one of every kind placed in turn, after the warm-up if there is one:
+			# the longest frame, and how many took over 50 ms
+			if main.warmup != null:
+				await main.warmup.finished
+			await _frames(main, 10)
+			var rng := RandomNumberGenerator.new()
+			var worst := 0.0
+			var slow := 0
+			var started := Time.get_ticks_msec()
+			var n := 0
+			for kind: String in main.props.Catalog.KINDS:
+				var a := TAU * n / 12.0
+				var r := 1.5 + 0.25 * n
+				n += 1
+				main.props.add(kind, cos(a) * minf(r, 5.0), sin(a) * minf(r, 5.0), rng)
+				var last := Time.get_ticks_usec()
+				for k in 3:
+					await RenderingServer.frame_post_draw
+					var now := Time.get_ticks_usec()
+					var dt := (now - last) / 1000.0
+					last = now
+					worst = maxf(worst, dt)
+					if dt > 50.0:
+						slow += 1
+			print("  %d kinds placed in %d ms: worst frame %.0f ms, %d frames over 50 ms" % [n, Time.get_ticks_msec() - started, worst, slow])
+		"warmup_screen":
+			# the loading screen itself, half way
+			await _frames(main, 12)
 		"fast_mode":
 			# GPU time with Snabbläge off and on, switched through its button
 			var vp: RID = main.get_viewport().get_viewport_rid()

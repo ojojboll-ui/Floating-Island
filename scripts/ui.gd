@@ -566,10 +566,12 @@ func _effects_row() -> Control:
 	row.add_child(lens)
 	var fast := CheckButton.new()
 	fast.text = "Snabbläge"
-	fast.tooltip_text = "Billigare kantutjämning och inget studsande ljus (SSIL): ungefär 2 ms snabbare per bild. Gräset blir lite mjukare i kanterna. Bilder och filmer som exporteras får full kvalitet ändå"
+	fast.tooltip_text = "Billigare kantutjämning, inget studsande ljus (SSIL), mindre och skarpare solskuggor, grövre dimma och skärpedjup: ungefär 3 ms snabbare per bild. Slås på av sig själv när datorn inte hinner med, och valet sparas på datorn. Bilder och filmer som exporteras får full kvalitet ändå"
 	fast.focus_mode = Control.FOCUS_NONE
 	fast.button_pressed = p.fast
-	fast.toggled.connect(func(on: bool) -> void: p.fast = on)
+	fast.toggled.connect(func(on: bool) -> void:
+		p.fast = on
+		p.save_fast())
 	buttons["Snabbläge"] = fast
 	row.add_child(fast)
 	var reset := Button.new()

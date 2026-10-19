@@ -29,14 +29,24 @@ var vignette := 0.25
 var grain := 0.0
 var aberration := 0.0
 var sharpen := 0.0
-## Snabbläge: cheaper edges (FXAA instead of MSAA) and no indirect light
-## bounce (SSIL), about 2 ms a frame, for slower machines. Exports keep
-## their own full quality.
+## Snabbläge, for slower machines: cheaper edges (FXAA instead of MSAA), no
+## indirect light bounce (SSIL), a smaller and less soft sun shadow, a coarser
+## grid for the mist and the volumetric light, and a cheaper depth of field.
+## Exports keep their own full quality (`full_quality`). It belongs to the
+## computer, not the island, so it is kept in its own file (PREFS), not in
+## the island's settings.
 var fast := false
+## Full quality whatever Snabbläge says, while a still is exported.
+var full_quality := false
+## Whether a choice is saved (not in test runs).
+var remember := true
+var _quality := -1   # what the renderer was last set to: 0 cheap, 1 full
+
+const PREFS := "user://settings.cfg"
 
 const SETTINGS := ["glow", "glow_bloom", "glow_threshold", "rays", "ray_length", "volume", "volume_glow",
 	"occlusion", "contrast", "brightness", "temperature", "tint", "shadow_tint", "highlight_tint",
-	"vignette", "grain", "aberration", "sharpen", "fast"]
+	"vignette", "grain", "aberration", "sharpen"]
 
 var material: ShaderMaterial
 var weather
@@ -105,11 +115,12 @@ func apply() -> void:
 	env.adjustment_contrast = contrast
 	env.adjustment_brightness = brightness
 	# a film renders in full quality whatever Snabbläge says
-	var cheap := fast and OS.get_cmdline_args().find("--write-movie") < 0
+	var cheap := fast and not full_quality and OS.get_cmdline_args().find("--write-movie") < 0
 	env.ssil_enabled = not cheap
 	var vp := get_viewport()
 	vp.msaa_3d = Viewport.MSAA_DISABLED if cheap else Viewport.MSAA_2X
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if cheap else Viewport.SCREEN_SPACE_AA_DISABLED
+	_set_quality(not cheap)
 
 	# volumetric light: a thin haze all through the air, lit by the sun and
 	# shadowed by everything on the island, so shafts fall between them
@@ -142,6 +153,37 @@ func apply() -> void:
 	material.set_shader_parameter("grain", grain)
 	material.set_shader_parameter("aberration", aberration)
 	material.set_shader_parameter("sharpen", sharpen)
+
+
+## The renderer's own settings Snabbläge lowers (full: as in project.godot),
+## set only when they change.
+func _set_quality(full: bool) -> void:
+	var q := 1 if full else 0
+	if q == _quality:
+		return
+	_quality = q
+	RenderingServer.directional_shadow_atlas_set_size(4096 if full else 2048, true)
+	RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_HIGH if full else RenderingServer.SHADOW_QUALITY_SOFT_LOW)
+	RenderingServer.environment_set_volumetric_fog_volume_size(96 if full else 64, 64 if full else 40)
+	RenderingServer.camera_attributes_set_dof_blur_quality(RenderingServer.DOF_BLUR_QUALITY_HIGH if full else RenderingServer.DOF_BLUR_QUALITY_LOW, false)
+
+
+## Snabbläge as chosen on this computer before. False when nobody has chosen.
+func load_fast() -> bool:
+	var cfg := ConfigFile.new()
+	if cfg.load(PREFS) != OK or not cfg.has_section_key("graphics", "fast"):
+		return false
+	fast = bool(cfg.get_value("graphics", "fast"))
+	return true
+
+
+func save_fast() -> void:
+	if not remember:
+		return
+	var cfg := ConfigFile.new()
+	cfg.load(PREFS)
+	cfg.set_value("graphics", "fast", fast)
+	cfg.save(PREFS)
 
 
 ## Where the sun stands on the screen of `cam`, and how much it shines in.

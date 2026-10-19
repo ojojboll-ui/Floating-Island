@@ -6,6 +6,7 @@ extends Node3D
 ## --hour=h --moon_phase=0..1 --clouds= --fog= --rain= --snow= --wind=
 ## --fireflies= (0..1) --open=file.island --record=seconds [--loop] --test=name (see test_driver.gd) --noui
 ## --target=x,y,z (what the camera orbits) --tab=n --fold, and any setting of post.gd, e.g. --rays=1
+## --fast=0/1 (Snabbläge), --warmup (the loading screen in a test run), --gpu=weak
 
 const IslandData := preload("res://scripts/island_data.gd")
 const IslandView := preload("res://scripts/island_view.gd")
@@ -20,6 +21,7 @@ const TestDriver := preload("res://scripts/test_driver.gd")
 const IslandFile := preload("res://scripts/island_file.gd")
 const Post := preload("res://scripts/post.gd")
 const RootLayer := preload("res://scripts/root_layer.gd")
+const Warmup := preload("res://scripts/warmup.gd")
 
 var data
 var view
@@ -32,6 +34,7 @@ var ui
 var weather
 var post
 var roots
+var warmup   # the loading screen while it lasts
 var args_age := -1.0   # --age=x for tests
 var args_yaw := -12.0   # --view_yaw=deg for tests that set their own view
 var args_dist := 12.0
@@ -127,6 +130,21 @@ func _ready() -> void:
 	for key in post.SETTINGS:
 		if args.has(key) and not key.ends_with("_tint"):
 			post.set(key, float(args[key]))
+	# Snabbläge: from the command line, as chosen on this computer before, or
+	# left to the warm-up to judge. Test and film runs keep to their arguments
+	# and remember nothing.
+	var testing := args.has("snapshot") or args.has("record")
+	post.remember = not testing
+	var chosen := testing
+	if args.has("fast"):
+		post.fast = float(args["fast"]) > 0.5
+		chosen = true
+	elif not testing:
+		chosen = post.load_fast()
+	if not testing or args.has("warmup"):
+		warmup = Warmup.new()
+		add_child(warmup)
+		warmup.run(self, chosen and not args.has("warmup"), args.get("gpu", "") == "weak")
 
 	if args.has("open"):
 		IslandFile.open(self, args["open"])
