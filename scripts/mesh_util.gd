@@ -3,6 +3,25 @@ extends RefCounted
 ## Winding follows Godot: front faces are clockwise seen from outside.
 
 
+## The lighter look: Godot's Compatibility renderer (WebGL 2 in the web
+## build), which has no volumetric fog, SSIL or depth of field. The mist is
+## drawn as layers instead (mist_layers.gdshader) and those dials are hidden.
+static func lite() -> bool:
+	return RenderingServer.get_current_rendering_method() == "gl_compatibility"
+
+
+## Running in a browser: files go through downloads and uploads.
+static func web() -> bool:
+	return OS.has_feature("web")
+
+
+## Whether a WorkerThreadPool task is done, so it can be waited for. A web
+## build without threads runs a task when it is waited for, so it is always
+## ready.
+static func task_done(id: int) -> bool:
+	return WorkerThreadPool.is_task_completed(id) or (web() and not OS.has_feature("threads"))
+
+
 ## Where a raw asset file is (the Quaternius files, read as they are): in the
 ## project when run from the editor, or in the assets folder shipped beside
 ## an exported program (the folder is .gdignore'd, so it is not packed).

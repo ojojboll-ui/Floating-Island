@@ -33,7 +33,7 @@ const PlantGen := preload("res://scripts/plant_gen.gd")
 
 const GOLDEN := 2.39996   # radians
 
-static var _bark_normal: ImageTexture
+static var _bark_normal: Texture2D
 
 
 ## The bark's colour and the Mossa, Struktur and Relief dials; `climb` is
@@ -113,10 +113,7 @@ static func _bark_material() -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/bark.gdshader")
 	if _bark_normal == null:
-		var img := Image.load_from_file(MeshUtil.asset("quaternius/Bark_NormalTree_Normal.png"))
-		if img:
-			img.generate_mipmaps()
-			_bark_normal = ImageTexture.create_from_image(img)
+		_bark_normal = load("res://textures/Bark_NormalTree_Normal.png")
 	if _bark_normal:
 		mat.set_shader_parameter("normal_tex", _bark_normal)
 		mat.set_shader_parameter("has_normal", true)

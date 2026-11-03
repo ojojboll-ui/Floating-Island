@@ -17,11 +17,12 @@ extends CanvasLayer
 signal finished
 
 const Catalog := preload("res://scripts/prop_catalog.gd")
+const MeshUtil := preload("res://scripts/mesh_util.gd")
 
-## Spatial shaders, each drawn on a ball so it is compiled before it is needed.
-const SHADERS := ["bark", "bark_tex", "cliff", "cloud", "fish", "flame", "foliage", "ghost", "ghost_front",
-	"grass", "ground", "item", "leaves", "lily", "plant", "reeds", "rock", "roots", "ruin_stone", "spray",
-	"water", "waterfall", "wood"]
+## Spatial shaders nothing else here draws (the island draws its ground,
+## cliff, grass and clouds, the things their own), each on a ball so it is
+## compiled before it is needed.
+const SHADERS := ["fish", "ghost", "ghost_front", "roots", "spray", "water", "waterfall", "mist_layers"]
 ## A picture slower than this (seconds a frame) cannot keep up.
 const SLOW_FRAME := 1.0 / 32.0
 
@@ -111,8 +112,7 @@ func _build_screen() -> void:
 func _warm() -> void:
 	var cam: Camera3D = main.rig.camera
 	_stage = Node3D.new()
-	cam.add_child(_stage)
-	_stage.position = Vector3(-cam.h_offset, 0.0, -5.0)
+	main.add_child(_stage)
 	var jobs: Array[Callable] = []
 	for kind: String in Catalog.KINDS:
 		jobs.append(func() -> Node3D: return _thing(kind))
@@ -135,6 +135,28 @@ func _warm() -> void:
 	main.post.volume = maxf(volume, 0.3)
 	await _frames(6)
 	main.post.volume = volume
+	# then everything, the island too, lit by a fire's light (and with its
+	# shadow, where fires cast one): the lighter look (the web) draws each
+	# shader again for a light that reaches it, so the first fire or torch
+	# placed would otherwise stall the picture for seconds. The things' own
+	# lights stay off until here, or every shader near them would be built
+	# for them, and none for the dark.
+	var lights: Array[OmniLight3D] = []
+	var centre: Vector3 = main.rig.island_center
+	for at: Vector3 in [centre + Vector3(0.0, 2.0, 0.0), _stage.global_position]:
+		var l := OmniLight3D.new()
+		l.omni_range = maxf(float(main.rig.island_radius) * 1.6, 8.0)
+		l.light_energy = 0.5
+		add_child(l)
+		l.global_position = at
+		lights.append(l)
+	await _frames(4)
+	if not MeshUtil.lite():
+		for l in lights:
+			l.shadow_enabled = true
+		await _frames(4)
+	for l in lights:
+		l.queue_free()
 
 
 ## One of a kind of thing, as the layer would build it, about half a metre.
@@ -149,6 +171,8 @@ func _thing(kind: String) -> Node3D:
 		rec.size = main.props._styled_size(rec)
 	var node := Catalog.build(rec)
 	var tall := maxf(float(node.get_meta("tall", 1.0)), 0.1)
+	for l in node.find_children("*", "Light3D", true, false):
+		(l as Light3D).visible = false
 	node.scale *= 0.5 / maxf(tall, 0.5)
 	return node
 
@@ -201,6 +225,18 @@ func _too_slow() -> bool:
 	return middle > SLOW_FRAME
 
 
+## Keep the stage in the middle of the picture, 5 m out: the camera is
+## shifted sideways clear of the panel (so straight ahead of it is off to
+## one side), and it still settles while the screen is up.
+func _aim_stage() -> void:
+	if not is_instance_valid(_stage):
+		return
+	var cam: Camera3D = main.rig.camera
+	var middle: Vector2 = main.get_viewport().get_visible_rect().size * 0.5
+	_stage.global_transform = Transform3D(cam.global_basis, cam.project_position(middle, 5.0))
+
+
 func _frames(n: int) -> void:
 	for k in n:
+		_aim_stage()
 		await RenderingServer.frame_post_draw

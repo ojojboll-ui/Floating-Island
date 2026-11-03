@@ -62,12 +62,10 @@ func setup(island_data, ruin_layer) -> void:
 	_raster.fill(-INF)
 
 
-static func _texture(file: String) -> ImageTexture:
-	var img := Image.load_from_file(MeshUtil.asset("quaternius/" + file))
-	if img == null:
-		return null
-	img.generate_mipmaps()
-	return ImageTexture.create_from_image(img)
+## Quaternius bark (CC0), packed with the program (textures/), so the web
+## build has it too.
+static func _texture(file: String) -> Texture2D:
+	return load("res://textures/" + file)
 
 
 ## Whether p is inside the island: under the ground and above the underside.
@@ -248,7 +246,7 @@ func _process(_delta: float) -> void:
 	if _raster_dirty and _task < 0:
 		_raster_dirty = false
 		_refresh()
-	if _task >= 0 and WorkerThreadPool.is_task_completed(_task):
+	if _task >= 0 and MeshUtil.task_done(_task):
 		WorkerThreadPool.wait_for_task_completion(_task)
 		_task = -1
 		if _showing:

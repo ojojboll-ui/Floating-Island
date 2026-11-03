@@ -115,6 +115,10 @@ static func still(main: Node, size: Vector2i) -> String:
 	var img := sub.get_texture().get_image()
 	sub.queue_free()
 	main.post.full_quality = false
+	if OS.has_feature("web"):
+		var name := "Ö %s.png" % stamp()
+		download(img.save_png_to_buffer(), name, "image/png")
+		return name
 	var path := export_folder().path_join("Ö %s.png" % stamp())
 	img.save_png(path)
 	return path
@@ -161,3 +165,62 @@ static func film(main: Node, seconds: float, size: Vector2i, wallpaper: bool) ->
 		args.append("--loop")
 	OS.create_process(OS.get_executable_path(), args)
 	return out
+
+
+## In a browser there is no file system to save into: an island or a
+## picture is handed to the browser as a download instead.
+static func download(bytes: PackedByteArray, name: String, mime: String) -> void:
+	JavaScriptBridge.download_buffer(bytes, name, mime)
+
+
+## The island as a download, in the browser.
+static func download_island(main: Node, name: String) -> Error:
+	var temp := "user://download.island"
+	var err := save(main, temp)
+	if err == OK:
+		download(FileAccess.get_file_as_bytes(temp), name, "application/octet-stream")
+	return err
+
+
+## The browser's own file picker, for opening an island: `done` gets the
+## file's bytes. The picker runs in the page, so the file comes back as
+## base64 through a callback that must stay alive until then.
+static var _upload_callback: JavaScriptObject
+
+static func pick_upload(done: Callable) -> void:
+	_upload_callback = JavaScriptBridge.create_callback(func(args: Array) -> void:
+		done.call(Marshalls.base64_to_raw(String(args[0]))))
+	var window = JavaScriptBridge.get_interface("window")
+	window.floatingIslandUpload = _upload_callback
+	JavaScriptBridge.eval("""
+		(function () {
+			var input = document.createElement('input');
+			input.type = 'file';
+			input.accept = '.island';
+			input.onchange = function () {
+				var file = input.files[0];
+				if (!file) return;
+				var reader = new FileReader();
+				reader.onload = function () {
+					var bytes = new Uint8Array(reader.result);
+					var text = '';
+					for (var i = 0; i < bytes.length; i += 0x8000)
+						text += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+					window.floatingIslandUpload(btoa(text));
+				};
+				reader.readAsArrayBuffer(file);
+			};
+			input.click();
+		})();
+	""", true)
+
+
+## Open an island from the bytes of an uploaded file.
+static func open_bytes(main: Node, bytes: PackedByteArray) -> Error:
+	var temp := "user://upload.island"
+	var f := FileAccess.open(temp, FileAccess.WRITE)
+	if f == null:
+		return FileAccess.get_open_error()
+	f.store_buffer(bytes)
+	f.close()
+	return open(main, temp)

@@ -404,7 +404,9 @@ static func build(gen: String, st: Dictionary, seed: int, extra := {}) -> Node3D
 		l.light_energy = 1.4 * glow
 		l.omni_range = 4.5 if gen in ["firepit", "torch"] else 2.6
 		l.omni_attenuation = 1.6
-		l.shadow_enabled = gen == "firepit"
+		# the lighter look (the web) draws a shadowed light in a pass of its
+		# own over everything it reaches, so its fires cast no shadows
+		l.shadow_enabled = gen == "firepit" and not MeshUtil.lite()
 		l.set_meta("flicker", l.light_energy)
 		root.add_child(l)
 	var box := body.mesh.get_aabb() if body.mesh.get_surface_count() > 0 else AABB()

@@ -56,6 +56,7 @@ var _shafts: MeshInstance3D
 var _shafts_mat: ShaderMaterial
 var _haze: FogVolume
 var _haze_mat: FogMaterial
+var _lite := false   # no volumetric fog (MeshUtil.lite)
 
 
 func setup(weather_node, rig_node) -> void:
@@ -76,6 +77,7 @@ func setup(weather_node, rig_node) -> void:
 	_shafts.extra_cull_margin = 16384.0
 	_shafts.position = Vector3(0.0, 0.0, -1.0)
 	rig.camera.add_child(_shafts)
+	_lite = RenderingServer.get_current_rendering_method() == "gl_compatibility"
 	# the haze for the volumetric light: a box of air round the island only,
 	# so the air between the camera and the island stays clear
 	_haze_mat = FogMaterial.new()
@@ -83,7 +85,8 @@ func setup(weather_node, rig_node) -> void:
 	_haze_mat.height_falloff = 0.0
 	_haze = FogVolume.new()
 	_haze.shape = RenderingServer.FOG_VOLUME_SHAPE_ELLIPSOID
-	_haze.material = _haze_mat
+	if not _lite:
+		_haze.material = _haze_mat
 	add_child(_haze)
 	apply()
 
@@ -124,8 +127,8 @@ func apply() -> void:
 
 	# volumetric light: a thin haze all through the air, lit by the sun and
 	# shadowed by everything on the island, so shafts fall between them
-	_haze.visible = volume > 0.01
-	if volume > 0.01:
+	_haze.visible = volume > 0.01 and not _lite
+	if _haze.visible:
 		env.volumetric_fog_enabled = true
 		env.volumetric_fog_anisotropy = 0.25
 		env.volumetric_fog_sky_affect = 0.0
@@ -164,8 +167,9 @@ func _set_quality(full: bool) -> void:
 	_quality = q
 	RenderingServer.directional_shadow_atlas_set_size(4096 if full else 2048, true)
 	RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_HIGH if full else RenderingServer.SHADOW_QUALITY_SOFT_LOW)
-	RenderingServer.environment_set_volumetric_fog_volume_size(96 if full else 64, 64 if full else 40)
-	RenderingServer.camera_attributes_set_dof_blur_quality(RenderingServer.DOF_BLUR_QUALITY_HIGH if full else RenderingServer.DOF_BLUR_QUALITY_LOW, false)
+	if not _lite:
+		RenderingServer.environment_set_volumetric_fog_volume_size(96 if full else 64, 64 if full else 40)
+		RenderingServer.camera_attributes_set_dof_blur_quality(RenderingServer.DOF_BLUR_QUALITY_HIGH if full else RenderingServer.DOF_BLUR_QUALITY_LOW, false)
 
 
 ## Snabbläge as chosen on this computer before. False when nobody has chosen.

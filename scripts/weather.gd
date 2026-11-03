@@ -13,6 +13,7 @@ extends Node3D
 ## wind_strength.
 
 const IslandData := preload("res://scripts/island_data.gd")
+const MeshUtil := preload("res://scripts/mesh_util.gd")
 
 # what the panel sets
 var hour := 14.0
@@ -54,7 +55,7 @@ var night := 0.0                 # 0 day .. 1 deep night, for anyone who asks
 var _cloud_mat: ShaderMaterial
 var _cloud_holder: Node3D
 var _clouds: Array[Node3D] = []
-var _fog_volume: FogVolume
+var _fog_volume: Node3D   # a FogVolume, or the mist's sheets in the lighter look
 var _fog_mat: ShaderMaterial
 var _rain: GPUParticles3D
 var _splash: GPUParticles3D
@@ -203,7 +204,9 @@ func apply() -> void:
 	# band itself has turned a cooler blue-white
 	var haze: Color = (pal[2] as Color).lerp(Color("f6e4cc"), smoothstep(14.0, 30.0, e))
 	env.fog_light_color = haze.lerp(Color(0.72, 0.75, 0.8), overcast * 0.6) * tint_horizon * tint_fog
-	env.fog_density = 0.0008 + fog * 0.004 + overcast * 0.0015
+	# the lighter look draws its fog over everything far stronger, and the
+	# mist's sheets bring the haze of their own
+	env.fog_density = 0.0008 + fog * (0.0 if MeshUtil.lite() else 0.004) + overcast * 0.0015
 	env.adjustment_saturation = lerpf(1.2, 0.95, maxf(night * 0.6, overcast * 0.5)) * saturation
 
 	# cloud puffs: as many as the cover asks for, tinted for the hour
@@ -219,7 +222,7 @@ func apply() -> void:
 
 	# mist lying low over the island, coloured by the light
 	_fog_volume.visible = fog > 0.01
-	env.volumetric_fog_enabled = fog > 0.01
+	env.volumetric_fog_enabled = fog > 0.01 and not MeshUtil.lite()
 	# heavy, winding and lying low; at night it glows faintly white of its own
 	# accord, where it would only scatter the little moonlight and go black
 	_fog_mat.set_shader_parameter("density", fog * 1.1)
@@ -229,6 +232,8 @@ func apply() -> void:
 	_fog_mat.set_shader_parameter("albedo", mist_col)
 	_fog_mat.set_shader_parameter("glow_color", Color(0.72, 0.8, 0.95).lerp(mist_col, 0.3))
 	_fog_mat.set_shader_parameter("glow", 0.02 + night * 0.22)
+	# the sheets have no light of their own: lit by day, glowing white at night
+	_fog_mat.set_shader_parameter("lit_color", mist_col * lerpf(1.0, 0.3, night) + Color(0.72, 0.8, 0.95).lerp(mist_col, 0.3) * (0.02 + night * 0.22) * 2.0)
 
 	# falling things
 	_rain.emitting = rain > 0.01
@@ -381,13 +386,55 @@ func set_terrain(tex: Texture2D) -> void:
 
 func _build_fog() -> void:
 	_fog_mat = ShaderMaterial.new()
+	if MeshUtil.lite():
+		_fog_mat.shader = load("res://shaders/mist_layers.gdshader")
+		var mi := MeshInstance3D.new()
+		mi.mesh = _mist_sheets(40.0, 48, 9)
+		mi.material_override = _fog_mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.extra_cull_margin = 8.0
+		_fog_volume = mi
+		add_child(mi)
+		return
+	var fv := FogVolume.new()
 	_fog_mat.shader = load("res://shaders/mist.gdshader")
-	_fog_volume = FogVolume.new()
-	_fog_volume.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
-	_fog_volume.size = Vector3(40.0, 9.0, 40.0)
-	_fog_volume.position = Vector3(0.0, -1.0, 0.0)
-	_fog_volume.material = _fog_mat
-	add_child(_fog_volume)
+	fv.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
+	fv.size = Vector3(40.0, 9.0, 40.0)
+	fv.position = Vector3(0.0, -1.0, 0.0)
+	fv.material = _fog_mat
+	_fog_volume = fv
+	add_child(fv)
+
+
+## The mist's sheets for the lighter look: `layers` grids `size` across,
+## `n` cells a side, stacked from the bottom up (drawn in that order, right
+## when seen from above). UV2.x is a sheet's share of the way up, crowding
+## near the ground, UV2.y the share of the air it stands for; the shader lifts
+## each onto the ground.
+static func _mist_sheets(size: float, n: int, layers: int) -> ArrayMesh:
+	var v := PackedVector3Array()
+	var uv2 := PackedVector2Array()
+	var idx := PackedInt32Array()
+	for k in layers:
+		var lo := pow(float(k) / layers, 1.6)
+		var hi := pow(float(k + 1) / layers, 1.6)
+		var first := v.size()
+		for j in n + 1:
+			for i in n + 1:
+				v.append(Vector3((float(i) / n - 0.5) * size, 0.0, (float(j) / n - 0.5) * size))
+				uv2.append(Vector2((lo + hi) * 0.5, hi - lo))
+		for j in n:
+			for i in n:
+				var a := first + j * (n + 1) + i
+				idx.append_array([a, a + 1, a + n + 1, a + 1, a + n + 2, a + n + 1])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = v
+	arrays[Mesh.ARRAY_TEX_UV2] = uv2
+	arrays[Mesh.ARRAY_INDEX] = idx
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 
 ## Rain and snow stop where they meet the island. The height field is

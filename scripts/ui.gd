@@ -6,6 +6,7 @@ extends CanvasLayer
 
 const Brush := preload("res://scripts/brush.gd")
 const Catalog := preload("res://scripts/prop_catalog.gd")
+const MeshUtil := preload("res://scripts/mesh_util.gd")
 
 const INK := Color(0.27, 0.21, 0.16)
 const PAPER := Color(0.985, 0.965, 0.925, 0.93)
@@ -452,6 +453,10 @@ func _camera_row() -> Control:
 	_cam_sliders.aperture = _slider("Bländare", 0.0, 1.0, r.aperture, func(v: float) -> void: r.aperture = v, "%")
 	for k in ["focal", "focus", "aperture"]:
 		lens.add_child(_cam_sliders[k].get_parent())
+	# the lighter look (the web) has no depth of field
+	if MeshUtil.lite():
+		for k in ["focus", "aperture"]:
+			(_cam_sliders[k].get_parent() as Control).visible = false
 	row.add_child(lens)
 	var place := VBoxContainer.new()
 	place.add_theme_constant_override("separation", 4)
@@ -529,8 +534,10 @@ func _effects_row() -> Control:
 	var light := _column("Ljusstrålar")
 	add.call(light, "Strålar", p, "rays", 0.0, 1.5, "%", "Solstrålar som strömmar ut från solen när den syns i bild")
 	add.call(light, "Längd", p, "ray_length", 0.2, 1.0, "%", "Hur långt strålarna når från solen")
-	add.call(light, "Volymljus", p, "volume", 0.0, 1.0, "%", "Ett dis i luften som solen lyser upp, så att ljuset faller i skaft mellan träd och murar")
-	add.call(light, "Ljus i dis", p, "volume_glow", 0.0, 3.0, "x", "Hur starkt solen och månen lyser upp diset")
+	# the lighter look (the web) has no volumetric light
+	if not MeshUtil.lite():
+		add.call(light, "Volymljus", p, "volume", 0.0, 1.0, "%", "Ett dis i luften som solen lyser upp, så att ljuset faller i skaft mellan träd och murar")
+		add.call(light, "Ljus i dis", p, "volume_glow", 0.0, 3.0, "x", "Hur starkt solen och månen lyser upp diset")
 	row.add_child(light)
 	var colour := _column("Färg")
 	add.call(colour, "Kontrast", p, "contrast", 0.6, 1.6, "x", "")
@@ -699,7 +706,7 @@ func _export_row() -> Control:
 	still.tooltip_text = "Spara en stillbild utan panelen"
 	still.pressed.connect(func() -> void:
 		var path: String = await main.IslandFile.still(main, size_of.call())
-		toast("Bilden sparades: " + path.get_file()))
+		toast(("Bilden laddas ner: " if MeshUtil.web() else "Bilden sparades: ") + path.get_file()))
 	var film := Button.new()
 	film.text = "Film"
 	film.tooltip_text = "Spela in kamerans rotation och höjdvåg i ett eget fönster, så lång som Längd"
@@ -719,6 +726,11 @@ func _export_row() -> Control:
 	make.add_child(shots)
 	var note := Label.new()
 	note.text = "Filmer spelas in i ett eget fönster, ungefär fem gånger långsammare än filmen är lång. Bakgrunden blir en loop för Lively Wallpaper (gratis) eller Wallpaper Engine."
+	if MeshUtil.web():
+		# films need a second copy of the program, which a browser cannot start
+		film.visible = false
+		wall.visible = false
+		note.text = "Bilden laddas ner av webbläsaren. Filmer och bakgrunder finns i versionerna för Windows och Linux."
 	note.add_theme_font_size_override("font_size", 13)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.custom_minimum_size.x = 200
@@ -906,6 +918,10 @@ func toast(text: String) -> void:
 
 
 func _save_dialog() -> void:
+	if MeshUtil.web():
+		var err: int = main.IslandFile.download_island(main, "Min ö.island")
+		toast("Ön laddas ner som Min ö.island" if err == OK else "Kunde inte spara (%s)" % error_string(err))
+		return
 	var d := FileDialog.new()
 	d.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	d.access = FileDialog.ACCESS_FILESYSTEM
@@ -923,6 +939,13 @@ func _save_dialog() -> void:
 
 
 func _open_dialog() -> void:
+	if MeshUtil.web():
+		main.IslandFile.pick_upload(func(bytes: PackedByteArray) -> void:
+			var err: int = main.IslandFile.open_bytes(main, bytes)
+			if err == OK:
+				_after_open()
+			toast("Ön öppnades" if err == OK else "Kunde inte öppna (%s)" % error_string(err)))
+		return
 	var d := FileDialog.new()
 	d.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	d.access = FileDialog.ACCESS_FILESYSTEM

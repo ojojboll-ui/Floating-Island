@@ -1541,7 +1541,11 @@ static func run(main: Node, name: String) -> void:
 				var a := TAU * n / 12.0
 				var r := 1.5 + 0.25 * n
 				n += 1
+				var t_add := Time.get_ticks_usec()
 				main.props.add(kind, cos(a) * minf(r, 5.0), sin(a) * minf(r, 5.0), rng)
+				var add_ms := (Time.get_ticks_usec() - t_add) / 1000.0
+				if add_ms > 50.0:
+					print("    %s: built in %.0f ms" % [kind, add_ms])
 				var last := Time.get_ticks_usec()
 				for k in 3:
 					await RenderingServer.frame_post_draw
@@ -1551,7 +1555,35 @@ static func run(main: Node, name: String) -> void:
 					worst = maxf(worst, dt)
 					if dt > 50.0:
 						slow += 1
+						print("    %s: %.0f ms" % [kind, dt])
 			print("  %d kinds placed in %d ms: worst frame %.0f ms, %d frames over 50 ms" % [n, Time.get_ticks_msec() - started, worst, slow])
+		"hitch_one":
+			# one kind (--kind=) placed twice after the warm-up, every frame timed
+			if main.warmup != null:
+				await main.warmup.finished
+			await _frames(main, 10)
+			var kind: String = "stock"
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--kind="):
+					kind = a.substr(7)
+			var rng := RandomNumberGenerator.new()
+			for spot: Vector2 in [Vector2(2.0, 1.0), Vector2(-2.0, 2.0)]:
+				if OS.get_cmdline_user_args().has("--variant0"):
+					main.props.add(kind, spot.x, spot.y, rng, -1.0, 0, 0.6, 0.0)
+				else:
+					main.props.add(kind, spot.x, spot.y, rng)
+				var last := Time.get_ticks_usec()
+				var line := "  %s:" % kind
+				for k in 4:
+					await RenderingServer.frame_post_draw
+					var now := Time.get_ticks_usec()
+					line += " %.0f" % ((now - last) / 1000.0)
+					last = now
+				print(line)
+		"warmup_peek":
+			# what the warm-up draws behind its screen
+			await _frames(main, 30)
+			main.warmup._shade.visible = false
 		"warmup_screen":
 			# the loading screen itself, half way
 			await _frames(main, 12)

@@ -5,5 +5,5 @@ cd "$(dirname "$0")"
 G="${GODOT:-/c/Users/oloff/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe}"
 name="$1"
 shift
-timeout 120 "$G" --path . -- --snapshot="$PWD/shots/$name.png" "$@" </dev/null 2>&1 | grep -v -e "^$" -e "^Godot Engine" -e "^Vulkan"
+timeout 120 "$G" $GODOT_ARGS --path . -- --snapshot="$PWD/shots/$name.png" "$@" </dev/null 2>&1 | grep -v -e "^$" -e "^Godot Engine" -e "^Vulkan"
 true

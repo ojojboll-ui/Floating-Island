@@ -668,7 +668,7 @@ func _env_key(rec: Dictionary) -> String:
 
 ## Something changed round the woody plants: rebuild those it touches.
 func _process(_delta: float) -> void:
-	if not _prewarm.is_empty() and WorkerThreadPool.is_task_completed(_prewarm[0]):
+	if not _prewarm.is_empty() and Catalog.MeshUtil.task_done(_prewarm[0]):
 		Catalog.RockBuilder.adopt(_prewarm)
 		_prewarm = []
 	var t := Time.get_ticks_msec() / 1000.0

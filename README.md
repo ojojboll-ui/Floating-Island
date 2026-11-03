@@ -42,7 +42,7 @@ Klicka för en, håll och dra för att strö ut fler (Styrka = hur tätt). Shift
 
 **Stenar genereras** (`scripts/rock_builder.gd`): en sten är det som blir kvar när 15–30 slumpade plan skär bort bitar av en boll (idén bakom Rock Forge). Snitten görs på riktigt, så kanterna blir skarpa, men ytorna buktar ojämnt med gropar och knölar. Skuggaren målar en bruten ljus linje längs kanterna, sprickor som smalnar av och tar slut, med ljusa kanter, och små gropar. Med Kantighet på noll slätas formen ut helt, så det inte finns några kanter kvar. Mossan är ett ludd av tätt packade skott (Voronoi-celler, eftersom varje skott tar marken runt sig från grannarna) i tre storlekar som var och en tonas in först när den är större än en pixel, så det finns ludd i den skala man tittar, över mjuka svällningar. Fläckarna slutar smuligt, och mossan ligger över stenens relief, fyller sprickorna och tunnas ut över kanterna. **Relief** låter sprickor och gropar fånga ljuset som en normal map (räknad i skuggaren), djupare ju högre ratten står. Ytorna får var sin gråton, och mossan lägger sig på topparna men inte på kanterna. Kantigare stenar får färre och större ytor. Varje stensort har reglage som visas när den är vald: Storlek, Variation, Kantighet, Platthet, Avlånghet, Mossa, Textur (sprickor, gropar och kantlinjer), Relief och Färg. De gäller nästa stenar och ändrar också det senast målade. Stenar nära vatten och under träd får mer mossa. Penseln har **Täthet** och **Klungor** när man målar ut saker; med Klungor uppe samlas småsten kring stenblockens fot.
 
-Modellerna kommer från Quaternius Stylized Nature MegaKit (CC0, `assets/quaternius`), laddas som glTF när programmet startar och får våra egna shaders.
+Barktexturerna till rötterna och träden kommer från Quaternius Stylized Nature MegaKit (CC0) och ligger i `textures/`, komprimerade och nerskalade till 1024 pixlar. Resten av kitet (`assets/quaternius`) används inte längre: allt annat genereras.
 
 Fliken **Ruiner**: Mur (dra längs marken), Pelare (klicka), Valv (dra från fot till fot; dras det längs en mur blir det en öppning i muren, med fullhöga pelare), Trappa (dra från nedersta steget; byggd i murstenar och klättrar till Höjd, så den möter en övervåning med samma Höjd), Golv (stengolv på marken, eller mer av en våning du börjar på), Övervåning (måla; våningen hamnar Höjd över marken, eller över våningen du börjar på, står på murar ner till marken och får bröstvärn; pelare under den växer upp och bär den), Dörr och Fönster (klicka på en mur, eller dra längs den för fler; rundbåge av kilstenar överst; fönstrets underkant hamnar på Höjd så långt muren räcker), Riv (murar och golv kapas bara under penseln). Höjd (0,5–5 m) gäller murar, pelare, valv, trappor, övervåningar och fönster; ett valv i en mur behåller sin egen höjd. Reglagen visar sina värden. Börjar eller slutar du nära en annan bit hakar den i. **Höjd** gäller det du bygger härnäst; **Ålder** gäller allt: mossan följer reglaget direkt, stenarna rasar när du släpper. Ruinerna byggs sten för sten i `scripts/ruin_builder.gd`, så de följer marken när du formar om den.
 
@@ -97,7 +97,7 @@ Renderar en bild till `shots/namn.png` och skriver ut fps. `--test` kör ett ins
 
 ## Bygga och köra på Linux och Windows
 
-`./build.sh` exporterar Linux- och Windows-versionen till `builds/` (som inte ligger i git) och zippar dem: `builds/FloatingIsland-linux.zip` och `builds/FloatingIsland-windows.zip`. Det kräver Godots exportmallar för 4.7.2. Mappen `assets/` följer med bredvid programmet, eftersom den inte packas in. Lägg upp zip-filerna som en Release på GitHub.
+`./build.sh` exporterar Linux- och Windows-versionen till `builds/` (som inte ligger i git) och zippar dem: `builds/FloatingIsland-linux.zip` och `builds/FloatingIsland-windows.zip`. Det kräver Godots exportmallar för 4.7.2. Lägg upp zip-filerna som en Release på GitHub.
 
 På Linux: packa upp zip-filen, gör programmet körbart och starta det:
 
@@ -107,3 +107,18 @@ chmod +x FloatingIsland.x86_64
 ```
 
 Det behöver en grafikdrivare med Vulkan.
+
+## Webbversionen (itch.io)
+
+`./build.sh` exporterar också en webbversion till `builds/web` och zippar den som `builds/FloatingIsland-web.zip`, med `index.html` överst som itch.io vill ha. Den körs utan trådar, så den behöver inga särskilda serverinställningar (SharedArrayBuffer).
+
+På webben ritar Godot med sin enklare grafikmotor (Compatibility, WebGL 2). Allt som hänger på den bär namnet "den lättare looken" i koden (`MeshUtil.lite()`), och den går att prova på datorn med `GODOT_ARGS="--rendering-method gl_compatibility" ./snap.sh ...`:
+
+- **Dimman** ritas som ett staplat lager av skivor som följer marken (`shaders/mist_layers.gdshader`), med samma slingrande brus som den volymetriska dimman men billigare. Skivorna tonar bort när man ser dem från kanten, så de inte syns som streck.
+- **Volymljus, SSIL och skärpedjup** finns inte. Reglagen för dem (Volymljus, Ljus i dis, Fokus, Bländare) göms.
+- **Eldstadens ljus kastar ingen skugga**: den lättare motorn ritar varje skuggande ljus i ett eget pass över allt det når, och det kostade sekunder att bygga.
+- **Spara och Öppna** går via webbläsarens nedladdning och filväljare, och **Bild** laddas ner. Film och Bakgrund göms, eftersom de startar ett andra program.
+
+Den lättare motorn bygger en shader först när något ritas med den, en variant för varje sorts ljus som når den. Därför ställer laddningsskärmen ut en av varje sort mitt i bilden (bakom skärmen), utan sina egna ljus, och tänder sedan ett punktljus över både dem och ön. Med en tom shader-cache tar det ungefär 10 sekunder första gången. Utan det hackade bilden flera sekunder åt gången när den första stocken, eldstaden eller facklan placerades. Webbläsaren sparar de byggda shaderna, så senare besök går fortare.
+
+Lägg upp på itch.io: skapa ett nytt projekt, välj **Kind of project: HTML**, ladda upp `FloatingIsland-web.zip` och kryssa i **This file will be played in the browser**. Sätt storleken till 1600 × 900 (eller välj helskärmsknappen). SharedArrayBuffer behövs inte.
