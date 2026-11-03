@@ -3,6 +3,19 @@
 // seam from one object to the next. That is most of what makes the pieces
 // look grown together instead of placed.
 
+// A loop count the compiler cannot know in advance. The Direct3D compiler
+// that WebGL runs through on Windows (ANGLE, in Chrome and Edge) unrolls
+// every loop with a fixed count, the nested ones too, and a shader full of
+// noise took 10-17 s to build in the browser. A count read from a uniform
+// keeps the loops as loops. Only in the lighter look (the web): the desktop
+// compilers are quick, and an unrolled loop runs a little faster there.
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+uniform int noise_loop_bias = 0;
+#define LOOPS(n) ((n) + noise_loop_bias)
+#else
+#define LOOPS(n) (n)
+#endif
+
 vec3 srgb(vec3 c) {
 	return pow(c, vec3(2.2));
 }
@@ -51,7 +64,7 @@ float vnoise3(vec3 p) {
 float fbm2(vec2 p) {
 	float s = 0.0;
 	float a = 0.5;
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < LOOPS(4); i++) {
 		s += a * vnoise2(p);
 		p = p * 2.03 + vec2(17.1, 9.3);
 		a *= 0.5;
@@ -62,7 +75,7 @@ float fbm2(vec2 p) {
 float fbm3(vec3 p) {
 	float s = 0.0;
 	float a = 0.5;
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < LOOPS(4); i++) {
 		s += a * vnoise3(p);
 		p = p * 2.03 + vec3(17.1, 9.3, 4.7);
 		a *= 0.5;
@@ -102,8 +115,8 @@ vec3 cobbles(vec2 p) {
 	float f1 = 8.0;
 	float f2 = 8.0;
 	vec2 id = vec2(0.0);
-	for (int y = -1; y <= 1; y++) {
-		for (int x = -1; x <= 1; x++) {
+	for (int y = -1; y <= LOOPS(1); y++) {
+		for (int x = -1; x <= LOOPS(1); x++) {
 			vec2 g = vec2(float(x), float(y));
 			vec2 o = vec2(hash12(i + g), hash12(i + g + vec2(17.3, 5.1))) * 0.8 + 0.1;
 			vec2 r = g + o - f;
@@ -128,8 +141,8 @@ float caustic_web(vec2 p, float t) {
 	vec2 f = fract(p);
 	float f1 = 8.0;
 	float f2 = 8.0;
-	for (int y = -1; y <= 1; y++) {
-		for (int x = -1; x <= 1; x++) {
+	for (int y = -1; y <= LOOPS(1); y++) {
+		for (int x = -1; x <= LOOPS(1); x++) {
 			vec2 g = vec2(float(x), float(y));
 			float h = hash12(i + g);
 			vec2 o = 0.5 + 0.38 * vec2(sin(t * 0.9 + 6.283 * h), cos(t * 0.7 + 6.283 * hash12(i + g + vec2(7.0, 3.0))));
@@ -164,8 +177,8 @@ vec2 stone_layer(vec2 p, float fill) {
 	vec2 f = fract(p);
 	float best = 0.0;
 	float id = 0.0;
-	for (int y = -1; y <= 1; y++) {
-		for (int x = -1; x <= 1; x++) {
+	for (int y = -1; y <= LOOPS(1); y++) {
+		for (int x = -1; x <= LOOPS(1); x++) {
 			vec2 g = vec2(float(x), float(y));
 			vec2 c = i + g;
 			if (hash12(c + vec2(1.7, 9.2)) > fill) {
@@ -211,8 +224,8 @@ vec2 rain_rings(vec2 p, float t) {
 	vec2 f = fract(p);
 	float h = 0.0;
 	float crest = 0.0;
-	for (int y = -1; y <= 1; y++) {
-		for (int x = -1; x <= 1; x++) {
+	for (int y = -1; y <= LOOPS(1); y++) {
+		for (int x = -1; x <= LOOPS(1); x++) {
 			vec2 g = vec2(float(x), float(y));
 			vec2 c = i + g;
 			vec2 o = vec2(hash12(c), hash12(c + vec2(4.7, 1.3)));
@@ -282,9 +295,9 @@ vec3 cells(vec3 p) {
 	float d1 = 8.0;
 	float d2 = 8.0;
 	vec3 best = vec3(0.0);
-	for (int z = -1; z <= 1; z++) {
-		for (int y = -1; y <= 1; y++) {
-			for (int x = -1; x <= 1; x++) {
+	for (int z = -1; z <= LOOPS(1); z++) {
+		for (int y = -1; y <= LOOPS(1); y++) {
+			for (int x = -1; x <= LOOPS(1); x++) {
 				vec3 g = vec3(float(x), float(y), float(z));
 				vec3 o = vec3(hash13(i + g), hash13(i + g + 17.3), hash13(i + g + 41.7));
 				float d = length(g + o - f);

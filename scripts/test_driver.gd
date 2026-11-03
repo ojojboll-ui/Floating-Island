@@ -1584,6 +1584,45 @@ static func run(main: Node, name: String) -> void:
 			# what the warm-up draws behind its screen
 			await _frames(main, 30)
 			main.warmup._shade.visible = false
+		"shader_times":
+			# how long each spatial shader takes to build: one on a ball at a time,
+			# in the middle of the picture
+			await _frames(main, 10)
+			for a in OS.get_cmdline_user_args():
+				if a == "--sun2":
+					main.weather.sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+					main.weather.sun.directional_shadow_blend_splits = false
+				if a == "--norefl":
+					main.weather.env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+				if a == "--noamb":
+					main.weather.env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+					main.weather.env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+				if a == "--nofog":
+					main.weather.env.fog_enabled = false
+				if a == "--nosun":
+					main.weather.sun.shadow_enabled = false
+					main.weather.moon.shadow_enabled = false
+			print("  moon visible ", main.weather.moon.visible, " sun blend ", main.weather.sun.directional_shadow_blend_splits)
+			await _frames(main, 5)
+			var cam: Camera3D = main.rig.camera
+			var middle: Vector2 = main.get_viewport().get_visible_rect().size * 0.5
+			for sh: String in [("code:shader_type spatial; void fragment() { ALBEDO = vec3(%f); }" % randf()), "bark", "cliff", "cloud", "fish", "flame", "ghost", "grass", "ground", "item", "leaves", "lily", "plant", "reeds", "rock", "roots", "ruin_stone", "spray", "water", "waterfall", "wood", "mist_layers"]:
+				var mi := MeshInstance3D.new()
+				mi.mesh = SphereMesh.new()
+				var mat := ShaderMaterial.new()
+				if sh.begins_with("code:"):
+					mat.shader = Shader.new()
+					mat.shader.code = sh.substr(5)
+				else:
+					mat.shader = load("res://shaders/%s.gdshader" % sh)
+				mi.material_override = mat
+				main.add_child(mi)
+				mi.global_position = cam.project_position(middle, 4.0)
+				var t0 := Time.get_ticks_msec()
+				await RenderingServer.frame_post_draw
+				await RenderingServer.frame_post_draw
+				print("  %-12s %6d ms" % [sh.left(40), Time.get_ticks_msec() - t0])
+				mi.queue_free()
 		"warmup_screen":
 			# the loading screen itself, half way
 			await _frames(main, 12)
