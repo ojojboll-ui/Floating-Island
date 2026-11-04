@@ -121,4 +121,6 @@ På webben ritar Godot med sin enklare grafikmotor (Compatibility, WebGL 2). All
 
 Den lättare motorn bygger en shader först när något ritas med den, en variant för varje sorts ljus som når den. Därför ställer laddningsskärmen ut en av varje sort mitt i bilden (bakom skärmen), utan sina egna ljus, och tänder sedan ett punktljus över både dem och ön. Med en tom shader-cache tar det ungefär 10 sekunder första gången. Utan det hackade bilden flera sekunder åt gången när den första stocken, eldstaden eller facklan placerades. Webbläsaren sparar de byggda shaderna, så senare besök går fortare.
 
+**GitHub Pages**: `./deploy_pages.sh` lägger webbversionen på grenen `gh-pages`, som visas på https://ojojboll-ui.github.io/Floating-Island/ (slå på Pages en gång under Settings → Pages → Deploy from a branch → `gh-pages`, `/ (root)`).
+
 Lägg upp på itch.io: skapa ett nytt projekt, välj **Kind of project: HTML**, ladda upp `FloatingIsland-web.zip` och kryssa i **This file will be played in the browser**. Sätt storleken till 1600 × 900 (eller välj helskärmsknappen). SharedArrayBuffer behövs inte.
