@@ -33,6 +33,11 @@ var _woody_rev := 0
 const RESTING := ["fackla", "ljus", "lykta", "ryggsack", "koffert", "gryta", "flaskor", "bocker", "svampkorg", "tunna", "hacka", "yxa", "spade"]
 var _flames: Array = []   # [light, base energy]
 var _env_seen := ""
+## Woody plants (ids) waiting to grow again for what changed round them, a
+## few each frame within REGROW_BUDGET_US, so a wall drawn through a wood
+## does not stall the picture while every tree in it regrows at once.
+var _regrow: Array[int] = []
+const REGROW_BUDGET_US := 8000
 var _prewarm: Array = []   # [task, shapes] of stone shapes being built ahead
 
 
@@ -681,16 +686,26 @@ func _process(_delta: float) -> void:
 		return
 	roots.ensure_raster()
 	var seen := "%d/%d/%d/%d" % [roots._raster_rev, roots._stones_rev, _woody_rev, _things_rev]
-	if seen == _env_seen:
-		return
-	_env_seen = seen
-	# tools lean on what stands by: when that changes they settle again
-	for rec in records:
-		if rec.kind in TOOLS:
-			_place(rec)
-	for rec in records:
-		if rec.kind in WOODY and _nodes.has(rec.id) and _env_key(rec) != rec.get("_env", ""):
-			_respawn(rec)
+	if seen != _env_seen:
+		_env_seen = seen
+		# tools lean on what stands by: when that changes they settle again
+		for rec in records:
+			if rec.kind in TOOLS:
+				_place(rec)
+		for rec in records:
+			if rec.kind in WOODY and _nodes.has(rec.id) and not _regrow.has(int(rec.id)) and _env_key(rec) != rec.get("_env", ""):
+				_regrow.append(int(rec.id))
+	# at least one each frame, more while there is time
+	var start := Time.get_ticks_usec()
+	while not _regrow.is_empty() and Time.get_ticks_usec() - start < REGROW_BUDGET_US:
+		var id: int = _regrow.pop_front()
+		if not _nodes.has(id):
+			continue   # removed meanwhile
+		for rec in records:
+			if int(rec.id) == id:
+				if _env_key(rec) != rec.get("_env", ""):
+					_respawn(rec)
+				break
 
 
 func _respawn(rec: Dictionary) -> void:

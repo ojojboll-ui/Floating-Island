@@ -95,6 +95,19 @@ Renderar en bild till `shots/namn.png` och skriver ut fps. `--test` kör ett ins
 - `scripts/root_builder.gd`, `scripts/root_layer.gd`, `shaders/roots.gdshader` – rötter. Space colonization (Runions m.fl. 2007) upp och ner: ett moln av attraktionspunkter hänger under varje startpunkt och rötterna växer mot det; tjockleken följer rörmodellen. Barken är Quaternius Bark_TwistedTree (CC0). Förhandsvisningen växer i en arbetstråd.
 - `scripts/post.gd`, `shaders/post.gdshader`, `shaders/shafts.gdshader` – effekterna. Glöd, volymljus och hörnskugga är Godots egna. Solstrålarna är en radiell oskärpa mot solen (Mitchell, GPU Gems 3 kap. 13, samma idé som CC0-shadern "Screen Space God Rays" på godotshaders.com), där djupbufferten avgör vad som är öppen himmel. Färg, vinjett, korn och fransar är ett skärmpass under panelen.
 
+## Prestanda
+
+Testerna mäter innan något ändras: `--test=gpu_split` visar vad varje del av bilden kostar på grafikkortet (lägg till `--trees=15` för en skog), `--test=cpu_split` varje lagers `_process`, `--test=edit_costs --warmup` bildrutorna medan man drar varje verktyg och när man släpper, och `--test=shader_times` hur lång tid varje shader tar att bygga (med `GODOT_ARGS="--rendering-method gl_compatibility --rendering-driver opengl3_angle"` som i Chrome på Windows).
+
+- **Markytan** räknar bara ut de material som kan synas: varje bud har ett tak (vikten plus det mesta bruset kan lägga till), och ett material som inte når upp till ledarens nivå hoppas över helt, med brus, kullersten och färg. På en gräsmatta är det allt utom gräset.
+- **Grästuvor** som inte kan växa viks ihop innan bruset och lutningen räknas.
+- **Molnen** är en enda MultiMesh av en sfär på 32 × 16, i stället för 190 egna sfärer på 64 × 32.
+- **Träden** delar sina material; det som skiljer dem åt går i instansparametrar. Löven fylls i färdigstorlekade arrayer.
+- **När något ändras runt träden** växer de om några i taget (högst ungefär 8 ms per bildruta), inte alla i samma bildruta.
+- **Rötternas höjdkarta** minns varje murs och stens bidrag och rasteriserar bara det som är nytt. Rötter växer om bara när höjdkartan inom deras räckvidd ändrats, och då på en bakgrundstråd. När man släpper ett rotdrag står förhandsvisningen kvar tills de färdiga rötterna har vuxit klart.
+
+Kvar och medvetet orört: lövens kantutjämning (alpha-to-coverage) kostar ungefär 2 ms med femton träd, men utan den hamnar löven i djupförpasset och får en annan, mörkare karaktär. Ett nytt stenblock tar omkring 30 ms att forma, eftersom nästan varje sten har en egen form.
+
 ## Bygga och köra på Linux och Windows
 
 `./build.sh` exporterar Linux- och Windows-versionen till `builds/` (som inte ligger i git) och zippar dem: `builds/FloatingIsland-linux.zip` och `builds/FloatingIsland-windows.zip`. Det kräver Godots exportmallar för 4.7.2. Lägg upp zip-filerna som en Release på GitHub.

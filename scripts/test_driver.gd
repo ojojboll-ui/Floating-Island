@@ -1643,6 +1643,15 @@ static func run(main: Node, name: String) -> void:
 				await _frames(main, 2)
 		"gpu_split":
 			# GPU time per frame with each part of the scene hidden in turn
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--trees="):
+					var rng := RandomNumberGenerator.new()
+					rng.seed = 5
+					for k in int(a.substr(8)):
+						var ang := k * 2.4
+						var rr := 1.5 + 0.35 * k
+						main.props.add("lovtrad" if k % 3 else "gran", cos(ang) * minf(rr, 6.0), sin(ang) * minf(rr, 6.0), rng)
+					await _frames(main, 30)
 			var vp: RID = main.get_viewport().get_viewport_rid()
 			RenderingServer.viewport_set_measure_render_time(vp, true)
 			main.ui.set_collapsed(true)
@@ -1663,6 +1672,12 @@ static func run(main: Node, name: String) -> void:
 				parts.cliff.append(e.body)
 				parts.water.append_array([e.water, e.falls, e.veil])
 			parts["props"] = [main.props]
+			var leaf_nodes := []
+			for mi in main.props.find_children("*", "MeshInstance3D", true, false):
+				var m = (mi as MeshInstance3D).material_override
+				if m is ShaderMaterial and (m as ShaderMaterial).shader.resource_path.ends_with("leaves.gdshader"):
+					leaf_nodes.append(mi)
+			parts["leaves"] = leaf_nodes
 			parts["ruins"] = [main.ruins]
 			parts["roots"] = [main.roots]
 			parts["clouds"] = [main.weather._cloud_holder]
@@ -1673,6 +1688,150 @@ static func run(main: Node, name: String) -> void:
 				print("  without %-14s %5.2f ms  (%+.2f)" % [label, t, t - base])
 				for n in parts[label]:
 					(n as Node3D).visible = true
+			main.weather.set_process(false)
+			var tw: float = await gpu.call()
+			print("  weather not updating    %5.2f ms  (%+.2f)" % [tw, tw - base])
+			main.weather.set_process(true)
+			main.post.set_process(false)
+			var tp: float = await gpu.call()
+			print("  post not updating       %5.2f ms  (%+.2f)" % [tp, tp - base])
+			main.post.set_process(true)
+			var again: float = await gpu.call()
+			print("  everything again        %5.2f ms" % again)
+			for n in parts.leaves:
+				(n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var ts: float = await gpu.call()
+			print("  leaves cast no shadow   %5.2f ms  (%+.2f)" % [ts, ts - base])
+			for n in parts.leaves:
+				(n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		"edit_costs":
+			# each kind of stroke across the island: the median and worst frame
+			# while drawing, and the frame it ends on (where walls are built)
+			if main.warmup != null:
+				await main.warmup.finished
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			var line := [on.call(-3.0, 1.5), on.call(0.0, 2.5), on.call(3.0, 1.0)]
+			for job: Array in [[0, "Höj", 60], [0, "Plattor", 60], [0, "Vatten", 60], [1, "Stenblock", 60], [1, "Berg", 60], [1, "Lövträd", 40], [0, "Rötter", 40], [2, "Mur", 40]]:
+				main.ui.tabs.current_tab = job[0]
+				await _frames(main, 3)
+				await _click(main, main.ui.buttons[job[1]])
+				main.brush.radius = 1.4
+				var stats: Array = await _drag_timed(main, line, job[2])
+				print("  %-10s median %5.1f ms, worst %6.1f ms, release %6.1f ms" % [job[1], stats[0], stats[1], stats[2]])
+		"wall_time":
+			# what a wall costs to build, by length
+			var RB = main.ruins.RuinBuilder
+			for n: int in [10, 20, 40]:
+				var pts := PackedVector2Array()
+				for k in n:
+					pts.append(Vector2(-3.0 + 6.0 * k / (n - 1.0), 1.5 + sin(k * 0.4)))
+				var t0 := Time.get_ticks_usec()
+				var path: PackedVector2Array = RB.smooth_path(pts)
+				var t1 := Time.get_ticks_usec()
+				var g = main.ruins._build_ground()
+				var m = RB.wall(g, path, 7, 2.2, 0.3)
+				var t2 := Time.get_ticks_usec()
+				main.ruins.preview("wall", Vector2.ZERO, Vector2.ZERO, pts, 2.2, 7)
+				var t3 := Time.get_ticks_usec()
+				print("  %d points -> path %d, %.1f m: smooth %.1f ms, wall %.1f ms (%d verts), preview %.1f ms" % [n, path.size(), RB.path_length(path), (t1 - t0) / 1000.0, (t2 - t1) / 1000.0, m.surface_get_array_len(0), (t3 - t2) / 1000.0])
+		"release_split":
+			# what adding a wall (or roots, --what=roots) sets going: each step and
+			# each layer's next _process timed on its own
+			await _frames(main, 20)
+			var what := "wall"
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--what="):
+					what = a.substr(7)
+			var labels := ["brush", "fish", "view", "rig", "post", "props", "roots", "ui", "weather", "ruins"]
+			for label: String in labels:
+				(main.get(label) as Node).set_process(false)
+			var t0 := Time.get_ticks_usec()
+			if what == "wall":
+				var pts := PackedVector2Array()
+				for k in 20:
+					pts.append(Vector2(-3.0 + 6.0 * k / 19.0, 1.5 + sin(k * 0.4)))
+				main.ruins.add_wall(pts, 2.2, 7)
+			else:
+				var anchors := []
+				for k in 6:
+					var x := -2.0 + k * 0.8
+					anchors.append(Vector3(x, main.data.sample_height(x, 2.0), 2.0))
+				main.roots.add(anchors, 5)
+			print("  add %s       %7.1f ms" % [what, (Time.get_ticks_usec() - t0) / 1000.0])
+			t0 = Time.get_ticks_usec()
+			main.brush._flush()
+			print("  brush flush    %7.1f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
+			for round in 2:
+				for label: String in labels:
+					var node: Node = main.get(label)
+					if not node.has_method("_process"):
+						continue
+					t0 = Time.get_ticks_usec()
+					node._process(1.0 / 60.0)
+					var ms := (Time.get_ticks_usec() - t0) / 1000.0
+					if ms > 0.5:
+						print("  %d %-12s %7.1f ms" % [round, label, ms])
+				await _frames(main, 1)
+			for label: String in labels:
+				(main.get(label) as Node).set_process(true)
+		"regrow_split":
+			# 20 trees along a line, then a wall beside them: the raster, the
+			# trees' surroundings and their regrowth timed apart
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 3
+			for k in 20:
+				main.props.add("lovtrad", -3.5 + k * 0.35, 2.6 + (k % 2) * 0.5, rng)
+			await _frames(main, 20)
+			main.props.set_process(false)
+			var pts := PackedVector2Array()
+			for k in 20:
+				pts.append(Vector2(-3.0 + 6.0 * k / 19.0, 1.5 + sin(k * 0.4)))
+			main.ruins.add_wall(pts, 2.2, 7)
+			var t0 := Time.get_ticks_usec()
+			main.roots.ensure_raster()
+			print("  raster         %7.1f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
+			t0 = Time.get_ticks_usec()
+			var changed := []
+			for rec in main.props.records:
+				if rec.kind in main.props.WOODY and main.props._env_key(rec) != rec.get("_env", ""):
+					changed.append(rec)
+			print("  env keys       %7.1f ms (%d of %d records changed)" % [(Time.get_ticks_usec() - t0) / 1000.0, changed.size(), main.props.records.size()])
+			t0 = Time.get_ticks_usec()
+			for rec in changed:
+				main.props._respawn(rec)
+			print("  regrow         %7.1f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
+			main.props.set_process(true)
+		"tree_time":
+			# what a tree costs to build, with and without its leaves
+			var TB = main.props.Catalog.TreeBuilder
+			for kind: String in ["lovtrad", "sagotrad", "gran", "buske"]:
+				var st: Dictionary = main.props.style_for(kind).duplicate(true)
+				var t0 := Time.get_ticks_usec()
+				for k in 5:
+					TB.build(st, float(st.size), k).free()
+				var full := (Time.get_ticks_usec() - t0) / 5000.0
+				var bare := st.duplicate(true)
+				bare.leaves = 0.0
+				bare.fruit = 0.0
+				t0 = Time.get_ticks_usec()
+				for k in 5:
+					TB.build(bare, float(st.size), k).free()
+				print("  %-9s %5.1f ms a tree, %5.1f without leaves" % [kind, full, (Time.get_ticks_usec() - t0) / 5000.0])
+		"grass_time":
+			# what building the grass costs, and how a MultiMesh lays out its buffer
+			var GS = main.view.GrassScatter
+			var t0 := Time.get_ticks_usec()
+			for k in 10:
+				GS.build_tile(k % 10, k / 10 + 3, main.view.grass_mat).free()
+			print("  grass tile %.1f ms" % ((Time.get_ticks_usec() - t0) / 10000.0))
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.use_custom_data = true
+			mm.instance_count = 1
+			mm.set_instance_transform(0, Transform3D(Basis(Vector3(1, 2, 3), Vector3(4, 5, 6), Vector3(7, 8, 9)), Vector3(10, 11, 12)))
+			mm.set_instance_custom_data(0, Color(13, 14, 15, 16))
+			print("  buffer ", mm.buffer)
 		"warmup_screen":
 			# the loading screen itself, half way
 			await _frames(main, 12)
@@ -1812,6 +1971,38 @@ static func _drag(main: Node, points: Array, frames: int) -> void:
 	_mouse_button(screen[-1], false)
 	await _frames(main, 3)
 	print("  stroke worst frame ", worst, " ms")
+
+
+## As _drag, but returning [median, worst] frame times while drawing and
+## the time of the frames after letting go.
+static func _drag_timed(main: Node, points: Array, frames: int) -> Array:
+	var cam: Camera3D = main.rig.camera
+	var screen: Array[Vector2] = []
+	for p in points:
+		screen.append(cam.unproject_position(p))
+	_mouse_move(screen[0])
+	await _frames(main, 2)
+	_mouse_button(screen[0], true)
+	var times: Array[float] = []
+	for f in frames:
+		var t := float(f) / maxf(frames - 1, 1) * (screen.size() - 1)
+		var seg := mini(int(t), screen.size() - 2)
+		var at := screen[seg].lerp(screen[seg + 1], t - seg)
+		_mouse_move(at)
+		var before := Time.get_ticks_usec()
+		await main.get_tree().process_frame
+		times.append((Time.get_ticks_usec() - before) / 1000.0)
+	var before := Time.get_ticks_usec()
+	_mouse_button(screen[-1], false)
+	var each := []
+	for k in 3:
+		var f0 := Time.get_ticks_usec()
+		await main.get_tree().process_frame
+		each.append(snappedf((Time.get_ticks_usec() - f0) / 1000.0, 0.1))
+	print("    frames after letting go: ", each)
+	var release := (Time.get_ticks_usec() - before) / 1000.0
+	times.sort()
+	return [times[times.size() / 2], times[-1], release]
 
 
 static func _mouse_move(at: Vector2) -> void:

@@ -37,13 +37,26 @@ var _nodes := {}            # seed -> MeshInstance3D
 var _built := {}            # seed -> what that mesh was grown from
 var _preview: MeshInstance3D
 var _showing := false       # a stroke is being drawn and previewed
-var _task := -1             # the preview growing on a worker thread
+var _task := -1             # the preview, or roots regrowing, on a worker thread
+var _task_key := ""         # what it grows (_grow_key)
+var _task_regrow := false   # whether it regrows roots already placed
+## Root systems (seeds) to regrow on the worker, one after another, when
+## the ruins or stones they crawl over changed.
+var _regrow: Array[int] = []
+## Root systems grown by the preview or the worker, by _grow_key, so a
+## stroke let go of, or a regrowth finished, is not grown a second time.
+var _grown_cache := {}
+var _grown_order: Array[String] = []
+## A stroke let go of whose roots are still growing on the worker: its
+## preview stays up until they are done (the seed, or -1).
+var _holding := -1
 var _grown := {}
 var _waiting: Array = []    # the next preview to grow, once the worker is free
 var _raster := PackedFloat32Array()   # top of the ruins per cell, -INF where none
 var _raster_rev := -1
 var _raster_dirty := false
 var _stones_rev := -1
+var _raster_parts := {}   # "mesh id|transform" -> [cells, tops], see _take_raster
 var _lying := {}            # seed -> where its roots lie on the ground: x, z, radius in turn
 var _grown_nodes := {}      # seed -> [node positions, which are rubbed out], for Sudda rötter
 
@@ -110,6 +123,9 @@ func ensure_raster() -> void:
 ## Take the ruins' tops from their meshes: every triangle that faces up
 ## raises the cells whose centres it covers to its own height there. Side
 ## faces are left out, or a wall would seem as wide as its stones lean.
+## Each mesh's cells are kept (_raster_parts, by mesh and where it stands),
+## so a change rasters only the pieces that are new; the rest are merged
+## back in, which gives the same raster, since each cell keeps the highest.
 func _take_raster() -> void:
 	_raster_dirty = true
 	_raster_rev = ruins.revision
@@ -117,61 +133,83 @@ func _take_raster() -> void:
 	var r := PackedFloat32Array()
 	r.resize(RASTER_N * RASTER_N)
 	r.fill(-INF)
-	var half := RASTER_N * RASTER_CELL * 0.5
 	var solids: Array = ruins.meshes()
 	if props:
 		solids.append_array(props.stone_meshes())
+	var kept := {}
 	for entry in solids:
 		var mesh: Mesh = entry[0]
 		var xf: Transform3D = entry[1]
-		# a generated stone gives its rough outline, a few big triangles
-		var parts: Array = []
-		if mesh.has_meta("hull"):
-			parts.append([mesh.get_meta("hull"), PackedInt32Array()])
-		else:
-			for s in mesh.get_surface_count():
-				var arrays := mesh.surface_get_arrays(s)
-				parts.append([arrays[Mesh.ARRAY_VERTEX], arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()])
-		for part in parts:
-			var verts: PackedVector3Array = part[0]
-			var idx: PackedInt32Array = part[1]
-			var world := PackedVector3Array()
-			world.resize(verts.size())
-			for k in verts.size():
-				world[k] = xf * verts[k]
-			var count := idx.size() if not idx.is_empty() else verts.size()
-			for t in range(0, count - 2, 3):
-				var a := world[idx[t] if not idx.is_empty() else t]
-				var b := world[idx[t + 1] if not idx.is_empty() else t + 1]
-				var c := world[idx[t + 2] if not idx.is_empty() else t + 2]
-				var up := (b - a).cross(c - a)
-				if up.y < 0.0:
-					up = -up
-				if up.length_squared() < 1e-10 or up.normalized().y < 0.35:
-					continue
-				var top := maxf(a.y, maxf(b.y, c.y))
-				var i0 := clampi(int((minf(a.x, minf(b.x, c.x)) + half) / RASTER_CELL), 0, RASTER_N - 1)
-				var i1 := clampi(int((maxf(a.x, maxf(b.x, c.x)) + half) / RASTER_CELL), 0, RASTER_N - 1)
-				var j0 := clampi(int((minf(a.z, minf(b.z, c.z)) + half) / RASTER_CELL), 0, RASTER_N - 1)
-				var j1 := clampi(int((maxf(a.z, maxf(b.z, c.z)) + half) / RASTER_CELL), 0, RASTER_N - 1)
-				# a triangle smaller than a cell still marks the cell it sits in
-				var mid := (a + b + c) / 3.0
-				var km := clampi(int((mid.z + half) / RASTER_CELL), 0, RASTER_N - 1) * RASTER_N + clampi(int((mid.x + half) / RASTER_CELL), 0, RASTER_N - 1)
-				r[km] = maxf(r[km], top)
-				var a2 := Vector2(a.x, a.z)
-				var b2 := Vector2(b.x, b.z)
-				var c2 := Vector2(c.x, c.z)
-				for j in range(j0, j1 + 1):
-					for i in range(i0, i1 + 1):
-						var p := Vector2((i + 0.5) * RASTER_CELL - half, (j + 0.5) * RASTER_CELL - half)
-						var bc := _barycentric(p, a2, b2, c2)
-						if bc.x < -0.02 or bc.y < -0.02 or bc.z < -0.02:
-							continue
-						var y := a.y * bc.x + b.y * bc.y + c.y * bc.z
-						var k := j * RASTER_N + i
-						if y > r[k]:
-							r[k] = y
+		var key := "%d|%s" % [mesh.get_instance_id(), xf]
+		var part: Array = kept.get(key, _raster_parts.get(key, []))
+		if part.is_empty():
+			part = _raster_mesh(mesh, xf)
+		kept[key] = part
+		var cells: PackedInt32Array = part[0]
+		var tops: PackedFloat32Array = part[1]
+		for n in cells.size():
+			var k := cells[n]
+			if tops[n] > r[k]:
+				r[k] = tops[n]
+	# pieces no longer there are forgotten
+	_raster_parts = kept
 	_raster = r
+
+
+## One mesh's contribution to the raster: [cells, the top in each].
+func _raster_mesh(mesh: Mesh, xf: Transform3D) -> Array:
+	var half := RASTER_N * RASTER_CELL * 0.5
+	var r := {}
+	# a generated stone gives its rough outline, a few big triangles
+	var parts: Array = []
+	if mesh.has_meta("hull"):
+		parts.append([mesh.get_meta("hull"), PackedInt32Array()])
+	else:
+		for s in mesh.get_surface_count():
+			var arrays := mesh.surface_get_arrays(s)
+			parts.append([arrays[Mesh.ARRAY_VERTEX], arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()])
+	for part in parts:
+		var verts: PackedVector3Array = part[0]
+		var idx: PackedInt32Array = part[1]
+		var world := PackedVector3Array()
+		world.resize(verts.size())
+		for k in verts.size():
+			world[k] = xf * verts[k]
+		var count := idx.size() if not idx.is_empty() else verts.size()
+		for t in range(0, count - 2, 3):
+			var a := world[idx[t] if not idx.is_empty() else t]
+			var b := world[idx[t + 1] if not idx.is_empty() else t + 1]
+			var c := world[idx[t + 2] if not idx.is_empty() else t + 2]
+			var up := (b - a).cross(c - a)
+			if up.y < 0.0:
+				up = -up
+			if up.length_squared() < 1e-10 or up.normalized().y < 0.35:
+				continue
+			var top := maxf(a.y, maxf(b.y, c.y))
+			var i0 := clampi(int((minf(a.x, minf(b.x, c.x)) + half) / RASTER_CELL), 0, RASTER_N - 1)
+			var i1 := clampi(int((maxf(a.x, maxf(b.x, c.x)) + half) / RASTER_CELL), 0, RASTER_N - 1)
+			var j0 := clampi(int((minf(a.z, minf(b.z, c.z)) + half) / RASTER_CELL), 0, RASTER_N - 1)
+			var j1 := clampi(int((maxf(a.z, maxf(b.z, c.z)) + half) / RASTER_CELL), 0, RASTER_N - 1)
+			# a triangle smaller than a cell still marks the cell it sits in
+			var mid := (a + b + c) / 3.0
+			var km := clampi(int((mid.z + half) / RASTER_CELL), 0, RASTER_N - 1) * RASTER_N + clampi(int((mid.x + half) / RASTER_CELL), 0, RASTER_N - 1)
+			r[km] = maxf(r.get(km, -INF), top)
+			var a2 := Vector2(a.x, a.z)
+			var b2 := Vector2(b.x, b.z)
+			var c2 := Vector2(c.x, c.z)
+			for j in range(j0, j1 + 1):
+				for i in range(i0, i1 + 1):
+					var p := Vector2((i + 0.5) * RASTER_CELL - half, (j + 0.5) * RASTER_CELL - half)
+					var bc := _barycentric(p, a2, b2, c2)
+					if bc.x < -0.02 or bc.y < -0.02 or bc.z < -0.02:
+						continue
+					var y := a.y * bc.x + b.y * bc.y + c.y * bc.z
+					var k := j * RASTER_N + i
+					if y > r.get(k, -INF):
+						r[k] = y
+	var cells := PackedInt32Array(r.keys())
+	var tops := PackedFloat32Array(r.values())
+	return [cells, tops]
 
 
 static func _barycentric(p: Vector2, a: Vector2, b: Vector2, c: Vector2) -> Vector3:
@@ -202,9 +240,25 @@ func anchor_at(p: Vector3) -> Array:
 func add(anchors: Array, seed: int) -> void:
 	if anchors.is_empty():
 		return
-	records.append({"seed": seed, "anchors": anchors.duplicate(true), "style": style.duplicate(true)})
-	clear_preview()
-	_refresh()
+	var rec := {"seed": seed, "anchors": anchors.duplicate(true), "style": style.duplicate(true)}
+	records.append(rec)
+	# the preview may be growing just these roots: wait for it rather than
+	# grow them again
+	if _task >= 0 and not _task_regrow and _task_key == _grow_key(_resolve(rec.anchors), _style_of(rec), seed, _crawls(rec)):
+		WorkerThreadPool.wait_for_task_completion(_task)
+		_task = -1
+		_remember(_task_key, _grown)
+	if _grown_cache.has(_grow_key(_resolve(rec.anchors), _style_of(rec), seed, _crawls(rec))):
+		clear_preview()
+		_refresh()
+		return
+	# not grown yet: they grow on the worker, first in line, and the preview
+	# stands in for them until then
+	_showing = false
+	_waiting = []
+	_holding = seed
+	_regrow.push_front(seed)
+	_refresh(true)
 
 
 ## A style dial moved: new roots get it, and so do the last roots drawn.
@@ -220,7 +274,9 @@ func set_style(key: String, value) -> void:
 ## for the one growing now and replaces any that waited before it.
 func preview(anchors: Array, seed: int) -> void:
 	_showing = true
-	_waiting = [_resolve(anchors), style.duplicate(true), seed]
+	# the style as a placed record will have it, so what grows here is what
+	# a let-go stroke can take as it is
+	_waiting = [_resolve(anchors), _style_of({"style": style}), seed, _crawls({"anchors": anchors})]
 	_set_look(_preview, style)
 	_start_preview()
 
@@ -229,6 +285,15 @@ func clear_preview() -> void:
 	_showing = false
 	_waiting = []
 	_preview.mesh = null
+	_holding = -1
+
+
+## A worker still growing roots must finish before the layer goes: it reads
+## the island through this layer.
+func _exit_tree() -> void:
+	if _task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_task)
+		_task = -1
 
 
 func _start_preview() -> void:
@@ -236,22 +301,94 @@ func _start_preview() -> void:
 		return
 	var args := _waiting
 	_waiting = []
+	_task_key = _grow_key(args[0], args[1], args[2], args[3])
+	_task_regrow = false
 	_task = WorkerThreadPool.add_task(func() -> void:
 		_grown = RootBuilder.grow(args[0], args[1], args[2], inside, ground, bare_ground))
 
 
 func _process(_delta: float) -> void:
-	# the ruins changed: take their tops again and regrow the roots on them
+	# the ruins changed: take their tops again, and regrow the roots they
+	# changed under on the worker, one root system at a time, so the picture
+	# does not stall while a root system climbs a new wall
 	ensure_raster()
 	if _raster_dirty and _task < 0:
 		_raster_dirty = false
-		_refresh()
+		_refresh(true)
 	if _task >= 0 and MeshUtil.task_done(_task):
 		WorkerThreadPool.wait_for_task_completion(_task)
 		_task = -1
-		if _showing:
+		_remember(_task_key, _grown)
+		if _task_regrow:
+			_refresh(true)
+		elif _showing:
 			_preview.mesh = RootBuilder.to_mesh(_grown)
 		_start_preview()
+	_start_regrow()
+
+
+## The next root system waiting to regrow, onto the worker (the preview
+## goes first).
+func _start_regrow() -> void:
+	while _task < 0 and not _regrow.is_empty():
+		var seed: int = _regrow.pop_front()
+		for rec in records:
+			if int(rec.seed) != seed:
+				continue
+			var st := _style_of(rec)
+			var resolved := _resolve(rec.anchors)
+			var key := _grow_key(resolved, st, seed, _crawls(rec))
+			if _built.get(seed, "") != key and not _grown_cache.has(key):
+				_task_key = key
+				_task_regrow = true
+				_task = WorkerThreadPool.add_task(func() -> void:
+					_grown = RootBuilder.grow(resolved, st, seed, inside, ground, bare_ground))
+			elif _grown_cache.has(key):
+				_refresh(true)
+			break
+
+
+func _remember(key: String, grown: Dictionary) -> void:
+	if not _grown_cache.has(key):
+		_grown_order.append(key)
+	_grown_cache[key] = grown
+	while _grown_order.size() > 6:
+		_grown_cache.erase(_grown_order.pop_front())
+
+
+## What a root system's shape depends on, as a key: its starts, its style
+## less the look (colour, bark and moss never regrow it), its seed, and for
+## roots that crawl, the ruin and stone tops within their reach.
+func _grow_key(resolved: Array, st: Dictionary, seed: int, crawls: bool) -> String:
+	var shape := st.duplicate()
+	for look in ["tint", "bark", "moss", "texture", "relief"]:
+		shape.erase(look)
+	return "%d|%s%s%s" % [seed, str(resolved), str(shape), _area_key(resolved, st) if crawls else ""]
+
+
+## The raster round the starts, as far as roots can reach from them (with
+## a margin), hashed: a wall built across the island regrows only the roots
+## that could have touched it.
+func _area_key(resolved: Array, st: Dictionary) -> String:
+	if resolved.is_empty() or _raster.is_empty():
+		return ""
+	var length := float(st.length) * float(st.size)
+	var reach := length * maxf(1.0, float(st.spread) / 2.8 + 0.5) + 1.5
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for a in resolved:
+		var p: Vector3 = a[0]
+		lo = Vector2(minf(lo.x, p.x), minf(lo.y, p.z))
+		hi = Vector2(maxf(hi.x, p.x), maxf(hi.y, p.z))
+	var half := RASTER_N * RASTER_CELL * 0.5
+	var i0 := clampi(int((lo.x - reach + half) / RASTER_CELL), 0, RASTER_N - 1)
+	var i1 := clampi(int((hi.x + reach + half) / RASTER_CELL), 0, RASTER_N - 1)
+	var j0 := clampi(int((lo.y - reach + half) / RASTER_CELL), 0, RASTER_N - 1)
+	var j1 := clampi(int((hi.y + reach + half) / RASTER_CELL), 0, RASTER_N - 1)
+	var area := PackedFloat32Array()
+	for j in range(j0, j1 + 1):
+		area.append_array(_raster.slice(j * RASTER_N + i0, j * RASTER_N + i1 + 1))
+	return "|%d" % hash(area)
 
 
 ## Take away every root that starts within r of c.
@@ -392,7 +529,9 @@ static func _set_look(mi: MeshInstance3D, s: Dictionary) -> void:
 	mi.set_instance_shader_parameter("relief", float(s.get("relief", 0.5)))
 
 
-func _refresh() -> void:
+## Grow every root system whose shape changed. on_worker: leave those to
+## the worker (_start_regrow) instead, unless already grown (_grown_cache).
+func _refresh(on_worker := false) -> void:
 	var seen := {}
 	var changed := false
 	for rec in records:
@@ -402,16 +541,17 @@ func _refresh() -> void:
 		var resolved := _resolve(rec.anchors)
 		if _nodes.has(seed):
 			_set_look(_nodes[seed], st)
-		# colour and bark are only the look: changing them never regrows
-		var shape := st.duplicate()
-		shape.erase("tint")
-		shape.erase("bark")
-		shape.erase("moss")
-		shape.erase("texture")
-		shape.erase("relief")
-		var key := str(resolved) + str(shape) + ("%d/%d" % [_raster_rev, _stones_rev] if _crawls(rec) else "")
+		var key := _grow_key(resolved, st, seed, _crawls(rec))
 		if _built.get(seed, "") == key:
 			continue
+		var grown = _grown_cache.get(key)
+		if grown == null:
+			if on_worker:
+				if not _regrow.has(seed):
+					_regrow.append(seed)
+				continue
+			grown = RootBuilder.grow(resolved, st, seed, inside, ground, bare_ground)
+			_remember(key, grown)
 		_built[seed] = key
 		if not _nodes.has(seed):
 			var mi := MeshInstance3D.new()
@@ -419,11 +559,16 @@ func _refresh() -> void:
 			add_child(mi)
 			_nodes[seed] = mi
 		_set_look(_nodes[seed], st)
-		var grown := RootBuilder.grow(resolved, st, seed, inside, ground, bare_ground)
 		_nodes[seed].mesh = RootBuilder.to_mesh(grown)
+		if seed == _holding:
+			_preview.mesh = null
+			_holding = -1
 		_lying[seed] = grown.get("lying", PackedFloat32Array())
 		_grown_nodes[seed] = [grown.get("nodes", PackedVector3Array()), grown.get("dead", PackedByteArray())]
 		changed = true
+	if _holding >= 0 and not seen.has(_holding):
+		_preview.mesh = null
+		_holding = -1
 	for seed in _nodes.keys():
 		if not seen.has(seed):
 			_nodes[seed].queue_free()

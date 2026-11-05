@@ -34,6 +34,11 @@ const PlantGen := preload("res://scripts/plant_gen.gd")
 const GOLDEN := 2.39996   # radians
 
 static var _bark_normal: Texture2D
+# shared by every tree: what differs between trees goes in instance uniforms
+static var _bark_mat: ShaderMaterial
+static var _leaf_mat: ShaderMaterial
+static var _skirt_mat: ShaderMaterial
+static var _fruit_mats := {}   # "colour|blossom" -> StandardMaterial3D
 
 
 ## The bark's colour and the Mossa, Struktur and Relief dials; `climb` is
@@ -84,9 +89,10 @@ static func build(style: Dictionary, height: float, seed: int, env := {}) -> Nod
 	if float(style.leaves) > 0.01 and not (g.clusters as Array).is_empty():
 		var leaves := MeshInstance3D.new()
 		leaves.mesh = _leaf_mesh(g)
-		var lm := ShaderMaterial.new()
-		lm.shader = load("res://shaders/leaves.gdshader")
-		leaves.material_override = lm
+		if _leaf_mat == null:
+			_leaf_mat = ShaderMaterial.new()
+			_leaf_mat.shader = load("res://shaders/leaves.gdshader")
+		leaves.material_override = _leaf_mat
 		var c: Array = style.leaf_color
 		leaves.set_instance_shader_parameter("leaf_color", Vector3(c[0], c[1], c[2]))
 		leaves.set_instance_shader_parameter("needles", 1.0 if g.needles else 0.0)
@@ -96,28 +102,32 @@ static func build(style: Dictionary, height: float, seed: int, env := {}) -> Nod
 	if fruit > 0.01 and not g.needles and not (g.clusters as Array).is_empty():
 		var fm := MeshInstance3D.new()
 		fm.mesh = _fruit_mesh(g, fruit, float(style.get("fruit_size", 1.0)), bool(style.get("blossom", false)))
-		var mat := StandardMaterial3D.new()
 		var fc: Array = style.get("fruit_color", [0.8, 0.12, 0.1])
-		mat.albedo_color = Color(fc[0], fc[1], fc[2])
-		mat.roughness = 0.5 if not style.get("blossom", false) else 0.85
-		if style.get("blossom", false):
-			mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-			mat.backlight_enabled = true
-			mat.backlight = Color(fc[0], fc[1], fc[2]) * 0.5
-		fm.material_override = mat
+		var key := "%s|%s" % [str(fc), style.get("blossom", false)]
+		if not _fruit_mats.has(key):
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color(fc[0], fc[1], fc[2])
+			mat.roughness = 0.5 if not style.get("blossom", false) else 0.85
+			if style.get("blossom", false):
+				mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+				mat.backlight_enabled = true
+				mat.backlight = Color(fc[0], fc[1], fc[2]) * 0.5
+			_fruit_mats[key] = mat
+		fm.material_override = _fruit_mats[key]
 		root.add_child(fm)
 	return root
 
 
 static func _bark_material() -> ShaderMaterial:
-	var mat := ShaderMaterial.new()
-	mat.shader = load("res://shaders/bark.gdshader")
-	if _bark_normal == null:
-		_bark_normal = load("res://textures/Bark_NormalTree_Normal.png")
+	if _bark_mat:
+		return _bark_mat
+	_bark_mat = ShaderMaterial.new()
+	_bark_mat.shader = load("res://shaders/bark.gdshader")
+	_bark_normal = load("res://textures/Bark_NormalTree_Normal.png")
 	if _bark_normal:
-		mat.set_shader_parameter("normal_tex", _bark_normal)
-		mat.set_shader_parameter("has_normal", true)
-	return mat
+		_bark_mat.set_shader_parameter("normal_tex", _bark_normal)
+		_bark_mat.set_shader_parameter("has_normal", true)
+	return _bark_mat
 
 
 ## How long a main branch is at height t (0 at the trunk's foot, 1 at its
@@ -265,9 +275,10 @@ static func _conifer(g: Dictionary, foot: Vector3, dir: Vector3, height: float) 
 	root.add_child(trunk)
 	var skirts := MeshInstance3D.new()
 	skirts.mesh = b.mesh()
-	var mat := ShaderMaterial.new()
-	mat.shader = load("res://shaders/plant.gdshader")
-	skirts.material_override = mat
+	if _skirt_mat == null:
+		_skirt_mat = ShaderMaterial.new()
+		_skirt_mat.shader = load("res://shaders/plant.gdshader")
+	skirts.material_override = _skirt_mat
 	var lc: Array = st.leaf_color
 	skirts.set_instance_shader_parameter("color_a", Vector3(lc[0], lc[1], lc[2]))
 	root.add_child(skirts)
@@ -473,11 +484,22 @@ static func _leaf_mesh(g: Dictionary) -> ArrayMesh:
 		want += 130.0 * float(c[1]) * float(c[1])
 	var per := float(st.leaves) * minf(1.0, 3500.0 / maxf(want * float(st.leaves), 1.0))
 
+	# every card counted first, so the arrays are sized once and filled in
+	# place (most of a tree's building time is here)
+	var total := 0
+	for cl in clusters:
+		total += int(130.0 * float(cl[1]) * float(cl[1]) * per) + 1
 	var verts := PackedVector3Array()
 	var nrm := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var colors := PackedColorArray()
 	var idx := PackedInt32Array()
+	verts.resize(total * 4)
+	nrm.resize(total * 4)
+	uvs.resize(total * 4)
+	colors.resize(total * 4)
+	idx.resize(total * 6)
+	var card := 0
 	for cl in clusters:
 		var c: Vector3 = cl[0]
 		var r: float = cl[1]
@@ -505,13 +527,26 @@ static func _leaf_mesh(g: Dictionary) -> ArrayMesh:
 			if g.needles:
 				outer = clampf(0.35 + (p.y - c.y) * 2.0 + n_local.length() * 0.3, 0.0, 1.0)
 			var col := Color(outer, rng.randf(), 0.0, 1.0)
-			var base := verts.size()
-			verts.append_array([p - ax - ay, p + ax - ay, p + ax + ay, p - ax + ay])
-			uvs.append_array([Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)])
+			var base := card * 4
+			verts[base] = p - ax - ay
+			verts[base + 1] = p + ax - ay
+			verts[base + 2] = p + ax + ay
+			verts[base + 3] = p - ax + ay
+			uvs[base] = Vector2(0, 1)
+			uvs[base + 1] = Vector2(1, 1)
+			uvs[base + 2] = Vector2(1, 0)
+			uvs[base + 3] = Vector2(0, 0)
 			for k in 4:
-				nrm.append(normal)
-				colors.append(col)
-			idx.append_array([base, base + 1, base + 2, base, base + 2, base + 3])
+				nrm[base + k] = normal
+				colors[base + k] = col
+			var i := card * 6
+			idx[i] = base
+			idx[i + 1] = base + 1
+			idx[i + 2] = base + 2
+			idx[i + 3] = base
+			idx[i + 4] = base + 2
+			idx[i + 5] = base + 3
+			card += 1
 	var mesh := ArrayMesh.new()
 	MeshUtil.add_surface(mesh, verts, nrm, uvs, colors, idx)
 	return mesh
