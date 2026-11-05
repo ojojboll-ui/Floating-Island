@@ -54,7 +54,8 @@ var night := 0.0                 # 0 day .. 1 deep night, for anyone who asks
 
 var _cloud_mat: ShaderMaterial
 var _cloud_holder: Node3D
-var _clouds: Array[Node3D] = []
+var _cloud_mm: MultiMesh
+var _cloud_ends: Array[int] = []   # instances up to the end of each cloud
 var _fog_volume: Node3D   # a FogVolume, or the mist's sheets in the lighter look
 var _fog_mat: ShaderMaterial
 var _rain: GPUParticles3D
@@ -210,9 +211,8 @@ func apply() -> void:
 	env.adjustment_saturation = lerpf(1.2, 0.95, maxf(night * 0.6, overcast * 0.5)) * saturation
 
 	# cloud puffs: as many as the cover asks for, tinted for the hour
-	var showing := int(round(clouds * _clouds.size()))
-	for k in _clouds.size():
-		_clouds[k].visible = k < showing
+	var showing := int(round(clouds * _cloud_ends.size()))
+	_cloud_mm.visible_instance_count = _cloud_ends[showing - 1] if showing > 0 else 0
 	var lit: Color = Color(0.95, 0.95, 0.96).lerp(pal[4], 0.35 * (1.0 - night))
 	lit = lit.lerp(Color(0.32, 0.36, 0.5), night * 0.85).lerp(Color(0.62, 0.64, 0.68), overcast * 0.7)
 	var shade: Color = (pal[3] as Color).lerp(Color(0.7, 0.76, 0.88), 0.5).lerp(Color(0.42, 0.45, 0.52), overcast * 0.8)
@@ -346,6 +346,16 @@ func _build_clouds() -> void:
 	_cloud_mat.shader = load("res://shaders/cloud.gdshader")
 	_cloud_holder = Node3D.new()
 	add_child(_cloud_holder)
+	# every puff of every cloud is one instance of a single sphere, drawn in
+	# one go; each cloud's puffs follow each other, so showing the first n
+	# clouds is showing the first so many instances (_cloud_ends)
+	var sphere := SphereMesh.new()
+	sphere.radius = 1.0
+	sphere.height = 2.0
+	sphere.radial_segments = 32
+	sphere.rings = 16
+	var puffs_tf: Array[Transform3D] = []
+	var puffs_r: Array[float] = []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 8
 	# the first six are the ones the island always had; more fill in the gaps
@@ -353,9 +363,7 @@ func _build_clouds() -> void:
 		[0.9, 21.0, 4.0], [2.1, 20.0, -9.5], [3.1, 22.0, 6.0], [4.1, 19.5, -4.5], [5.1, 21.5, 2.5], [6.0, 19.0, -10.0],
 		[0.1, 24.0, -2.0], [3.4, 13.0, -11.0], [1.8, 12.5, 6.5], [5.0, 23.0, 7.0]]
 	for s in spots:
-		var cloud := Node3D.new()
-		cloud.position = Vector3(cos(s[0]) * s[1], s[2], sin(s[0]) * s[1])
-		cloud.rotation.y = rng.randf() * TAU
+		var cloud := Transform3D(Basis(Vector3.UP, rng.randf() * TAU), Vector3(cos(s[0]) * s[1], s[2], sin(s[0]) * s[1]))
 		# big puffs in the middle, small ones toward the ends, all resting
 		# on a flat-ish base
 		var length := rng.randf_range(3.0, 5.5)
@@ -363,18 +371,24 @@ func _build_clouds() -> void:
 		for p in puffs:
 			var along := rng.randf_range(-1.0, 1.0)
 			var r := lerpf(1.6, 0.6, absf(along)) * rng.randf_range(0.75, 1.15)
-			var sphere := SphereMesh.new()
-			sphere.radius = r
-			sphere.height = r * 2.0
-			var puff := MeshInstance3D.new()
-			puff.mesh = sphere
-			puff.material_override = _cloud_mat
-			puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			puff.position = Vector3(along * length, r * 0.55 + rng.randf_range(-0.1, 0.4), rng.randf_range(-0.9, 0.9))
-			puff.scale = Vector3(1.0, 0.85, 1.0)
-			cloud.add_child(puff)
-		_cloud_holder.add_child(cloud)
-		_clouds.append(cloud)
+			var at := Vector3(along * length, r * 0.55 + rng.randf_range(-0.1, 0.4), rng.randf_range(-0.9, 0.9))
+			puffs_tf.append(cloud * Transform3D(Basis.from_scale(Vector3(1.0, 0.85, 1.0) * r), at))
+			puffs_r.append(r)
+		_cloud_ends.append(puffs_tf.size())
+	_cloud_mm = MultiMesh.new()
+	_cloud_mm.transform_format = MultiMesh.TRANSFORM_3D
+	_cloud_mm.use_custom_data = true
+	_cloud_mm.mesh = sphere
+	_cloud_mm.instance_count = puffs_tf.size()
+	for k in puffs_tf.size():
+		_cloud_mm.set_instance_transform(k, puffs_tf[k])
+		# the puff's radius, so its bumps keep their size in metres
+		_cloud_mm.set_instance_custom_data(k, Color(puffs_r[k], 0.0, 0.0, 0.0))
+	var node := MultiMeshInstance3D.new()
+	node.multimesh = _cloud_mm
+	node.material_override = _cloud_mat
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_cloud_holder.add_child(node)
 
 
 ## The mist (mist.gdshader): a box over the whole island, from well under

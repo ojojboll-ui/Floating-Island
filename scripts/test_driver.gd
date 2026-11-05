@@ -1623,6 +1623,56 @@ static func run(main: Node, name: String) -> void:
 				await RenderingServer.frame_post_draw
 				print("  %-12s %6d ms" % [sh.left(40), Time.get_ticks_msec() - t0])
 				mi.queue_free()
+		"cpu_split":
+			# each layer's _process on its own: called by hand 120 times with
+			# its own processing off, so nothing runs twice
+			await _frames(main, 30)
+			var whole := 0.0
+			for k in 60:
+				await _frames(main, 1)
+				whole += Performance.get_monitor(Performance.TIME_PROCESS)
+			print("  whole frame's processing %.2f ms" % (whole / 60.0 * 1000.0))
+			for label: String in ["brush", "fish", "view", "rig", "post", "props", "roots", "ui", "weather"]:
+				var node: Node = main.get(label)
+				node.set_process(false)
+				var t0 := Time.get_ticks_usec()
+				for k in 120:
+					node._process(1.0 / 60.0)
+				print("  %-8s %6.3f ms" % [label, (Time.get_ticks_usec() - t0) / 120.0 / 1000.0])
+				node.set_process(true)
+				await _frames(main, 2)
+		"gpu_split":
+			# GPU time per frame with each part of the scene hidden in turn
+			var vp: RID = main.get_viewport().get_viewport_rid()
+			RenderingServer.viewport_set_measure_render_time(vp, true)
+			main.ui.set_collapsed(true)
+			var gpu := func() -> float:
+				await _frames(main, 15)
+				var sum := 0.0
+				for k in 60:
+					await _frames(main, 1)
+					sum += RenderingServer.viewport_get_measured_render_time_gpu(vp)
+				return sum / 60.0
+			var base: float = await gpu.call()
+			print("  everything             %5.2f ms" % base)
+			var parts := {"grass": [], "ground": [], "cliff": [], "water": []}
+			for key in main.view._tiles:
+				var e: Dictionary = main.view._tiles[key]
+				parts.grass.append(e.grass)
+				parts.ground.append(e.top)
+				parts.cliff.append(e.body)
+				parts.water.append_array([e.water, e.falls, e.veil])
+			parts["props"] = [main.props]
+			parts["ruins"] = [main.ruins]
+			parts["roots"] = [main.roots]
+			parts["clouds"] = [main.weather._cloud_holder]
+			for label: String in parts:
+				for n in parts[label]:
+					(n as Node3D).visible = false
+				var t: float = await gpu.call()
+				print("  without %-14s %5.2f ms  (%+.2f)" % [label, t, t - base])
+				for n in parts[label]:
+					(n as Node3D).visible = true
 		"warmup_screen":
 			# the loading screen itself, half way
 			await _frames(main, 12)

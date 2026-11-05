@@ -28,43 +28,55 @@ void vertex() {
 	vec2 root = INSTANCE_CUSTOM.xy;
 	float chance = INSTANCE_CUSTOM.z;
 	vec4 t = terrain_at(root);
-	float lush = fbm2(root * 0.22) ;
-	float density = clamp(t.a * 1.4 - 0.4, 0.0, 1.0) * (1.0 - t.b) * (0.35 + 0.8 * lush) * step(0.02, t.g);
-	// only sheer walls stay bare; hillsides keep their grass
-	float sx = terrain_at(root + vec2(0.1, 0.0)).r - terrain_at(root - vec2(0.1, 0.0)).r;
-	float sz = terrain_at(root + vec2(0.0, 0.1)).r - terrain_at(root - vec2(0.0, 0.1)).r;
-	density *= 1.0 - smoothstep(3.0, 5.0, length(vec2(sx, sz)) / 0.2);
-	float grows = step(chance, density);
-	// by the coast the grass hangs out over the edge, but only here and there:
-	// in patches along the rim, some hanging further than others
-	float edge = 1.0 - smoothstep(0.05, 0.5, t.g);
-	float over = smoothstep(0.45, 0.75, fbm2(root * 1.3 + vec2(17.0, 3.0)));
-	float tall = mix(0.75, 1.25, INSTANCE_CUSTOM.w) * (0.55 + 0.6 * density) * (1.0 + edge * over * 0.15);
-	tall *= grows;
-
 	along = UV.y;
 	shade = COLOR.r;
-	// fold non-growing tufts into their root point
-	VERTEX.xz = root + (VERTEX.xz - root) * grows;
-	// stand on the ground at the root; blades stay upright on slopes
-	VERTEX.y = VERTEX.y * tall + t.r - 0.02;
-	// out over the edge and down it: outward from the coast, the tip drooping
-	// further the nearer the root is to the edge, some tufts more than others
-	if (edge * over > 0.001 && grows > 0.5) {
-		vec2 out_dir = -vec2(terrain_at(root + vec2(0.1, 0.0)).g - terrain_at(root - vec2(0.1, 0.0)).g,
-			terrain_at(root + vec2(0.0, 0.1)).g - terrain_at(root - vec2(0.0, 0.1)).g);
-		out_dir = length(out_dir) > 1e-5 ? normalize(out_dir) : vec2(0.0);
-		float flop = edge * over * (0.4 + 0.6 * fract(chance * 7.31)) * along;
-		VERTEX.xz += out_dir * flop * tall * 0.4;
-		VERTEX.y -= flop * flop * tall * 0.45;
-	}
+	// most tufts stand where no grass can grow (off the island, on paint, under
+	// things): those fold to their root point before anything costly. The
+	// lushness and the slope below only ever lower the density, at most to
+	// 1.15 times this, so a tuft that fails here would fail there too.
+	float density = clamp(t.a * 1.4 - 0.4, 0.0, 1.0) * (1.0 - t.b) * step(0.02, t.g);
+	if (density * 1.15 < chance) {
+		VERTEX = vec3(root.x, t.r - 0.02, root.y);
+	} else {
+		float lush = fbm2(root * 0.22) ;
+		density *= 0.35 + 0.8 * lush;
+		// only sheer walls stay bare; hillsides keep their grass
+		float sx = terrain_at(root + vec2(0.1, 0.0)).r - terrain_at(root - vec2(0.1, 0.0)).r;
+		float sz = terrain_at(root + vec2(0.0, 0.1)).r - terrain_at(root - vec2(0.0, 0.1)).r;
+		density *= 1.0 - smoothstep(3.0, 5.0, length(vec2(sx, sz)) / 0.2);
+		float grows = step(chance, density);
+		// by the coast the grass hangs out over the edge, but only here and there:
+		// in patches along the rim, some hanging further than others
+		float edge = 1.0 - smoothstep(0.05, 0.5, t.g);
+		float over = edge > 0.0 ? smoothstep(0.45, 0.75, fbm2(root * 1.3 + vec2(17.0, 3.0))) : 0.0;
+		float tall = mix(0.75, 1.25, INSTANCE_CUSTOM.w) * (0.55 + 0.6 * density) * (1.0 + edge * over * 0.15);
+		tall *= grows;
 
-	float gust = vnoise2(VERTEX.xz * 0.18 + vec2(TIME * 0.35, TIME * 0.21));
-	float sway = sin(TIME * 1.7 + VERTEX.x * 0.8 + VERTEX.z * 0.6) * 0.35 + gust * 1.1 - 0.4;
-	VERTEX.xz += vec2(1.0, 0.45) * sway * along * along * 0.07 * tall * wind_sway();
-	// the steady lean of the wind, the tips bowed down a little with it
-	VERTEX.xz += wind_dir().xz * wind_lean() * along * along * 0.28 * tall;
-	VERTEX.y -= wind_lean() * along * along * 0.08 * tall;
+		// fold non-growing tufts into their root point
+		VERTEX.xz = root + (VERTEX.xz - root) * grows;
+		// stand on the ground at the root; blades stay upright on slopes
+		VERTEX.y = VERTEX.y * tall + t.r - 0.02;
+		// out over the edge and down it: outward from the coast, the tip drooping
+		// further the nearer the root is to the edge, some tufts more than others
+		if (edge * over > 0.001 && grows > 0.5) {
+			vec2 out_dir = -vec2(terrain_at(root + vec2(0.1, 0.0)).g - terrain_at(root - vec2(0.1, 0.0)).g,
+				terrain_at(root + vec2(0.0, 0.1)).g - terrain_at(root - vec2(0.0, 0.1)).g);
+			out_dir = length(out_dir) > 1e-5 ? normalize(out_dir) : vec2(0.0);
+			float flop = edge * over * (0.4 + 0.6 * fract(chance * 7.31)) * along;
+			VERTEX.xz += out_dir * flop * tall * 0.4;
+			VERTEX.y -= flop * flop * tall * 0.45;
+		}
+
+		// the wind moves only what is above the root
+		if (along > 0.0) {
+			float gust = vnoise2(VERTEX.xz * 0.18 + vec2(TIME * 0.35, TIME * 0.21));
+			float sway = sin(TIME * 1.7 + VERTEX.x * 0.8 + VERTEX.z * 0.6) * 0.35 + gust * 1.1 - 0.4;
+			VERTEX.xz += vec2(1.0, 0.45) * sway * along * along * 0.07 * tall * wind_sway();
+			// the steady lean of the wind, the tips bowed down a little with it
+			VERTEX.xz += wind_dir().xz * wind_lean() * along * along * 0.28 * tall;
+			VERTEX.y -= wind_lean() * along * along * 0.08 * tall;
+		}
+	}
 	wpos = VERTEX;
 	wnormal = NORMAL;
 }

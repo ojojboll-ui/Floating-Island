@@ -17,7 +17,10 @@ varying vec3 wnormal;
 
 void vertex() {
 	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	VERTEX += NORMAL * (fbm3(wp * 0.9 + vec3(0.0, TIME * 0.03, 0.0)) - 0.5) * 0.7;
+	// one sphere of radius 1 for every puff, scaled to its size: the bumps
+	// are divided by that (INSTANCE_CUSTOM.x), so they keep their size
+	float r = INSTANCE_CUSTOM.x > 0.0 ? INSTANCE_CUSTOM.x : 1.0;
+	VERTEX += NORMAL * (fbm3(wp * 0.9 + vec3(0.0, TIME * 0.03, 0.0)) - 0.5) * 0.7 / r;
 	wnormal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 
