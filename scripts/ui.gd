@@ -47,6 +47,9 @@ var weather
 var main
 var rig
 var _toast: Label
+var _soft_leaves: CheckButton
+var _fps: Label
+var _fps_wait := 0.0
 var _cam_sliders := {}
 var _dock: PanelContainer
 var _handle: Button
@@ -113,7 +116,7 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	tabs.columns = 4
 	tabs.add_theme_constant_override("h_separation", 2)
 	tabs.add_theme_constant_override("v_separation", 2)
-	for t in ["Mark", "Växter", "Ruiner", "Prylar", "Väder", "Ljus", "Kamera", "Effekter", "Export"]:
+	for t in ["Mark", "Växter", "Ruiner", "Prylar", "Väder", "Ljus", "Kamera", "Effekter", "Export", "Grafik"]:
 		tabs.add_tab(t)
 	column.add_child(tabs)
 	column.add_child(HSeparator.new())
@@ -152,7 +155,10 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	var export_page := _export_row()
 	export_page.visible = false
 	body.add_child(export_page)
-	_pages = [row, plants, ruin_page, items_page, weather_page, light_page, camera_page, effects_page, export_page]
+	var graphics_page := _graphics_row()
+	graphics_page.visible = false
+	body.add_child(graphics_page)
+	_pages = [row, plants, ruin_page, items_page, weather_page, light_page, camera_page, effects_page, export_page, graphics_page]
 	tabs.tab_changed.connect(_show_page)
 
 	# folded away, the panel is this little tab on the edge
@@ -221,6 +227,22 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	_toast.add_theme_font_size_override("font_size", 17)
 	_toast.modulate.a = 0.0
 	root.add_child(_toast)
+
+	# the frame rate, when Grafik asks for it
+	_fps = Label.new()
+	_fps.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_fps.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_fps.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_fps.offset_left = -20
+	_fps.offset_right = -20
+	_fps.offset_top = -18
+	_fps.offset_bottom = -18
+	_fps.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
+	_fps.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.45))
+	_fps.add_theme_constant_override("shadow_offset_y", 1)
+	_fps.add_theme_font_size_override("font_size", 14)
+	_fps.visible = false
+	root.add_child(_fps)
 
 	var hint := Label.new()
 	hint.text = "Vänster: verktyg   Shift: omvänt   Höger: rotera   Mitten: panorera   Hjul: zooma   [ ]: storlek   Q E: vrid   Tab: göm panelen"
@@ -571,16 +593,6 @@ func _effects_row() -> Control:
 	add.call(lens, "Skärpa", p, "sharpen", 0.0, 1.0, "%", "Skärper kanterna")
 	add.call(lens, "Hörnskugga", p, "occlusion", 0.0, 2.0, "x", "Skuggan i vrår och där saker möter marken")
 	row.add_child(lens)
-	var fast := CheckButton.new()
-	fast.text = "Snabbläge"
-	fast.tooltip_text = "Billigare kantutjämning, inget studsande ljus (SSIL), mindre och skarpare solskuggor, grövre dimma och skärpedjup: ungefär 3 ms snabbare per bild. Slås på av sig själv när datorn inte hinner med, och valet sparas på datorn. Bilder och filmer som exporteras får full kvalitet ändå"
-	fast.focus_mode = Control.FOCUS_NONE
-	fast.button_pressed = p.fast
-	fast.toggled.connect(func(on: bool) -> void:
-		p.fast = on
-		p.save_fast())
-	buttons["Snabbläge"] = fast
-	row.add_child(fast)
 	var reset := Button.new()
 	reset.text = "Återställ effekterna"
 	reset.focus_mode = Control.FOCUS_NONE
@@ -588,7 +600,6 @@ func _effects_row() -> Control:
 	reset.pressed.connect(func() -> void:
 		p.reset()
 		w.saturation = 1.0
-		fast.set_pressed_no_signal(p.fast)
 		for d in dials:
 			(d[0] as HSlider).set_value_no_signal(d[1].get(d[2]))
 			_show(d[0])
@@ -675,6 +686,68 @@ func _page() -> VBoxContainer:
 	page.add_theme_constant_override("separation", 16)
 	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return page
+
+
+## The Grafik page: this computer's own graphics settings. They are kept on
+## the computer (post.gd PREFS), not in the island, and an exported picture
+## or film gets full quality whatever they say.
+func _graphics_row() -> Control:
+	var row := _page()
+	var p = main.post
+	var box := _column("Grafik på den här datorn")
+	box.add_theme_constant_override("separation", 8)
+	var fast := CheckButton.new()
+	fast.text = "Snabbläge"
+	fast.tooltip_text = "Billigare kantutjämning, inget studsande ljus (SSIL), mindre och skarpare solskuggor, grövre dimma och skärpedjup: ungefär 3 ms snabbare per bild. Slås på av sig själv när datorn inte hinner med, tills du väljer här"
+	fast.focus_mode = Control.FOCUS_NONE
+	fast.button_pressed = p.fast
+	fast.toggled.connect(func(on: bool) -> void:
+		p.fast = on
+		p.fast_chosen = true
+		p.save_prefs())
+	buttons["Snabbläge"] = fast
+	box.add_child(fast)
+	_soft_leaves = CheckButton.new()
+	_soft_leaves.text = "Mjuka bladkanter"
+	_soft_leaves.tooltip_text = "Jämnare kanter på löven, med kantutjämningen. Kronorna blir då ljusare och plattare inuti, eftersom hörnskuggan inte ser löven, och en skog kostar ungefär 2 ms mer per bild. Gör ingenting i Snabbläge"
+	_soft_leaves.focus_mode = Control.FOCUS_NONE
+	_soft_leaves.button_pressed = p.soft_leaves
+	_soft_leaves.toggled.connect(func(on: bool) -> void:
+		p.soft_leaves = on
+		p.save_prefs())
+	buttons["Mjuka bladkanter"] = _soft_leaves
+	box.add_child(_soft_leaves)
+	var fps := CheckButton.new()
+	fps.text = "Visa bildfrekvens"
+	fps.tooltip_text = "Bilder per sekund och millisekunder per bild, nere till höger"
+	fps.focus_mode = Control.FOCUS_NONE
+	fps.button_pressed = p.show_fps
+	fps.toggled.connect(func(on: bool) -> void:
+		p.show_fps = on
+		p.save_prefs())
+	buttons["Visa bildfrekvens"] = fps
+	box.add_child(fps)
+	row.add_child(box)
+
+	var about := _column("Datorn")
+	var info := Label.new()
+	var how := "Vulkan"
+	if MeshUtil.lite():
+		how = "WebGL 2, enklare grafik" if MeshUtil.web() else "OpenGL, enklare grafik"
+	info.text = "%s\n%s" % [RenderingServer.get_video_adapter_name(), how]
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.custom_minimum_size.x = 200
+	info.add_theme_font_size_override("font_size", 13)
+	about.add_child(info)
+	var note := Label.new()
+	note.text = "Inställningarna sparas på datorn, inte i ön. Bilder och filmer som exporteras får alltid full kvalitet."
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size.x = 200
+	note.add_theme_font_size_override("font_size", 13)
+	note.add_theme_color_override("font_color", Color(INK, 0.65))
+	about.add_child(note)
+	row.add_child(about)
+	return row
 
 
 ## The Export page: a still, a film of the camera's waves, or a looping
@@ -869,7 +942,17 @@ func set_collapsed(on: bool) -> void:
 		tw.parallel().tween_property(_dock, "offset_right", MARGIN + DOCK_WIDTH, 0.22)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	# the frame rate, twice a second
+	_fps.visible = main.post.show_fps and visible
+	_fps_wait -= delta
+	if _fps.visible and _fps_wait <= 0.0:
+		_fps_wait = 0.5
+		var f := Engine.get_frames_per_second()
+		_fps.text = "%d bilder/s  ·  %.1f ms" % [f, 1000.0 / maxf(f, 1.0)]
+	# soft leaf edges do nothing in Snabbläge (which may turn on by itself)
+	if _soft_leaves:
+		_soft_leaves.disabled = main.post.fast
 	# keep the island in the middle of the free part of the screen
 	var width := get_viewport().get_visible_rect().size.x
 	var shift := 0.0

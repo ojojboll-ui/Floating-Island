@@ -36,13 +36,24 @@ var sharpen := 0.0
 ## computer, not the island, so it is kept in its own file (PREFS), not in
 ## the island's settings.
 var fast := false
+## Soft leaf edges (alpha to coverage). They only smooth anything with MSAA,
+## so Snabbläge leaves them off; otherwise ~2 ms more in a wood.
+var soft_leaves := false
+## A frame rate counter in the corner.
+var show_fps := false
 ## Full quality whatever Snabbläge says, while a still is exported.
 var full_quality := false
 ## Whether a choice is saved (not in test runs).
 var remember := true
 var _quality := -1   # what the renderer was last set to: 0 cheap, 1 full
+## Whether Snabbläge was chosen on this computer (by hand, now or before),
+## not left to the warm-up: only then is it saved.
+var fast_chosen := false
 
 const PREFS := "user://settings.cfg"
+## The computer's own graphics settings (the Grafik tab), kept in PREFS.
+const PREFS_KEYS := ["fast", "soft_leaves", "show_fps"]
+const TreeBuilder := preload("res://scripts/tree_builder.gd")
 
 const SETTINGS := ["glow", "glow_bloom", "glow_threshold", "rays", "ray_length", "volume", "volume_glow",
 	"occlusion", "contrast", "brightness", "temperature", "tint", "shadow_tint", "highlight_tint",
@@ -124,6 +135,7 @@ func apply() -> void:
 	vp.msaa_3d = Viewport.MSAA_DISABLED if cheap else Viewport.MSAA_2X
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if cheap else Viewport.SCREEN_SPACE_AA_DISABLED
 	_set_quality(not cheap)
+	TreeBuilder.set_soft_leaves(soft_leaves and not cheap)
 
 	# volumetric light: a thin haze all through the air, lit by the sun and
 	# shadowed by everything on the island, so shafts fall between them
@@ -172,21 +184,27 @@ func _set_quality(full: bool) -> void:
 		RenderingServer.camera_attributes_set_dof_blur_quality(RenderingServer.DOF_BLUR_QUALITY_HIGH if full else RenderingServer.DOF_BLUR_QUALITY_LOW, false)
 
 
-## Snabbläge as chosen on this computer before. False when nobody has chosen.
-func load_fast() -> bool:
+## This computer's graphics settings as chosen before. Returns whether
+## Snabbläge was chosen (if not, the warm-up judges it).
+func load_prefs() -> bool:
 	var cfg := ConfigFile.new()
-	if cfg.load(PREFS) != OK or not cfg.has_section_key("graphics", "fast"):
+	if cfg.load(PREFS) != OK:
 		return false
-	fast = bool(cfg.get_value("graphics", "fast"))
-	return true
+	for key in PREFS_KEYS:
+		if cfg.has_section_key("graphics", key):
+			set(key, bool(cfg.get_value("graphics", key)))
+	fast_chosen = cfg.has_section_key("graphics", "fast")
+	return fast_chosen
 
 
-func save_fast() -> void:
+func save_prefs() -> void:
 	if not remember:
 		return
 	var cfg := ConfigFile.new()
 	cfg.load(PREFS)
-	cfg.set_value("graphics", "fast", fast)
+	for key in PREFS_KEYS:
+		if key != "fast" or fast_chosen:
+			cfg.set_value("graphics", key, get(key))
 	cfg.save(PREFS)
 
 

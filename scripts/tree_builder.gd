@@ -39,6 +39,7 @@ static var _bark_mat: ShaderMaterial
 static var _leaf_mat: ShaderMaterial
 static var _skirt_mat: ShaderMaterial
 static var _fruit_mats := {}   # "colour|blossom" -> StandardMaterial3D
+static var _soft_leaves := false   # soft leaf edges (Grafik), see set_soft_leaves
 
 
 ## The bark's colour and the Mossa, Struktur and Relief dials; `climb` is
@@ -91,7 +92,7 @@ static func build(style: Dictionary, height: float, seed: int, env := {}) -> Nod
 		leaves.mesh = _leaf_mesh(g)
 		if _leaf_mat == null:
 			_leaf_mat = ShaderMaterial.new()
-			_leaf_mat.shader = load("res://shaders/leaves.gdshader")
+			_leaf_mat.shader = load(_leaf_shader())
 		leaves.material_override = _leaf_mat
 		var c: Array = style.leaf_color
 		leaves.set_instance_shader_parameter("leaf_color", Vector3(c[0], c[1], c[2]))
@@ -116,6 +117,20 @@ static func build(style: Dictionary, height: float, seed: int, env := {}) -> Nod
 		fm.material_override = _fruit_mats[key]
 		root.add_child(fm)
 	return root
+
+
+## Soft leaf edges (Grafik, Mjuka bladkanter) or cut-out ones, for every
+## tree at once: they share the one leaf material.
+static func set_soft_leaves(on: bool) -> void:
+	if on == _soft_leaves:
+		return
+	_soft_leaves = on
+	if _leaf_mat:
+		_leaf_mat.shader = load(_leaf_shader())
+
+
+static func _leaf_shader() -> String:
+	return "res://shaders/leaves_soft.gdshader" if _soft_leaves else "res://shaders/leaves.gdshader"
 
 
 static func _bark_material() -> ShaderMaterial:

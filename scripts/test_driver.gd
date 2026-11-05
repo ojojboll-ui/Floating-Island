@@ -1675,7 +1675,7 @@ static func run(main: Node, name: String) -> void:
 			var leaf_nodes := []
 			for mi in main.props.find_children("*", "MeshInstance3D", true, false):
 				var m = (mi as MeshInstance3D).material_override
-				if m is ShaderMaterial and (m as ShaderMaterial).shader.resource_path.ends_with("leaves.gdshader"):
+				if m is ShaderMaterial and (m as ShaderMaterial).shader.resource_path.get_file().begins_with("leaves"):
 					leaf_nodes.append(mi)
 			parts["leaves"] = leaf_nodes
 			parts["ruins"] = [main.ruins]
@@ -1841,6 +1841,26 @@ static func run(main: Node, name: String) -> void:
 				var rr := 1.5 + 0.35 * k
 				main.props.add("lovtrad" if k % 3 else "gran", cos(ang) * minf(rr, 6.0), sin(ang) * minf(rr, 6.0), rng)
 			await _frames(main, 30)
+		"graphics_tab":
+			# the Grafik page: soft leaves on and off through its button, the
+			# frame counter on; the picture shows the page
+			await run(main, "forest")
+			main.ui.tabs.current_tab = 9
+			await _frames(main, 3)
+			var TB = main.post.TreeBuilder
+			print("  leaves: ", TB._leaf_mat.shader.resource_path.get_file())
+			await _click(main, main.ui.buttons["Mjuka bladkanter"])
+			await _frames(main, 2)
+			print("  soft on: ", TB._leaf_mat.shader.resource_path.get_file(), ", saved setting ", main.post.soft_leaves)
+			await _click(main, main.ui.buttons["Snabbläge"])
+			await _frames(main, 2)
+			print("  Snabbläge on: ", TB._leaf_mat.shader.resource_path.get_file(), ", soft button greyed ", main.ui.buttons["Mjuka bladkanter"].disabled)
+			await _click(main, main.ui.buttons["Snabbläge"])
+			await _click(main, main.ui.buttons["Mjuka bladkanter"])
+			await _frames(main, 2)
+			print("  both off: ", TB._leaf_mat.shader.resource_path.get_file())
+			await _click(main, main.ui.buttons["Visa bildfrekvens"])
+			await _frames(main, 40)
 		"warmup_screen":
 			# the loading screen itself, half way
 			await _frames(main, 12)
@@ -1848,7 +1868,7 @@ static func run(main: Node, name: String) -> void:
 			# GPU time with Snabbläge off and on, switched through its button
 			var vp: RID = main.get_viewport().get_viewport_rid()
 			RenderingServer.viewport_set_measure_render_time(vp, true)
-			main.ui.tabs.current_tab = 7
+			main.ui.tabs.current_tab = 9
 			await _frames(main, 3)
 			var measure := func(label: String) -> void:
 				await _frames(main, 20)

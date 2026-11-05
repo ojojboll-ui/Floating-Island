@@ -846,7 +846,7 @@ func _dress_ghost(node: Node) -> void:
 		var leafy := false
 		if g.material_override is ShaderMaterial:
 			var sh: Shader = (g.material_override as ShaderMaterial).shader
-			leafy = sh != null and sh.resource_path.ends_with("leaves.gdshader")
+			leafy = sh != null and sh.resource_path.get_file().begins_with("leaves")
 		g.material_override = _ghost_leaf_mat if leafy else _ghost_mat
 		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 

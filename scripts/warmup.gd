@@ -47,7 +47,7 @@ func run(main_node, chosen: bool, force_weak := false) -> void:
 	# drawn in (with or without MSAA)
 	if not chosen and (force_weak or weak_gpu()):
 		main.post.fast = true
-		reason = "Snabbläge är på: grafiken är inbyggd i processorn. Du kan slå av det under Effekter."
+		reason = "Snabbläge är på: grafiken är inbyggd i processorn. Du kan slå av det under Grafik."
 	await _warm()
 	print("warm-up: %d ms" % (Time.get_ticks_msec() - started))
 	_stage.queue_free()
@@ -57,7 +57,7 @@ func run(main_node, chosen: bool, force_weak := false) -> void:
 	_shade.visible = false
 	if not chosen and not main.post.fast and await _too_slow():
 		main.post.fast = true
-		reason = "Snabbläge är på: datorn hann inte med bilden. Du kan slå av det under Effekter."
+		reason = "Snabbläge är på: datorn hann inte med bilden. Du kan slå av det under Grafik."
 	if reason != "":
 		print(reason)
 		main.ui.toast(reason)

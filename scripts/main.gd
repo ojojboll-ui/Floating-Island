@@ -140,7 +140,7 @@ func _ready() -> void:
 		post.fast = float(args["fast"]) > 0.5
 		chosen = true
 	elif not testing:
-		chosen = post.load_fast()
+		chosen = post.load_prefs()
 	if not testing or args.has("warmup"):
 		warmup = Warmup.new()
 		add_child(warmup)
