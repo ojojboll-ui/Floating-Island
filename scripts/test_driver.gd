@@ -1832,6 +1832,15 @@ static func run(main: Node, name: String) -> void:
 			mm.set_instance_transform(0, Transform3D(Basis(Vector3(1, 2, 3), Vector3(4, 5, 6), Vector3(7, 8, 9)), Vector3(10, 11, 12)))
 			mm.set_instance_custom_data(0, Color(13, 14, 15, 16))
 			print("  buffer ", mm.buffer)
+		"forest":
+			# a small wood of broadleaves and spruces round the old tree, to look at
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 5
+			for k in 15:
+				var ang := k * 2.4
+				var rr := 1.5 + 0.35 * k
+				main.props.add("lovtrad" if k % 3 else "gran", cos(ang) * minf(rr, 6.0), sin(ang) * minf(rr, 6.0), rng)
+			await _frames(main, 30)
 		"warmup_screen":
 			# the loading screen itself, half way
 			await _frames(main, 12)
