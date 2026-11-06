@@ -352,7 +352,7 @@ static func instance(w: Wood, bark: Array, wood: Array, moss: float) -> MeshInst
 	# thin bark edges (a broken rim, splinters) shadow themselves in speckles
 	# when only their front faces cast
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
-	mi.set_instance_shader_parameter("bark_color", Vector3(bark[0], bark[1], bark[2]))
-	mi.set_instance_shader_parameter("wood_color", Vector3(wood[0], wood[1], wood[2]))
-	mi.set_instance_shader_parameter("moss", moss)
+	MeshUtil.thing_param(mi, "bark_color", Vector3(bark[0], bark[1], bark[2]))
+	MeshUtil.thing_param(mi, "wood_color", Vector3(wood[0], wood[1], wood[2]))
+	MeshUtil.thing_param(mi, "moss", moss)
 	return mi

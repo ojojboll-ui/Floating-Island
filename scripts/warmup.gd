@@ -42,6 +42,7 @@ func run(main_node, chosen: bool, force_weak := false) -> void:
 	_build_screen()
 	await _frames(2)
 	var started := Time.get_ticks_msec()
+	print("island built: %d ms after launch" % started)
 	var reason := ""
 	# decided first, so the shaders are warmed in the variants they will be
 	# drawn in (with or without MSAA)
@@ -114,14 +115,25 @@ func _warm() -> void:
 	_stage = Node3D.new()
 	main.add_child(_stage)
 	var jobs: Array[Callable] = []
+	var names: Array[String] = []
 	for kind: String in Catalog.KINDS:
 		jobs.append(func() -> Node3D: return _thing(kind))
+		names.append(kind)
 	for name: String in SHADERS:
 		jobs.append(func() -> Node3D: return _ball(name))
+		names.append(name)
 	jobs.append(_weather)
+	names.append("weather")
 	_bar.max_value = jobs.size()
 	var slot := 0
-	for job in jobs:
+	# where the time goes (seconds on the web, where each shader is slow to
+	# build): a job's own time counts its build, the frames after it its shaders
+	var t := Time.get_ticks_msec()
+	var since := t
+	var batch: Array[String] = []
+	for j in jobs.size():
+		var job: Callable = jobs[j]
+		batch.append(names[j])
 		var node: Node3D = job.call()
 		if node != null:
 			node.position += Vector3(float(slot % 7) - 3.0, float(slot / 7 % 5) - 2.0, 0.0) * 0.7
@@ -130,11 +142,18 @@ func _warm() -> void:
 		_bar.value += 1
 		if int(_bar.value) % 3 == 0:
 			await _frames(2)
+			var now := Time.get_ticks_msec()
+			if now - since > 1000:
+				print("  warm-up %5d ms: %s" % [now - since, ", ".join(batch)])
+			since = now
+			batch.clear()
 	# the last ones, the shadow pass and the mist all drawn a few times over
 	var volume: float = main.post.volume
 	main.post.volume = maxf(volume, 0.3)
 	await _frames(6)
 	main.post.volume = volume
+	print("  warm-up things and shaders: %d ms" % (Time.get_ticks_msec() - t))
+	t = Time.get_ticks_msec()
 	# then everything, the island too, lit by a fire's light (and with its
 	# shadow, where fires cast one): the lighter look (the web) draws each
 	# shader again for a light that reaches it, so the first fire or torch
@@ -157,6 +176,7 @@ func _warm() -> void:
 		await _frames(4)
 	for l in lights:
 		l.queue_free()
+	print("  warm-up lights: %d ms" % (Time.get_ticks_msec() - t))
 
 
 ## One of a kind of thing, as the layer would build it, about half a metre.

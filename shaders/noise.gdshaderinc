@@ -16,6 +16,17 @@ uniform int noise_loop_bias = 0;
 #define LOOPS(n) (n)
 #endif
 
+// A thing's own values (its colour, moss, height): per instance on the
+// desktop, where things of a kind share one material; in the lighter look
+// (the web) plain uniforms, each thing with a material of its own, because
+// there per-instance values were read from the wrong thing on some graphics.
+// Set them with MeshUtil.thing_param.
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+#define THING_UNIFORM uniform
+#else
+#define THING_UNIFORM instance uniform
+#endif
+
 vec3 srgb(vec3 c) {
 	return pow(c, vec3(2.2));
 }
@@ -32,6 +43,37 @@ float hash13(vec3 p3) {
 	return fract((p3.x + p3.y) * p3.z);
 }
 
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+// In the browser the corners are visited in a loop, so the hash is built
+// once per call instead of four or eight times: every call of a noise is a
+// copy of its own there, and a lit shader full of them took 10-20 s to
+// build. The same blend of the same corners as below.
+float vnoise2(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	float s = 0.0;
+	for (int c = 0; c < LOOPS(4); c++) {
+		vec2 o = vec2(float(c & 1), float(c >> 1));
+		vec2 w = mix(1.0 - u, u, o);
+		s += hash12(i + o) * w.x * w.y;
+	}
+	return s;
+}
+
+float vnoise3(vec3 p) {
+	vec3 i = floor(p);
+	vec3 f = fract(p);
+	vec3 u = f * f * (3.0 - 2.0 * f);
+	float s = 0.0;
+	for (int c = 0; c < LOOPS(8); c++) {
+		vec3 o = vec3(float(c & 1), float((c >> 1) & 1), float(c >> 2));
+		vec3 w = mix(1.0 - u, u, o);
+		s += hash13(i + o) * w.x * w.y * w.z;
+	}
+	return s;
+}
+#else
 float vnoise2(vec2 p) {
 	vec2 i = floor(p);
 	vec2 f = fract(p);
@@ -60,6 +102,7 @@ float vnoise3(vec3 p) {
 		mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y),
 		u.z);
 }
+#endif
 
 float fbm2(vec2 p) {
 	float s = 0.0;
@@ -250,25 +293,29 @@ float snow_on(float up, vec3 wp) {
 	return smoothstep(0.55, 0.85, up + drift * 0.5 - (1.0 - snow_cover) * 0.6) * smoothstep(0.0, 0.25, snow_cover);
 }
 
+// The three below take the snow `s` from snow_on, worked out once by the
+// caller: each call of a function is built as a copy of its own, and in the
+// browser a shader's build time grows with the copies (snow_on three times
+// over was a good part of every lit shader). A surface that faces no sky
+// (up 0) never gets snow, so it passes 0.0.
+
 // A surface's colour under the weather: snow on top, darker when wet.
-vec3 weathered(vec3 col, float up, vec3 wp) {
-	float s = snow_on(up, wp);
+vec3 weathered(vec3 col, float s, vec3 wp) {
 	vec3 snow = vec3(0.93, 0.95, 0.98) * (0.9 + 0.1 * vnoise3(wp * 9.0));
 	col *= mix(1.0, 0.62, wetness * (1.0 - s));
 	return mix(col, snow, s);
 }
 
 // Roughness under the weather: wet surfaces shine, snow is matte.
-float weathered_rough(float r, float up, vec3 wp) {
-	float s = snow_on(up, wp);
+float weathered_rough(float r, float s) {
 	r = mix(r, 0.16, wetness * 0.9 * (1.0 - s));
 	return mix(r, 0.9, s);
 }
 
 // Specular under the weather: wet surfaces reflect the sky like a film of
 // water.
-float weathered_spec(float sp, float up, vec3 wp) {
-	return mix(sp, 0.65, wetness * (1.0 - snow_on(up, wp)));
+float weathered_spec(float sp, float s) {
+	return mix(sp, 0.65, wetness * (1.0 - s));
 }
 
 // Wind as a multiplier for anything that sways.
@@ -338,7 +385,7 @@ vec2 moss_fuzz(vec3 wp, vec3 op, float cover, inout vec3 col) {
 	float dome = smoothstep(0.25, 0.75, fbm3(op * 4.0 + 31.0));
 	float tip = 0.0;
 	float seen = 0.0;
-	for (int k = 0; k < 3; k++) {
+	for (int k = 0; k < LOOPS(3); k++) {
 		float freq = 48.0 * pow(2.2, float(k));
 		vec3 sh = cells(op * freq + 13.0 * float(k + 1));
 		float vis = 1.0 - smoothstep(0.3, 0.9, length(fwidth(op * freq)));

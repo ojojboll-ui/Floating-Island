@@ -6,9 +6,9 @@ render_mode cull_disabled;
 
 #include "res://shaders/noise.gdshaderinc"
 
-instance uniform vec3 tint = vec3(1.0);
-instance uniform float height = 1.0;
-instance uniform float ground_y = 0.0;
+THING_UNIFORM vec3 tint = vec3(1.0);
+THING_UNIFORM float height = 1.0;
+THING_UNIFORM float ground_y = 0.0;
 
 varying vec3 local;
 varying float pad;

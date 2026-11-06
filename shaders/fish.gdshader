@@ -7,8 +7,8 @@ render_mode cull_disabled;
 
 #include "res://shaders/noise.gdshaderinc"
 
-instance uniform float seed = 0.0;
-instance uniform float swim = 1.0;
+THING_UNIFORM float seed = 0.0;
+THING_UNIFORM float swim = 1.0;
 
 varying vec3 local;
 

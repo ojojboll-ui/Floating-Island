@@ -22,6 +22,7 @@ const IslandFile := preload("res://scripts/island_file.gd")
 const Post := preload("res://scripts/post.gd")
 const RootLayer := preload("res://scripts/root_layer.gd")
 const Warmup := preload("res://scripts/warmup.gd")
+const MeshUtil := preload("res://scripts/mesh_util.gd")
 
 var data
 var view
@@ -141,6 +142,12 @@ func _ready() -> void:
 		chosen = true
 	elif not testing:
 		chosen = post.load_prefs()
+		# in a browser it starts on, unless turned off there before (only then
+		# is it saved)
+		if not chosen and MeshUtil.web():
+			post.fast = true
+			chosen = true
+	ui.sync_graphics()
 	if not testing or args.has("warmup"):
 		warmup = Warmup.new()
 		add_child(warmup)

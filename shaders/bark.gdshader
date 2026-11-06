@@ -6,18 +6,18 @@ render_mode cull_back;
 
 #include "res://shaders/noise.gdshaderinc"
 
-instance uniform float ground_y = 0.0;
-instance uniform vec3 tint = vec3(1.0);
-instance uniform float height = 1.0;
-instance uniform vec3 bark = vec3(0.40, 0.29, 0.21);
+THING_UNIFORM float ground_y = 0.0;
+THING_UNIFORM vec3 tint = vec3(1.0);
+THING_UNIFORM float height = 1.0;
+THING_UNIFORM vec3 bark = vec3(0.40, 0.29, 0.21);
 // the Mossa dial: moss as on the stones, on what faces the sky and round
 // the very foot
-instance uniform float moss_amount = 0.2;
+THING_UNIFORM float moss_amount = 0.2;
 // how high moss creeps up the trunk at full Mossa: the first fork
-instance uniform float moss_climb = 1.5;
+THING_UNIFORM float moss_climb = 1.5;
 // the Struktur and Relief dials
-instance uniform float texture_amount = 0.5;
-instance uniform float relief = 0.5;
+THING_UNIFORM float texture_amount = 0.5;
+THING_UNIFORM float relief = 0.5;
 
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap;
 uniform bool has_normal = false;
@@ -54,14 +54,15 @@ void fragment() {
 	float det = dot(dpdx, r1);
 	vec3 bn = normalize(abs(det) * wn - sign(det) * (dFdx(bump_h) * r1 + dFdy(bump_h) * r2));
 	NORMAL = normalize((VIEW_MATRIX * vec4(bn, 0.0)).xyz);
-	ALBEDO = weathered(col, wn.y, wpos);
+	float snow = snow_on(wn.y, wpos);
+	ALBEDO = weathered(col, snow, wpos);
 	if (has_normal) {
 		// the Quaternius bark normal (CC0): twice round the trunk, stretched along it
 		NORMAL_MAP = texture(normal_tex, UV * vec2(2.0, 0.6)).rgb;
 		NORMAL_MAP_DEPTH = 2.8 * relief;
 	}
-	ROUGHNESS = weathered_rough(0.9, wn.y, wpos);
-	SPECULAR = weathered_spec(0.2, wn.y, wpos);
+	ROUGHNESS = weathered_rough(0.9, snow);
+	SPECULAR = weathered_spec(0.2, snow);
 }
 
 void vertex() {

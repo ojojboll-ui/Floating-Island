@@ -90,7 +90,7 @@ void fragment() {
 	ALBEDO = mix(col * (0.88 + shade * 0.24), vec3(0.92, 0.94, 0.97), s * (0.5 + 0.5 * along));
 	vec3 n = normalize(mix(wnormal, vec3(0.0, 1.0, 0.0), 0.65));
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
-	ROUGHNESS = weathered_rough(0.8, 0.0, wpos);
-	SPECULAR = weathered_spec(0.25, 0.0, wpos);
+	ROUGHNESS = weathered_rough(0.8, 0.0);
+	SPECULAR = weathered_spec(0.25, 0.0);
 	BACKLIGHT = srgb(vec3(0.35, 0.45, 0.12)) * along;
 }

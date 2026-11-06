@@ -61,7 +61,7 @@ void fragment() {
 		float re = 0.01;
 		vec3 acc = vec3(0.0);   // ring height, slope x, slope z
 		float crest = 0.0;
-		for (int layer = 0; layer < 2; layer++) {
+		for (int layer = 0; layer < LOOPS(2); layer++) {
 			float ph = layer == 0 ? ph_a : ph_b;
 			float wgt = layer == 0 ? w_a : 1.0 - w_a;
 			vec2 carry = flow / max(1.0, length(flow));

@@ -46,7 +46,8 @@ void fragment() {
 		col = mix(col, moss_tint(wpos) * 0.85, moss);
 	}
 	NORMAL = normalize((VIEW_MATRIX * vec4(bn, 0.0)).xyz);
-	ALBEDO = weathered(col, bn.y, wpos);
-	ROUGHNESS = weathered_rough(0.95, bn.y, wpos);
-	SPECULAR = weathered_spec(0.15, bn.y, wpos);
+	float snow = snow_on(bn.y, wpos);
+	ALBEDO = weathered(col, snow, wpos);
+	ROUGHNESS = weathered_rough(0.95, snow);
+	SPECULAR = weathered_spec(0.15, snow);
 }

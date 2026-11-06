@@ -6,9 +6,9 @@ render_mode cull_disabled, diffuse_lambert_wrap;
 
 #include "res://shaders/noise.gdshaderinc"
 
-instance uniform vec3 tint = vec3(1.0);
-instance uniform float height = 1.0;
-instance uniform float ground_y = 0.0;
+THING_UNIFORM vec3 tint = vec3(1.0);
+THING_UNIFORM float height = 1.0;
+THING_UNIFORM float ground_y = 0.0;
 
 varying float along;
 varying vec3 wpos;
@@ -27,7 +27,7 @@ void fragment() {
 	// darker and wetter toward the water
 	c *= mix(0.55, 1.1, smoothstep(0.0, 0.7, along));
 	ALBEDO = c;
-	ROUGHNESS = weathered_rough(0.75, 0.0, wpos);
-	SPECULAR = weathered_spec(0.25, 0.0, wpos);
+	ROUGHNESS = weathered_rough(0.75, 0.0);
+	SPECULAR = weathered_spec(0.25, 0.0);
 	BACKLIGHT = c * 0.4 * along;
 }

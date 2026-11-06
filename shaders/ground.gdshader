@@ -70,9 +70,22 @@ void fragment() {
 	float w_rocks = clamp(rocks, 0.0, 1.0);
 	vec3 tw = pow(abs(gn), vec3(4.0));
 	tw /= tw.x + tw.y + tw.z;
-	float bid_y = view_bid(xz, tw.y, w_rocks, weights.r);
-	float bid_x = view_bid(wpos.zy, tw.x, w_rocks, weights.r);
-	float bid_z = view_bid(wpos.xy, tw.z, w_rocks, weights.r);
+	// the three asked in a loop, so the browser builds view_bid once, not
+	// three times over (see weathered in noise.gdshaderinc)
+	float bid_y = 0.0;
+	float bid_x = 0.0;
+	float bid_z = 0.0;
+	for (int k = 0; k < LOOPS(3); k++) {
+		vec2 p = k == 0 ? xz : (k == 1 ? wpos.zy : wpos.xy);
+		float b = view_bid(p, k == 0 ? tw.y : (k == 1 ? tw.x : tw.z), w_rocks, weights.r);
+		if (k == 0) {
+			bid_y = b;
+		} else if (k == 1) {
+			bid_x = b;
+		} else {
+			bid_z = b;
+		}
+	}
 	vec2 face = xz;
 	// the world directions the two face coordinates run along
 	vec3 face_u = vec3(1.0, 0.0, 0.0);
@@ -140,15 +153,24 @@ void fragment() {
 
 	// and only the materials that show are coloured
 	float fine = vnoise2(xz * 9.0);
+	// noise more than one material reads, each worked out once
+	vec3 moss = vec3(0.0);
+	if (b_stone > 0.0 || b_moss > 0.0 || b_rocks > 0.0) {
+		moss = moss_tint(wpos);
+	}
+	float n4 = 0.0;
+	if (b_stone > 0.0 || b_dirt > 0.0) {
+		n4 = fbm2(xz * 4.0);
+	}
 	vec3 col = vec3(0.0);
 	if (b_grass > 0.0) {
 		vec3 c_grass = grass_tint(xz) * (0.62 + 0.12 * fine);
 		col += c_grass * b_grass;
 	}
 	if (b_stone > 0.0) {
-		vec3 c_stone = mix(srgb(vec3(0.58, 0.56, 0.52)), srgb(vec3(0.66, 0.6, 0.5)), cb.y) * (0.75 + 0.35 * fbm2(xz * 4.0));
+		vec3 c_stone = mix(srgb(vec3(0.58, 0.56, 0.52)), srgb(vec3(0.66, 0.6, 0.5)), cb.y) * (0.75 + 0.35 * n4);
 		// joints between cobbles fill with moss and soil
-		vec3 joint = mix(moss_tint(wpos) * 0.6, srgb(vec3(0.3, 0.24, 0.18)), fine);
+		vec3 joint = mix(moss * 0.6, srgb(vec3(0.3, 0.24, 0.18)), fine);
 		c_stone = mix(joint, c_stone, smoothstep(0.03, 0.09, cb.x));
 		col += c_stone * b_stone;
 	}
@@ -157,11 +179,11 @@ void fragment() {
 		col += c_sand * b_sand;
 	}
 	if (b_moss > 0.0) {
-		vec3 c_moss = moss_tint(wpos) * (0.8 + 0.2 * fine);
+		vec3 c_moss = moss * (0.8 + 0.2 * fine);
 		col += c_moss * b_moss;
 	}
 	if (b_dirt > 0.0) {
-		vec3 c_dirt = srgb(vec3(0.46, 0.34, 0.23)) * (0.8 + 0.3 * fbm2(xz * 4.0));
+		vec3 c_dirt = srgb(vec3(0.46, 0.34, 0.23)) * (0.8 + 0.3 * n4);
 		col += c_dirt * b_dirt;
 	}
 	if (b_rocks > 0.0) {
@@ -172,7 +194,7 @@ void fragment() {
 		vec3 crack = cobbles(face / 0.12 + ls.y * 20.0);
 		rock *= mix(1.0, mix(0.7, 1.0, smoothstep(0.0, 0.04, crack.x)), step(0.6, crack.y) * step(0.5, ls.y));
 		rock *= mix(0.5, 1.0, smoothstep(0.0, 0.5, ls.x));
-		rock = mix(rock, moss_tint(wpos) * 0.85, smoothstep(0.55, 0.95, ls.x) * moss_field(wpos + vec3(ls.y * 9.0)) * 0.7);
+		rock = mix(rock, moss * 0.85, smoothstep(0.55, 0.95, ls.x) * moss_field(wpos + vec3(ls.y * 9.0)) * 0.7);
 		vec3 soil = srgb(vec3(0.36, 0.28, 0.2)) * (0.75 + 0.3 * fbm2(face * 5.0));
 		vec3 c_rocks = mix(soil, rock, smoothstep(0.0, 0.1, ls.x));
 		col += c_rocks * b_rocks;
@@ -200,9 +222,21 @@ void fragment() {
 
 	// fine surface relief from the same noise, bent into the normal
 	float e = 0.02;
-	float h0 = surface_bump(face, stone_amt, loose_amt);
-	float hu = surface_bump(face + vec2(e, 0.0), stone_amt, loose_amt);
-	float hv = surface_bump(face + vec2(0.0, e), stone_amt, loose_amt);
+	// (the three heights in a loop: one copy of the bump for the browser)
+	float h0 = 0.0;
+	float hu = 0.0;
+	float hv = 0.0;
+	for (int k = 0; k < LOOPS(3); k++) {
+		vec2 o = k == 1 ? vec2(e, 0.0) : (k == 2 ? vec2(0.0, e) : vec2(0.0));
+		float h = surface_bump(face + o, stone_amt, loose_amt);
+		if (k == 0) {
+			h0 = h;
+		} else if (k == 1) {
+			hu = h;
+		} else {
+			hv = h;
+		}
+	}
 	vec3 slope = face_u * (hu - h0) / e + face_v * (hv - h0) / e;
 	vec3 wn = gn;
 	wn = normalize(wn - (slope - wn * dot(slope, wn)));
@@ -210,8 +244,9 @@ void fragment() {
 
 	// under water stays as it is; above, snow settles and rain darkens
 	float dry = 1.0 - under;
-	ALBEDO = mix(col, weathered(col, wn.y, wpos), dry);
+	float snow = snow_on(wn.y, wpos);
+	ALBEDO = mix(col, weathered(col, snow, wpos), dry);
 	ROUGHNESS = mix(mix(mix(0.95, 0.8, stone_amt), 0.98, loose_amt), 0.45, damp * (1.0 - under));
-	ROUGHNESS = mix(ROUGHNESS, weathered_rough(ROUGHNESS, wn.y, wpos), dry);
-	SPECULAR = mix(mix(0.3, 0.12, loose_amt), weathered_spec(mix(0.3, 0.12, loose_amt), wn.y, wpos), dry);
+	ROUGHNESS = mix(ROUGHNESS, weathered_rough(ROUGHNESS, snow), dry);
+	SPECULAR = mix(mix(0.3, 0.12, loose_amt), weathered_spec(mix(0.3, 0.12, loose_amt), snow), dry);
 }

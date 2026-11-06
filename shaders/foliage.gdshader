@@ -16,9 +16,9 @@ uniform vec4 recolor = vec4(1.0, 1.0, 1.0, 0.0);
 // tall grass takes the lawn's own colour, so it reads as the same grass grown long
 uniform bool lawn_colour = false;
 
-instance uniform vec3 tint = vec3(1.0);
-instance uniform float height = 1.0;    // model height, in its own units
-instance uniform float ground_y = 0.0;
+THING_UNIFORM vec3 tint = vec3(1.0);
+THING_UNIFORM float height = 1.0;    // model height, in its own units
+THING_UNIFORM float ground_y = 0.0;
 
 varying float up;
 varying vec3 wpos;
@@ -45,12 +45,12 @@ void fragment() {
 		vec3 lawn = grass_tint(wpos.xz);
 		base = mix(lawn * 0.55, lawn * 1.3 + srgb(vec3(0.07, 0.07, 0.0)), smoothstep(0.0, 1.0, up)) / mix(0.7, 1.05, up);
 	}
-	ALBEDO = weathered(base * tint * mix(0.7, 1.05, up), max(abs(wup), up), wpos);
+	ALBEDO = weathered(base * tint * mix(0.7, 1.05, up), snow_on(max(abs(wup), up), wpos), wpos);
 	t.rgb = base;
 	ALPHA = t.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.4;
 	ALPHA_ANTIALIASING_EDGE = 0.3;
-	ROUGHNESS = weathered_rough(0.8, 0.0, wpos);
-	SPECULAR = weathered_spec(0.25, 0.0, wpos);
+	ROUGHNESS = weathered_rough(0.8, 0.0);
+	SPECULAR = weathered_spec(0.25, 0.0);
 	BACKLIGHT = t.rgb * backlight;
 }

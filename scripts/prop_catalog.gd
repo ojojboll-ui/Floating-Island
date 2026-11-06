@@ -365,10 +365,10 @@ static func build(rec: Dictionary) -> Node3D:
 			mi.material_override = _rock_mat
 			var t: Array = st.tint
 			var hue: float = rec.hue
-			mi.set_instance_shader_parameter("stone", Vector3(t[0], t[1], t[2]) * (0.9 + 0.2 * hue))
-			mi.set_instance_shader_parameter("moss_amount", st.moss)
-			mi.set_instance_shader_parameter("texture_amount", st.texture)
-			mi.set_instance_shader_parameter("relief", float(st.get("relief", 0.5)))
+			MeshUtil.thing_param(mi, "stone", Vector3(t[0], t[1], t[2]) * (0.9 + 0.2 * hue))
+			MeshUtil.thing_param(mi, "moss_amount", st.moss)
+			MeshUtil.thing_param(mi, "texture_amount", st.texture)
+			MeshUtil.thing_param(mi, "relief", float(st.get("relief", 0.5)))
 			mi.set_meta("tall", mi.mesh.get_aabb().size.y * size)
 			mi.rotation.y = rec.rot
 			mi.set_meta("shaded", mi)
@@ -394,11 +394,11 @@ static func build(rec: Dictionary) -> Node3D:
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if k.gen in ["fern", "grass"] and size > 0.3 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			for key in ["color_a", "color_b", "color_c"]:
 				var col: Array = st[key]
-				mi.set_instance_shader_parameter(key, Vector3(col[0], col[1], col[2]))
-			mi.set_instance_shader_parameter("spots", float(st.get("spots", 0.0)))
-			mi.set_instance_shader_parameter("lawn", float(st.get("lawn", 0.0)))
+				MeshUtil.thing_param(mi, key, Vector3(col[0], col[1], col[2]))
+			MeshUtil.thing_param(mi, "spots", float(st.get("spots", 0.0)))
+			MeshUtil.thing_param(mi, "lawn", float(st.get("lawn", 0.0)))
 			var hue: float = rec.hue
-			mi.set_instance_shader_parameter("tint", Vector3(1.0 + (hue - 0.5) * 0.12, 1.0 + (hue - 0.5) * 0.06, 1.0 - (hue - 0.5) * 0.1))
+			MeshUtil.thing_param(mi, "tint", Vector3(1.0 + (hue - 0.5) * 0.12, 1.0 + (hue - 0.5) * 0.06, 1.0 - (hue - 0.5) * 0.1))
 			mi.set_meta("tall", mi.mesh.get_aabb().size.y * size)
 			mi.rotation.y = rec.rot
 			mi.set_meta("shaded", mi)
@@ -441,8 +441,8 @@ static func build(rec: Dictionary) -> Node3D:
 	node.rotation.y = rec.rot
 	node.set_meta("shaded", shaded)
 	var hue: float = rec.hue
-	shaded.set_instance_shader_parameter("tint", Vector3(1.0 + (hue - 0.5) * 0.18, 1.0 + (hue - 0.5) * 0.05, 1.0 - (hue - 0.5) * 0.15))
-	shaded.set_instance_shader_parameter("height", model_height)
+	MeshUtil.thing_param(shaded, "tint", Vector3(1.0 + (hue - 0.5) * 0.18, 1.0 + (hue - 0.5) * 0.05, 1.0 - (hue - 0.5) * 0.15))
+	MeshUtil.thing_param(shaded, "height", model_height)
 	return node
 
 

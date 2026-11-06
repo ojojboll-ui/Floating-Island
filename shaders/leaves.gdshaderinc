@@ -6,8 +6,8 @@
 
 #include "res://shaders/noise.gdshaderinc"
 
-instance uniform vec3 leaf_color = vec3(0.46, 0.66, 0.20);
-instance uniform float needles = 0.0;
+THING_UNIFORM vec3 leaf_color = vec3(0.46, 0.66, 0.20);
+THING_UNIFORM float needles = 0.0;
 
 varying float outer;
 varying float rnd;
@@ -43,13 +43,13 @@ void fragment() {
 	float a = -1.0;
 	if (needles > 0.5) {
 		// a spray of needles: thin blades fanning from the card's middle
-		for (int k = 0; k < 9; k++) {
+		for (int k = 0; k < LOOPS(9); k++) {
 			float ang = float(k) * 0.698 + rnd * 6.28;
 			vec2 at = vec2(0.5) + vec2(sin(ang), -cos(ang)) * 0.24;
 			a = max(a, leaf(UV, at, ang, vec2(0.035, 0.27)));
 		}
 	} else {
-		for (int k = 0; k < 5; k++) {
+		for (int k = 0; k < LOOPS(5); k++) {
 			float ang = float(k) * 1.2566 + rnd * 6.28;
 			vec2 at = vec2(0.5) + vec2(sin(ang), -cos(ang)) * 0.2;
 			a = max(a, leaf(UV, at, ang, vec2(0.11, 0.24)));
@@ -68,10 +68,10 @@ void fragment() {
 	vec3 warm = light * vec3(1.3, 1.08, 0.8) + vec3(0.04, 0.03, 0.0);
 	vec3 col = mix(dark, light, smoothstep(0.15, 0.95, outer));
 	col = mix(col, warm, rnd * rnd * 0.35 * outer);
-	ALBEDO = weathered(col, normalize(wnormal).y * 0.8 + outer * 0.3, wleaf);
+	ALBEDO = weathered(col, snow_on(normalize(wnormal).y * 0.8 + outer * 0.3, wleaf), wleaf);
 
 	NORMAL = normalize((VIEW_MATRIX * vec4(normalize(wnormal), 0.0)).xyz);
-	ROUGHNESS = weathered_rough(0.75, 0.0, wleaf);
-	SPECULAR = weathered_spec(0.3, 0.0, wleaf);
+	ROUGHNESS = weathered_rough(0.75, 0.0);
+	SPECULAR = weathered_spec(0.3, 0.0);
 	BACKLIGHT = light * 0.8 * (0.3 + 0.7 * outer);
 }

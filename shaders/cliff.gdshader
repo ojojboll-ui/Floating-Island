@@ -81,7 +81,8 @@ void fragment() {
 
 	// the overhang underneath sees little sky
 	col *= mix(0.6, 1.0, smoothstep(-0.7, 0.3, wn.y));
-	ALBEDO = weathered(col * 0.88, wn.y, wpos);
-	ROUGHNESS = weathered_rough(0.92, wn.y, wpos);
-	SPECULAR = weathered_spec(0.25, wn.y, wpos);
+	float snow = snow_on(wn.y, wpos);
+	ALBEDO = weathered(col * 0.88, snow, wpos);
+	ROUGHNESS = weathered_rough(0.92, snow);
+	SPECULAR = weathered_spec(0.25, snow);
 }

@@ -46,11 +46,11 @@ static var _soft_leaves := false   # soft leaf edges (Grafik), see set_soft_leav
 ## how high the first fork sits, which moss creeps up to at full Mossa.
 static func _bark_look(trunk: GeometryInstance3D, st: Dictionary, climb: float) -> void:
 	var b: Array = st.bark_color
-	trunk.set_instance_shader_parameter("bark", Vector3(b[0], b[1], b[2]))
-	trunk.set_instance_shader_parameter("moss_amount", float(st.get("moss", 0.2)))
-	trunk.set_instance_shader_parameter("moss_climb", climb)
-	trunk.set_instance_shader_parameter("texture_amount", float(st.get("texture", 0.5)))
-	trunk.set_instance_shader_parameter("relief", float(st.get("relief", 0.5)))
+	MeshUtil.thing_param(trunk, "bark", Vector3(b[0], b[1], b[2]))
+	MeshUtil.thing_param(trunk, "moss_amount", float(st.get("moss", 0.2)))
+	MeshUtil.thing_param(trunk, "moss_climb", climb)
+	MeshUtil.thing_param(trunk, "texture_amount", float(st.get("texture", 0.5)))
+	MeshUtil.thing_param(trunk, "relief", float(st.get("relief", 0.5)))
 
 
 ## The tree for a style, `height` metres tall, its foot at the origin.
@@ -95,8 +95,8 @@ static func build(style: Dictionary, height: float, seed: int, env := {}) -> Nod
 			_leaf_mat.shader = load(_leaf_shader())
 		leaves.material_override = _leaf_mat
 		var c: Array = style.leaf_color
-		leaves.set_instance_shader_parameter("leaf_color", Vector3(c[0], c[1], c[2]))
-		leaves.set_instance_shader_parameter("needles", 1.0 if g.needles else 0.0)
+		MeshUtil.thing_param(leaves, "leaf_color", Vector3(c[0], c[1], c[2]))
+		MeshUtil.thing_param(leaves, "needles", 1.0 if g.needles else 0.0)
 		root.add_child(leaves)
 	# fruit, berries or blossom on the crown's skin
 	var fruit := float(style.get("fruit", 0.0))
@@ -127,6 +127,14 @@ static func set_soft_leaves(on: bool) -> void:
 	_soft_leaves = on
 	if _leaf_mat:
 		_leaf_mat.shader = load(_leaf_shader())
+	# on the web each tree's leaves have a copy of their own (MeshUtil.thing_param)
+	if MeshUtil.lite():
+		var tree := Engine.get_main_loop() as SceneTree
+		if tree:
+			for mi in tree.root.find_children("*", "MeshInstance3D", true, false):
+				var m := (mi as MeshInstance3D).material_override as ShaderMaterial
+				if m and m != _leaf_mat and m.shader and m.shader.resource_path.get_file().begins_with("leaves"):
+					m.shader = _leaf_mat.shader
 
 
 static func _leaf_shader() -> String:
@@ -295,7 +303,7 @@ static func _conifer(g: Dictionary, foot: Vector3, dir: Vector3, height: float) 
 		_skirt_mat.shader = load("res://shaders/plant.gdshader")
 	skirts.material_override = _skirt_mat
 	var lc: Array = st.leaf_color
-	skirts.set_instance_shader_parameter("color_a", Vector3(lc[0], lc[1], lc[2]))
+	MeshUtil.thing_param(skirts, "color_a", Vector3(lc[0], lc[1], lc[2]))
 	root.add_child(skirts)
 	return root
 

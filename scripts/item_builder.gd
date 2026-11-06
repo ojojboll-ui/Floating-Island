@@ -448,9 +448,9 @@ static func item_material() -> ShaderMaterial:
 static func _colours(gi: GeometryInstance3D, st: Dictionary) -> void:
 	var a: Array = st.get("color_a", [0.6, 0.4, 0.3])
 	var b: Array = st.get("color_b", [0.5, 0.5, 0.5])
-	gi.set_instance_shader_parameter("color_a", Vector3(a[0], a[1], a[2]))
-	gi.set_instance_shader_parameter("color_b", Vector3(b[0], b[1], b[2]))
-	gi.set_instance_shader_parameter("glow", float(st.get("glow", 1.0)))
+	MeshUtil.thing_param(gi, "color_a", Vector3(a[0], a[1], a[2]))
+	MeshUtil.thing_param(gi, "color_b", Vector3(b[0], b[1], b[2]))
+	MeshUtil.thing_param(gi, "glow", float(st.get("glow", 1.0)))
 
 
 static func _flame(at: Vector3, h: float) -> MeshInstance3D:
@@ -465,7 +465,7 @@ static func _flame(at: Vector3, h: float) -> MeshInstance3D:
 	mi.material_override = _flame_mat
 	mi.position = at
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.set_instance_shader_parameter("seed", at.x * 13.0 + at.z * 7.0 + h)
+	MeshUtil.thing_param(mi, "seed", at.x * 13.0 + at.z * 7.0 + h)
 	return mi
 
 
@@ -480,10 +480,10 @@ static func _rock(xf: Transform3D, variant: int) -> MeshInstance3D:
 	mi.transform = xf
 	mi.material_override = _rock_mat
 	var g := 0.5 + 0.05 * (variant % 3)
-	mi.set_instance_shader_parameter("stone", Vector3(g, g, g * 1.03))
-	mi.set_instance_shader_parameter("moss_amount", 0.05)
-	mi.set_instance_shader_parameter("texture_amount", 0.5)
-	mi.set_instance_shader_parameter("relief", 0.5)
+	MeshUtil.thing_param(mi, "stone", Vector3(g, g, g * 1.03))
+	MeshUtil.thing_param(mi, "moss_amount", 0.05)
+	MeshUtil.thing_param(mi, "texture_amount", 0.5)
+	MeshUtil.thing_param(mi, "relief", 0.5)
 	return mi
 
 

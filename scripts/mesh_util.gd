@@ -10,6 +10,29 @@ static func lite() -> bool:
 	return RenderingServer.get_current_rendering_method() == "gl_compatibility"
 
 
+## One of a thing's own shader values (a colour, its moss, its height). The
+## shaders declare them THING_UNIFORM (noise.gdshaderinc): per instance on
+## the desktop, so every tree shares one material. In the lighter look (the
+## web) each thing gets a material of its own instead: there, in the browser
+## on some graphics, things placed among many others read another thing's
+## values (spruces and autumn trees came out the colour of bark).
+static func thing_param(gi: GeometryInstance3D, key: StringName, value: Variant) -> void:
+	if not lite():
+		gi.set_instance_shader_parameter(key, value)
+		return
+	var own: ShaderMaterial = gi.get_meta("own_material") if gi.has_meta("own_material") else null
+	if own == null or gi.material_override != own:
+		var shared: Material = gi.material_override
+		if shared == null and gi is MeshInstance3D and (gi as MeshInstance3D).mesh:
+			shared = (gi as MeshInstance3D).mesh.surface_get_material(0)
+		if not shared is ShaderMaterial:
+			return
+		own = shared.duplicate() as ShaderMaterial
+		gi.material_override = own
+		gi.set_meta("own_material", own)
+	own.set_shader_parameter(key, value)
+
+
 ## Running in a browser: files go through downloads and uploads.
 static func web() -> bool:
 	return OS.has_feature("web")

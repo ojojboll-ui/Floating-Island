@@ -7,7 +7,7 @@ render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabl
 
 #include "res://shaders/noise.gdshaderinc"
 
-instance uniform float seed = 0.0;
+THING_UNIFORM float seed = 0.0;
 
 varying float lean;
 

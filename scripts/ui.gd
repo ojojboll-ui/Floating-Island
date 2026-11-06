@@ -691,6 +691,16 @@ func _page() -> VBoxContainer:
 ## The Grafik page: this computer's own graphics settings. They are kept on
 ## the computer (post.gd PREFS), not in the island, and an exported picture
 ## or film gets full quality whatever they say.
+## The Grafik buttons as the settings stand (they are read from this
+## computer's file after the panel is built, and Snabbläge may turn on by
+## itself).
+func sync_graphics() -> void:
+	var p = main.post
+	for pair in [["Snabbläge", p.fast], ["Mjuka bladkanter", p.soft_leaves], ["Visa bildfrekvens", p.show_fps]]:
+		if buttons.has(pair[0]):
+			(buttons[pair[0]] as Button).set_pressed_no_signal(pair[1])
+
+
 func _graphics_row() -> Control:
 	var row := _page()
 	var p = main.post
@@ -727,6 +737,7 @@ func _graphics_row() -> Control:
 		p.save_prefs())
 	buttons["Visa bildfrekvens"] = fps
 	box.add_child(fps)
+	sync_graphics()
 	row.add_child(box)
 
 	var about := _column("Datorn")

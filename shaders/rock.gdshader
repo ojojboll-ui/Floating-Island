@@ -15,19 +15,19 @@ render_mode cull_back;
 uniform sampler2D albedo_tex : source_color, hint_default_white, filter_linear_mipmap_anisotropic;
 uniform bool use_tex = false;
 
-instance uniform float ground_y = 0.0;
-instance uniform vec3 tint = vec3(1.0);
-instance uniform float height = 1.0;
-instance uniform vec3 stone = vec3(0.56, 0.55, 0.52);
-instance uniform float moss_amount = 0.5;
-instance uniform float moss_boost = 0.0;
-instance uniform float texture_amount = 0.5;
+THING_UNIFORM float ground_y = 0.0;
+THING_UNIFORM vec3 tint = vec3(1.0);
+THING_UNIFORM float height = 1.0;
+THING_UNIFORM vec3 stone = vec3(0.56, 0.55, 0.52);
+THING_UNIFORM float moss_amount = 0.5;
+THING_UNIFORM float moss_boost = 0.0;
+THING_UNIFORM float texture_amount = 0.5;
 // how deep cracks, pits and lips show in the light (the Relief dial)
-instance uniform float relief = 0.5;
+THING_UNIFORM float relief = 0.5;
 // stones this one is stacked with: centre and radius, w 0 for none, so the
 // seam where they meet fills with moss and soil and sits in shade
-instance uniform vec4 touch_a = vec4(0.0);
-instance uniform vec4 touch_b = vec4(0.0);
+THING_UNIFORM vec4 touch_a = vec4(0.0);
+THING_UNIFORM vec4 touch_b = vec4(0.0);
 
 varying vec3 wpos;
 varying vec3 opos;
@@ -110,7 +110,7 @@ void fragment() {
 
 	// the seam with a stone stacked on or under this one
 	float seam = 0.0;
-	for (int k = 0; k < 2; k++) {
+	for (int k = 0; k < LOOPS(2); k++) {
 		vec4 t = k == 0 ? touch_a : touch_b;
 		if (t.w > 0.0) {
 			float dist = length(wpos - t.xyz) - t.w * 0.8;
@@ -151,7 +151,8 @@ void fragment() {
 	float det = dot(dpdx, r1);
 	vec3 bn = use_tex ? wn : normalize(abs(det) * wn - sign(det) * (dhdx * r1 + dhdy * r2));
 	NORMAL = normalize((VIEW_MATRIX * vec4(bn, 0.0)).xyz);
-	ALBEDO = weathered(col, wn.y, wpos);
-	ROUGHNESS = weathered_rough(mix(0.95, 0.85, moss), wn.y, wpos);
-	SPECULAR = weathered_spec(0.14, wn.y, wpos);
+	float snow = snow_on(wn.y, wpos);
+	ALBEDO = weathered(col, snow, wpos);
+	ROUGHNESS = weathered_rough(mix(0.95, 0.85, moss), snow);
+	SPECULAR = weathered_spec(0.14, snow);
 }

@@ -10,6 +10,8 @@ const Catalog := preload("res://scripts/prop_catalog.gd")
 static func run(main: Node, name: String) -> void:
 	await _frames(main, 20)
 	match name:
+
+
 		"bench":
 			# frames a second without vsync, and the GPU's share of a frame: the
 			# island as it starts, then with a wood of 15 trees, each in full

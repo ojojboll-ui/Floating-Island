@@ -9,14 +9,14 @@ render_mode cull_disabled, diffuse_lambert_wrap;
 
 #include "res://shaders/noise.gdshaderinc"
 
-instance uniform vec3 color_a = vec3(0.3, 0.52, 0.16);   // leaves and stems
-instance uniform vec3 color_b = vec3(0.85, 0.5, 0.7);    // petals, caps
-instance uniform vec3 color_c = vec3(0.95, 0.8, 0.3);    // centres, spots, seed heads
-instance uniform float spots = 0.0;
-instance uniform float lawn = 0.0;                       // tall grass takes the lawn's colour
-instance uniform vec3 tint = vec3(1.0);
-instance uniform float height = 1.0;
-instance uniform float ground_y = 0.0;
+THING_UNIFORM vec3 color_a = vec3(0.3, 0.52, 0.16);   // leaves and stems
+THING_UNIFORM vec3 color_b = vec3(0.85, 0.5, 0.7);    // petals, caps
+THING_UNIFORM vec3 color_c = vec3(0.95, 0.8, 0.3);    // centres, spots, seed heads
+THING_UNIFORM float spots = 0.0;
+THING_UNIFORM float lawn = 0.0;                       // tall grass takes the lawn's colour
+THING_UNIFORM vec3 tint = vec3(1.0);
+THING_UNIFORM float height = 1.0;
+THING_UNIFORM float ground_y = 0.0;
 
 varying vec4 vcol;
 varying vec3 wpos;
@@ -52,7 +52,7 @@ void fragment() {
 			vec3 q = opos * 18.0;
 			vec3 cell = floor(q);
 			float d = 9.0;
-			for (int z = -1; z <= 1; z++) for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+			for (int z = -1; z <= LOOPS(1); z++) for (int y = -1; y <= LOOPS(1); y++) for (int x = -1; x <= LOOPS(1); x++) {
 				vec3 g = cell + vec3(float(x), float(y), float(z));
 				vec3 o = vec3(hash13(g), hash13(g + 7.1), hash13(g + 13.7));
 				d = min(d, length(g + o - q) / (0.3 + 0.35 * hash13(g + 3.3)));
@@ -69,9 +69,10 @@ void fragment() {
 	if (!FRONT_FACING) {
 		NORMAL = -NORMAL;
 	}
-	ALBEDO = weathered(base, max(wn.y, vcol.g * 0.6), wpos);
-	ROUGHNESS = weathered_rough(part > 0.37 && part < 0.75 ? 0.55 : 0.8, wn.y, wpos);
-	SPECULAR = weathered_spec(0.3, wn.y, wpos);
+	ALBEDO = weathered(base, snow_on(max(wn.y, vcol.g * 0.6), wpos), wpos);
+	float snow = snow_on(wn.y, wpos);
+	ROUGHNESS = weathered_rough(part > 0.37 && part < 0.75 ? 0.55 : 0.8, snow);
+	SPECULAR = weathered_spec(0.3, snow);
 	// light glows through leaves and petals, not through caps
 	BACKLIGHT = base * (part < 0.12 ? 0.45 : (part > 0.37 && spots <= 0.0 ? 0.35 : 0.05));
 }

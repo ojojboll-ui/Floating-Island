@@ -6,6 +6,7 @@ extends Node3D
 
 const PlantBuilder := preload("res://scripts/plant_builder.gd")
 const IslandData := preload("res://scripts/island_data.gd")
+const MeshUtil := preload("res://scripts/mesh_util.gd")
 
 const AREA_PER_FISH := 4.0
 const MAX_FISH := 14
@@ -59,7 +60,7 @@ func refresh() -> void:
 		node.mesh = _mesh
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var seed := _rng.randf()
-		node.set_instance_shader_parameter("seed", seed)
+		MeshUtil.thing_param(node, "seed", seed)
 		node.scale = Vector3.ONE * _rng.randf_range(1.2, 1.7)
 		add_child(node)
 		_fish.append({"node": node, "pos": at, "heading": _rng.randf() * TAU, "speed": 0.25, "burst": 0.0, "seed": seed})
@@ -101,4 +102,4 @@ func _process(delta: float) -> void:
 		var node: MeshInstance3D = f.node
 		node.position = Vector3(pos.x, level - 0.1 + sin(t * 0.9 + seed * 9.0) * 0.02, pos.y)
 		node.rotation.y = heading
-		node.set_instance_shader_parameter("swim", f.speed / 0.5)
+		MeshUtil.thing_param(node, "swim", f.speed / 0.5)

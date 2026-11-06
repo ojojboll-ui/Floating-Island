@@ -13,13 +13,13 @@ render_mode cull_back;
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap;
 
-instance uniform vec3 tint = vec3(0.45, 0.3, 0.2);
-instance uniform float bark = 0.35;
+THING_UNIFORM vec3 tint = vec3(0.45, 0.3, 0.2);
+THING_UNIFORM float bark = 0.35;
 // the Mossa dial: moss as on the stones
-instance uniform float moss_amount = 0.0;
+THING_UNIFORM float moss_amount = 0.0;
 // the Struktur and Relief dials
-instance uniform float texture_amount = 0.5;
-instance uniform float relief = 0.5;
+THING_UNIFORM float texture_amount = 0.5;
+THING_UNIFORM float relief = 0.5;
 
 varying vec3 wpos;
 varying float along;
@@ -67,9 +67,10 @@ void fragment() {
 	float det = dot(dpdx, r1);
 	vec3 bn = normalize(abs(det) * wn - sign(det) * (dFdx(bump_h) * r1 + dFdy(bump_h) * r2));
 	NORMAL = normalize((VIEW_MATRIX * vec4(bn, 0.0)).xyz);
-	ALBEDO = weathered(col, wn.y, wpos);
+	float snow = snow_on(wn.y, wpos);
+	ALBEDO = weathered(col, snow, wpos);
 	NORMAL_MAP = texture(normal_tex, UV).rgb;
 	NORMAL_MAP_DEPTH = mix(0.7, 1.8, bark) * relief * 2.0;
-	ROUGHNESS = weathered_rough(0.85, wn.y, wpos);
-	SPECULAR = weathered_spec(0.25, wn.y, wpos);
+	ROUGHNESS = weathered_rough(0.85, snow);
+	SPECULAR = weathered_spec(0.25, snow);
 }

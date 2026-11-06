@@ -8,9 +8,9 @@ render_mode cull_back;
 
 #include "res://shaders/noise.gdshaderinc"
 
-instance uniform vec3 bark_color = vec3(0.42, 0.32, 0.24);
-instance uniform vec3 wood_color = vec3(0.86, 0.68, 0.45);
-instance uniform float moss = 0.3;
+THING_UNIFORM vec3 bark_color = vec3(0.42, 0.32, 0.24);
+THING_UNIFORM vec3 wood_color = vec3(0.86, 0.68, 0.45);
+THING_UNIFORM float moss = 0.3;
 
 varying vec4 vcol;
 varying vec3 wpos;
@@ -88,7 +88,8 @@ void fragment() {
 		float m = clamp(up * patches + groove * 0.4 * up, 0.0, 1.0) * clamp(moss * 1.2, 0.0, 1.0);
 		col = mix(col, moss_tint(wpos) * (0.7 + 0.35 * fbm3(wpos * 8.0)), clamp(m, 0.0, 0.92));
 	}
-	ALBEDO = weathered(col, wn.y, wpos);
-	ROUGHNESS = weathered_rough(0.85, wn.y, wpos);
-	SPECULAR = weathered_spec(0.25, wn.y, wpos);
+	float snow = snow_on(wn.y, wpos);
+	ALBEDO = weathered(col, snow, wpos);
+	ROUGHNESS = weathered_rough(0.85, snow);
+	SPECULAR = weathered_spec(0.25, snow);
 }

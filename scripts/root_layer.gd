@@ -522,11 +522,11 @@ static func _style_of(rec: Dictionary) -> Dictionary:
 
 static func _set_look(mi: MeshInstance3D, s: Dictionary) -> void:
 	var tint: Array = s.tint
-	mi.set_instance_shader_parameter("tint", Vector3(tint[0], tint[1], tint[2]))
-	mi.set_instance_shader_parameter("bark", s.bark)
-	mi.set_instance_shader_parameter("moss_amount", float(s.get("moss", 0.0)))
-	mi.set_instance_shader_parameter("texture_amount", float(s.get("texture", 0.5)))
-	mi.set_instance_shader_parameter("relief", float(s.get("relief", 0.5)))
+	MeshUtil.thing_param(mi, "tint", Vector3(tint[0], tint[1], tint[2]))
+	MeshUtil.thing_param(mi, "bark", s.bark)
+	MeshUtil.thing_param(mi, "moss_amount", float(s.get("moss", 0.0)))
+	MeshUtil.thing_param(mi, "texture_amount", float(s.get("texture", 0.5)))
+	MeshUtil.thing_param(mi, "relief", float(s.get("relief", 0.5)))
 
 
 ## Grow every root system whose shape changed. on_worker: leave those to

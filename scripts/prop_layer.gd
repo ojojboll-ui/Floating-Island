@@ -10,6 +10,7 @@ extends Node3D
 
 const Catalog := preload("res://scripts/prop_catalog.gd")
 const IslandData := preload("res://scripts/island_data.gd")
+const MeshUtil := preload("res://scripts/mesh_util.gd")
 
 var data
 var ruins   # the ruin layer, which shares the ground's "occupied" claims
@@ -903,17 +904,17 @@ func _place(rec: Dictionary) -> void:
 			else:
 				node.transform = side_pose(rec.kind, rec.at, rec.normal, float(rec.rot), float(rec.size), float(node.get_meta("tall", 1.0)))
 			node.visible = true
-			(node.get_meta("shaded") as GeometryInstance3D).set_instance_shader_parameter("ground_y", (rec.at as Vector3).y if rec.kind in WOODY else -100.0)
+			MeshUtil.thing_param(node.get_meta("shaded") as GeometryInstance3D, "ground_y", (rec.at as Vector3).y if rec.kind in WOODY else -100.0)
 			return
 		var tall: float = node.get_meta("tall", float(rec.size))
 		# a stone set on another sinks into it less than into the ground
 		var sink: float = float(rec.get("sink", k.sink)) if float(rec.get("lift", 0.0)) > 0.0 else float(k.sink)
 		var at := Vector3(x, gy - sink * tall + float(rec.get("lift", 0.0)), z)
 		if rec.kind in STONES:
-			(node as GeometryInstance3D).set_instance_shader_parameter("moss_boost", _damp(rec))
+			MeshUtil.thing_param(node as GeometryInstance3D, "moss_boost", _damp(rec))
 			var mates := _stack_mates(rec)
-			(node as GeometryInstance3D).set_instance_shader_parameter("touch_a", mates[0])
-			(node as GeometryInstance3D).set_instance_shader_parameter("touch_b", mates[1])
+			MeshUtil.thing_param(node as GeometryInstance3D, "touch_a", mates[0])
+			MeshUtil.thing_param(node as GeometryInstance3D, "touch_b", mates[1])
 		if rec.kind in STONES and not node.position.is_equal_approx(at):
 			revision += 1
 		node.position = at
@@ -925,7 +926,7 @@ func _place(rec: Dictionary) -> void:
 			var right := n.cross(Vector3.FORWARD).normalized()
 			node.basis = Basis(right, n, right.cross(n)).orthonormalized() * Basis(Vector3.UP, float(rec.rot)) * Basis().scaled(Vector3.ONE * float(rec.size))
 		node.visible = data.sample_sdf(x, z) > 0.15
-	(node.get_meta("shaded") as GeometryInstance3D).set_instance_shader_parameter("ground_y", gy)
+	MeshUtil.thing_param(node.get_meta("shaded") as GeometryInstance3D, "ground_y", gy)
 
 
 func _mark(rec: Dictionary) -> void:

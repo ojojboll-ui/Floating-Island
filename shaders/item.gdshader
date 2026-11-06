@@ -13,12 +13,12 @@ render_mode cull_back;
 
 #include "res://shaders/noise.gdshaderinc"
 
-instance uniform vec3 color_a = vec3(0.6, 0.4, 0.3);
-instance uniform vec3 color_b = vec3(0.5, 0.5, 0.5);
-instance uniform float glow = 1.0;
-instance uniform vec3 tint = vec3(1.0);
-instance uniform float height = 1.0;
-instance uniform float ground_y = 0.0;
+THING_UNIFORM vec3 color_a = vec3(0.6, 0.4, 0.3);
+THING_UNIFORM vec3 color_b = vec3(0.5, 0.5, 0.5);
+THING_UNIFORM float glow = 1.0;
+THING_UNIFORM vec3 tint = vec3(1.0);
+THING_UNIFORM float height = 1.0;
+THING_UNIFORM float ground_y = 0.0;
 
 varying vec4 vcol;
 varying vec3 wpos;
@@ -129,9 +129,10 @@ void fragment() {
 	// lighter on top, darker toward the ground, as painted
 	col *= 0.86 + 0.2 * clamp(wn.y * 0.5 + 0.5, 0.0, 1.0);
 	col *= mix(0.72, 1.0, smoothstep(0.0, 0.22, wpos.y - ground_y));
-	ALBEDO = weathered(col * tint, wn.y, wpos);
+	float snow = snow_on(wn.y, wpos);
+	ALBEDO = weathered(col * tint, snow, wpos);
 	EMISSION = col * emit;
-	ROUGHNESS = weathered_rough(rough, wn.y, wpos);
-	SPECULAR = weathered_spec(spec, wn.y, wpos);
+	ROUGHNESS = weathered_rough(rough, snow);
+	SPECULAR = weathered_spec(spec, snow);
 	METALLIC = metal;
 }
