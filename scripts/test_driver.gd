@@ -10,6 +10,45 @@ const Catalog := preload("res://scripts/prop_catalog.gd")
 static func run(main: Node, name: String) -> void:
 	await _frames(main, 20)
 	match name:
+		"bench":
+			# frames a second without vsync, and the GPU's share of a frame: the
+			# island as it starts, then with a wood of 15 trees, each in full
+			# quality and in Snabbläge
+			DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+			Engine.max_fps = 0
+			var vp: RID = main.get_viewport().get_viewport_rid()
+			RenderingServer.viewport_set_measure_render_time(vp, true)
+			main.ui.set_collapsed(true)
+			var measure := func(label: String) -> void:
+				await _frames(main, 90)
+				var gpu: Array[float] = []
+				var wall: Array[float] = []
+				var last := Time.get_ticks_usec()
+				for k in 600:
+					await _frames(main, 1)
+					var now := Time.get_ticks_usec()
+					gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(vp))
+					wall.append((now - last) / 1000.0)
+					last = now
+				gpu.sort()
+				wall.sort()
+				var g: float = gpu[300]
+				var w: float = wall[300]
+				print("BENCH %-14s gpu %5.2f ms  frame %5.2f ms  %4d fps" % [label, g, w, roundi(1000.0 / w)])
+			main.post.fast = false
+			await measure.call("island full")
+			main.post.fast = true
+			await measure.call("island fast")
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 5
+			for k in 15:
+				var ang := k * 2.4
+				var rr := 1.5 + 0.35 * k
+				main.props.add("lovtrad" if k % 3 else "gran", cos(ang) * minf(rr, 6.0), sin(ang) * minf(rr, 6.0), rng)
+			main.post.fast = false
+			await measure.call("forest full")
+			main.post.fast = true
+			await measure.call("forest fast")
 		"sculpt":
 			await _sculpt(main)
 		"undo":
