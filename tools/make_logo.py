@@ -171,3 +171,70 @@ if __name__ == "__main__":
     make(True).save(os.path.join(OUT, "logo.png"))
     make(False).save(os.path.join(OUT, "logo_ink.png"))
     print("logo written to", OUT)
+
+
+# ------------------------------------------------------------------ emblem
+
+def emblem(size=1024):
+    """The program icon: a parchment medallion with an inked rim, sky inside,
+    and the island with its tree, drawn like a woodcut coloured by hand."""
+    S = size / 1024.0
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    c = size / 2.0
+
+    def circ(r, **kw):
+        d.ellipse([c - r * S, c - r * S, c + r * S, c + r * S], **kw)
+
+    circ(500, fill=INK)
+    circ(484, fill=(238, 222, 186))
+    circ(462, fill=INK)
+    # the sky, lighter toward the horizon
+    sky = Image.new("RGBA", (size, size))
+    grad = Image.linear_gradient("L").resize((size, size))
+    top, low = (92, 140, 196), (196, 222, 236)
+    sky = Image.merge("RGB", [grad.point(lambda v, a=a, b=b: int(a + (b - a) * v / 255)) for a, b in zip(top, low)]).convert("RGBA")
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).ellipse([c - 452 * S, c - 452 * S, c + 452 * S, c + 452 * S], fill=255)
+    img.paste(sky, (0, 0), mask)
+    d = ImageDraw.Draw(img)
+    lw = max(2, int(12 * S))
+
+    def poly(pts, fill):
+        q = [(c + x * S, c + y * S) for x, y in pts]
+        d.polygon(q, fill=fill)
+        d.line(q + [q[0]], fill=INK, width=lw, joint="curve")
+
+    def blob(x, y, r, fill):
+        d.ellipse([c + (x - r) * S, c + (y - r) * S, c + (x + r) * S, c + (y + r) * S], fill=fill, outline=INK, width=lw)
+
+    # clouds
+    for x, y, r in [(-250, -170, 60), (-195, -185, 75), (-140, -165, 55), (250, 210, 50), (300, 195, 62), (345, 215, 45)]:
+        blob(x, y, r, (255, 251, 240))
+    # the rock under the island, hanging to a point
+    poly([(-270, 90), (270, 90), (230, 150), (160, 175), (110, 270), (60, 230), (0, 380), (-55, 240), (-120, 265), (-160, 170), (-235, 150)], (150, 108, 74))
+    poly([(0, 380), (-55, 240), (-20, 120), (35, 120), (60, 230)], (118, 82, 56))
+    # the grass top
+    d.ellipse([c - 300 * S, c + 30 * S, c + 300 * S, c + 140 * S], fill=(124, 176, 78), outline=INK, width=lw)
+    d.ellipse([c - 250 * S, c + 40 * S, c + 220 * S, c + 100 * S], fill=(156, 204, 100))
+    # the tree
+    poly([(-26, 70), (-14, -60), (-50, -110), (-30, -118), (0, -80), (24, -130), (44, -120), (16, -56), (28, 70)], (112, 76, 48))
+    for x, y, r, col in [(-110, -150, 95, (92, 146, 64)), (100, -150, 100, (86, 138, 60)), (0, -235, 125, (118, 172, 78)), (-55, -260, 60, (150, 200, 100))]:
+        blob(x, y, r, col)
+    d.ellipse([c - 85 * S, c - 300 * S, c - 35 * S, c - 250 * S], fill=(186, 222, 130))
+    # a path of gold glints round it
+    for x, y, r in [(-330, -40, 34), (320, -60, 26), (230, -300, 22), (-280, 260, 20)]:
+        sparkle(d, c + x * S, c + y * S, r * S, (255, 238, 180, 255))
+    return img
+
+
+def save_icons():
+    big = emblem(1024)
+    big.save(os.path.join(OUT, "emblem_1024.png"))
+    big.resize((256, 256), Image.LANCZOS).save(os.path.join(ROOT, "icon.png"))
+    big.save(os.path.join(OUT, "icon.ico"), sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+
+
+if __name__ == "__main__":
+    save_icons()
+    print("icons written")

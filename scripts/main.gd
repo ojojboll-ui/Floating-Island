@@ -67,7 +67,7 @@ func _ready() -> void:
 	Settings.remember = not testing
 	Settings.adopt_old()
 	get_window().title = Brand.NAME
-	DisplayServer.set_icon(Brand.image(Brand.emblem_svg(), 256))
+	DisplayServer.set_icon((load("res://icon.png") as Texture2D).get_image())
 	# a film export leaves this behind for its own window size; it must not
 	# outlive that start
 	if FileAccess.file_exists(IslandFile.override_path()):
@@ -215,6 +215,8 @@ func _ready() -> void:
 			menus.open_settings()
 		"gallery":
 			menus.open_gallery()
+		"about":
+			menus._open(menus._about)
 	if args.has("record"):
 		_record(float(args["record"]), args.has("loop"))
 	elif args.has("snapshot"):
@@ -327,6 +329,7 @@ func start_play() -> void:
 		island_path = IslandFile.fresh_path(island_name)
 	playing = true
 	_autosave_wait = AUTOSAVE_EVERY
+	props.pop = true
 	brush.process_mode = Node.PROCESS_MODE_INHERIT
 	brush.visible = true
 	ui.present(true)
@@ -338,6 +341,7 @@ func enter_title() -> void:
 		await save_island()
 	playing = false
 	brush.process_mode = Node.PROCESS_MODE_DISABLED
+	props.pop = false
 	brush.visible = false
 	ui.present(false)
 	menus.show_title()

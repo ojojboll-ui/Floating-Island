@@ -39,6 +39,11 @@ var _env_seen := ""
 ## does not stall the picture while every tree in it regrows at once.
 var _regrow: Array[int] = []
 const REGROW_BUDGET_US := 8000
+
+## Things placed by hand grow in with a little bounce and a puff of dust
+## (main turns it on while building; tests and opened islands go without).
+var pop := false
+var _puff_mesh: Mesh
 var _prewarm: Array = []   # [task, shapes] of stone shapes being built ahead
 
 
@@ -349,6 +354,8 @@ func add(kind: String, x: float, z: float, rng: RandomNumberGenerator, size := -
 		_woody_rev += 1
 	_mark(rec)
 	_spawn(rec)
+	if pop:
+		_pop_in(rec)
 	if stones_moved:
 		# the stones it now touches learn about it too
 		for r in records:
@@ -882,6 +889,57 @@ func _spawn(rec: Dictionary) -> void:
 	for l in node.find_children("*", "OmniLight3D", true, false):
 		if l.has_meta("flicker"):
 			_flames.append([l, l.get_meta("flicker"), randf() * TAU])
+
+
+## Grow a new thing in from nothing, overshooting a little, and puff a
+## little dust (or leaves) where it lands.
+func _pop_in(rec: Dictionary) -> void:
+	var node: Node3D = _nodes.get(rec.id)
+	if node == null or not node.visible:
+		return
+	var full := node.scale
+	node.scale = full * 0.05
+	var tw := node.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(node, "scale", full, 0.42 if rec.kind in WOODY else 0.3)
+	var puff := CPUParticles3D.new()
+	if _puff_mesh == null:
+		var q := QuadMesh.new()
+		q.size = Vector2(0.09, 0.09)
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		m.vertex_color_use_as_albedo = true
+		q.material = m
+		_puff_mesh = q
+	puff.mesh = _puff_mesh
+	puff.one_shot = true
+	puff.amount = 12
+	puff.lifetime = 0.7
+	puff.explosiveness = 0.95
+	puff.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	puff.emission_ring_axis = Vector3.UP
+	puff.emission_ring_radius = 0.25
+	puff.emission_ring_inner_radius = 0.1
+	puff.emission_ring_height = 0.0
+	puff.direction = Vector3.UP
+	puff.spread = 70.0
+	puff.initial_velocity_min = 0.6
+	puff.initial_velocity_max = 1.4
+	puff.gravity = Vector3(0, -2.5, 0)
+	puff.damping_min = 2.0
+	puff.damping_max = 3.0
+	puff.scale_amount_min = 0.6
+	puff.scale_amount_max = 1.4
+	var fade := Gradient.new()
+	var tint := Color(0.55, 0.72, 0.36) if rec.kind in WOODY else Color(0.86, 0.78, 0.62)
+	fade.set_color(0, Color(tint, 0.9))
+	fade.set_color(1, Color(tint, 0.0))
+	puff.color_ramp = fade
+	puff.position = Vector3(float(rec.x), node.global_position.y + 0.05, float(rec.z))
+	add_child(puff)
+	puff.emitting = true
+	puff.finished.connect(puff.queue_free)
 
 
 func _place(rec: Dictionary) -> void:

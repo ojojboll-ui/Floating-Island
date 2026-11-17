@@ -10,6 +10,16 @@ const Catalog := preload("res://scripts/prop_catalog.gd")
 static func run(main: Node, name: String) -> void:
 	await _frames(main, 20)
 	match name:
+		"pop":
+			# things placed by hand grow in with a bounce and a puff: a tree and
+			# a stone caught a moment after they were set down
+			main.props.pop = true
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 4
+			main.props.add("lovtrad", 2.0, 1.0, rng)
+			main.props.add("stenblock", -1.0, 3.0, rng)
+			for k in 7:
+				await RenderingServer.frame_post_draw
 		"listen":
 			# what the program sounds like: the master bus recorded to
 			# shots/listen.wav for --seconds= (default 40), by day unless --hour=

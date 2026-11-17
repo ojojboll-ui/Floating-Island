@@ -22,8 +22,6 @@ func _init() -> void:
 		f.close()
 	Brand.image(marks.wordmark_light, 1600).save_png(dir.path_join("wordmark_light.png"))
 	Brand.image(marks.wordmark_dark, 1600).save_png(dir.path_join("wordmark_dark.png"))
-	Brand.image(marks.emblem, 1024).save_png(dir.path_join("emblem_1024.png"))
-	Brand.image(marks.emblem, 256).save_png(ProjectSettings.globalize_path("res://icon.png"))
 	# the picture Godot shows while the program starts: the name where the
 	# loading screen has it (warmup.gd), a little above the middle
 	var word := Brand.image(marks.wordmark_dark, 460)

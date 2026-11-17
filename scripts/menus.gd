@@ -35,6 +35,7 @@ var _stack: Array[Control] = []
 var _pause: Control
 var _settings: Control
 var _gallery: Control
+var _about: Control
 var _cards: HFlowContainer
 var _soft_leaves: CheckButton
 var _fullscreen: CheckButton
@@ -76,6 +77,7 @@ func setup(main_node, theme: Theme) -> void:
 	_pause = _build_pause()
 	_settings = _build_settings()
 	_gallery = _build_gallery()
+	_about = _build_about()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 	if not MeshUtil.web() and bool(Settings.get_value("general", "fullscreen", false)):
@@ -320,6 +322,7 @@ func _build_pause() -> Control:
 			close_all()
 			open_file_dialog(), false],
 		["Inställningar ", "", open_settings, false],
+		["Om Skyholme", "Vem som gjort vad, och licenserna", func() -> void: _open(_about), false],
 		["Till titelskärmen", "", func() -> void:
 			close_all()
 			main.enter_title(), false],
@@ -469,6 +472,57 @@ func set_fullscreen(on: bool) -> void:
 	Settings.set_value("general", "fullscreen", on)
 	if _fullscreen:
 		_fullscreen.set_pressed_no_signal(on)
+
+
+# ---------------------------------------------------------------- about
+
+## Who made what: the program, the lettering, the textures, and the
+## engine's own notice, which must be shown with it.
+func _build_about() -> Control:
+	var made := _sheet("Om Skyholme", 560.0)
+	var box: VBoxContainer = made[1]
+	var logo := TextureRect.new()
+	var img := (load("res://brand/logo_ink.png") as Texture2D).get_image()
+	img.resize(300, int(img.get_height() * 300.0 / img.get_width()), Image.INTERPOLATE_LANCZOS)
+	logo.texture = ImageTexture.create_from_image(img)
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	box.add_child(logo)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(500, 300)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	var text := Label.new()
+	text.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_font_size_override("font_size", 15)
+	var engine := ""
+	for part: Dictionary in Engine.get_copyright_info():
+		if String(part.name) == "Godot Engine":
+			for p: Dictionary in part.parts:
+				engine = ", ".join(p.copyright)
+	text.text = "
+".join([
+		tr("Version %s") % String(ProjectSettings.get_setting("application/config/version", "")),
+		"",
+		tr("Allt på ön, musiken och ljuden är skapat av programmet självt."),
+		"",
+		tr("Typsnitt: IM FELL English av Igino Marini (iginomarini.com), SIL Open Font License 1.1."),
+		tr("Barkens strukturer: Quaternius (quaternius.com), CC0."),
+		"",
+		tr("Byggt med Godot Engine (godotengine.org), MIT-licens:"),
+		"Copyright " + engine,
+		"",
+		Engine.get_license_text(),
+	])
+	scroll.add_child(text)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_END
+	var done := _menu_button(row, "Stäng ", "", func() -> void: close())
+	done.text = "Stäng"
+	done.theme_type_variation = "SheetButton"
+	box.add_child(row)
+	return made[0]
 
 
 # ---------------------------------------------------------------- gallery
