@@ -1466,11 +1466,11 @@ static func make_theme() -> Theme:
 	th.set_stylebox("panel", "PanelContainer", _art("panel", 64, 34))
 	(th.get_stylebox("panel", "PanelContainer") as StyleBoxTexture).content_margin_top = 26
 	th.set_stylebox("panel", "Sheet", _art("sheet", 64, 46))
-	var tip_art := _art("sheet", 40, 12)
+	var tip_art := _art("chip", 16, 8)
 	tip_art.content_margin_left = 16
 	tip_art.content_margin_right = 16
 	th.set_stylebox("panel", "TooltipPanel", tip_art)
-	th.set_stylebox("panel", "PopupMenu", _art("sheet", 40, 12))
+	th.set_stylebox("panel", "PopupMenu", _art("chip", 16, 8))
 	var handle := _art("panel", 64, 18)
 	handle.content_margin_top = 12
 	handle.content_margin_bottom = 12
