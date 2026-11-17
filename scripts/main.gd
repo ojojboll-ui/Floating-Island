@@ -28,6 +28,7 @@ const Menus := preload("res://scripts/menus.gd")
 const Settings := preload("res://scripts/settings.gd")
 const Brand := preload("res://scripts/brand.gd")
 const Audio := preload("res://scripts/audio.gd")
+const Tips := preload("res://scripts/tips.gd")
 
 ## The island saves itself this often (seconds) while it is being built.
 const AUTOSAVE_EVERY := 150.0
@@ -46,6 +47,7 @@ var roots
 var warmup   # the loading screen while it lasts
 var menus    # title screen, pause, settings, gallery
 var audio    # music, the island's sounds, the tools'
+var tips     # first steps for someone new
 ## The island being built: its file in the gallery and its name. Empty
 ## until building starts on an island that has not been saved yet.
 var island_path := ""
@@ -159,6 +161,9 @@ func _ready() -> void:
 	add_child(ui)
 	ui.setup(brush, ruins, weather, self)
 	ui.visible = not args.has("noui")
+	tips = Tips.new()
+	add_child(tips)
+	tips.setup(self, UI.make_theme())
 	if args.has("tab"):
 		ui.tabs.current_tab = int(args["tab"])
 	if args.has("fold"):
@@ -332,6 +337,8 @@ func start_play() -> void:
 	playing = true
 	_autosave_wait = AUTOSAVE_EVERY
 	props.pop = true
+	if not testing:
+		tips.begin()
 	brush.process_mode = Node.PROCESS_MODE_INHERIT
 	brush.visible = true
 	ui.present(true)

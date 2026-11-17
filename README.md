@@ -1,10 +1,39 @@
-# Floating Island
+# Skyholme
 
-Diorama-byggare i Godot 4.7 (Forward+). Klart: etapp 0 (stil), 1 (mark), 2 (vatten), 3 (växter) 4 (ruiner) 5 (himmel och väder) och 6 (ljus, kamera, spara och export, effekter).
+Ett mysigt spel där man bygger en liten ö i skyn: mark, vatten, växter, ruiner, väder och ljus, och sparar den som bilder, filmer och skrivbordsbakgrunder. Godot 4.7 (Forward+, och Compatibility för webben). Hette först Floating Island.
+
+## Spelet runt ön
+
+- **Titelskärmen** (`scripts/menus.gd`) ligger över den levande ön, som vrider sig långsamt en bit bort. Fortsätt, Ny ö, Mina öar, Inställningar, Avsluta. Härifrån glider kameran in och panelen glider ut.
+- **Esc** öppnar pausmenyn: Mina öar, spara en kopia, öppna en fil, inställningar, Om Skyholme (krediter och Godots licens), till titelskärmen.
+- **Mina öar** är ett galleri med en bild av varje ö: öppna, byt namn, kopiera, ta bort (till papperskorgen). Ön sparar sig själv var 150:e sekund, när man lämnar den och när man avslutar; den senaste öppnas igen nästa gång. Öarna ligger i `Dokument\Skyholme`, bilder och filmer i `Bilder\Skyholme`. Filerna har ett huvud med namn, datum och en liten bild (`island_file.gd`); äldre filer öppnas ändå.
+- **Inställningar**: språk (svenska/engelska, efter datorn tills man väljer), Musik/Natur/Effekter, helskärm (F11), Snabbläge, mjuka bladkanter, bildfrekvens. De sparas i `user://settings.cfg` (`scripts/settings.gd`), inte i ön.
+- **Första stegen** (`scripts/tips.gd`): ett kort längst ner med ett tips i taget, som byts när man gjort det. Visas en gång.
+- **Ljud** (`scripts/audio.gd`): generativ musik som aldrig upprepar sig (stråkmatta, harpa och speldosa i D-dur pentatonisk, vilar en stund med jämna mellanrum; natten saktar och sänker den och släpper in en klocka), naturljud efter väder och klocka (vind, fåglar, syrsor, regn, bäck när det finns vatten), och ljud för knappar och verktyg. Allt syntas av `tools/make_sounds.py` (numpy), inget är inspelat. Testet `listen` spelar in vad spelet låter till `shots/listen.wav`.
+- **Saker poppar in** med en liten studs och ett dammpuff när de placeras för hand (`prop_layer.pop`).
+
+## Stilen
+
+Sagobok: typsnittet IM FELL English (Igino Marini, SIL OFL, `fonts/`), pergament med dubbel bläcklinje och rankor i hörnen, knappar som bläckade etiketter och en gyllene för vägen framåt. Allt ritas av skript:
+
+| Skript | Gör |
+|---|---|
+| `tools/make_logo.py` | Namnet (`brand/logo.png`, `logo_ink.png`) och ikonen (`icon.png`, `brand/icon.ico`, `emblem_1024.png`) |
+| `tools/make_ui_art.py` | Pergamentet och etiketterna (`brand/ui/`) |
+| `tools/brand_export.gd` | Startbilden (`brand/splash.png`) |
+| `tools/make_sounds.py` | Alla ljud (`audio/`) |
+| `tools/i18n_extract.py` | Översättningstabellen `i18n/strings.csv` från `i18n/en.py`; listar svenska rader utan engelska |
+| `tools/make_store_art.py` | Steam-bilderna (`store/steam/`) från testet `store_shots` |
+
+Python-skripten kör med `python -I` och behöver numpy och Pillow. Efter nya bilder, ljud eller typsnitt: `godot --headless --path . --import`.
+
+**Engelska**: Godot översätter etiketter, knappar och tips själv när den svenska raden finns i tabellen. Ny text: skriv den på svenska i koden, lägg engelskan i `i18n/en.py` och kör `tools/i18n_extract.py`. Text som sätts ihop i koden går genom `tr()`.
+
+**Steam**: `store/steam/` har kapslar (header, small, main, vertical, library), library hero och logo, sidbakgrund, ikoner och skärmdumpar i rätt storlekar. Steamworks-integration (prestationer, molnsparning) kräver GodotSteam och ett app-id och är inte gjord.
 
 ## Köra
 
-Dubbelklicka `run.bat`.
+Dubbelklicka `run.bat`. Utan argument startar spelet på titelskärmen; tester (`--test=`) går direkt till byggandet, med `--title` på titelskärmen och `--menu=pause|settings|gallery|about` med en meny öppen.
 
 | Gör | Hur |
 |---|---|

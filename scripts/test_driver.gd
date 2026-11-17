@@ -10,6 +10,10 @@ const Catalog := preload("res://scripts/prop_catalog.gd")
 static func run(main: Node, name: String) -> void:
 	await _frames(main, 20)
 	match name:
+		"tips":
+			# the first-steps card, on its first hint
+			main.tips.begin()
+			await _frames(main, 50)
 		"english":
 			# the program in English: the settings sheet over the Plants page
 			TranslationServer.set_locale("en")

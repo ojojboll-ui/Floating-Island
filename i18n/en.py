@@ -203,5 +203,11 @@ EN = {
     "Snabbläge är på: grafiken är inbyggd i processorn. Du kan slå av det under Inställningar.": "Fast mode is on: the graphics are built into the processor. You can turn it off under Settings.",
     "Snabbläge är på: datorn hann inte med bilden. Du kan slå av det under Inställningar.": "Fast mode is on: the computer could not keep up. You can turn it off under Settings.",
     "Ön vaknar. Första gången på en ny dator tar det en stund.": "The island is waking. The first time on a new computer takes a little while.",
+    "Välj ett verktyg i panelen och dra med vänster musknapp över ön.": "Pick a tool in the panel and drag with the left mouse button over the island.",
+    "Håll höger musknapp och dra för att vrida på ön. Hjulet zoomar.": "Hold the right mouse button and drag to turn the island. The wheel zooms.",
+    "Under Växter finns träd, buskar och blommor. Klicka på ön för att plantera.": "Plants has trees, bushes and flowers. Click on the island to plant.",
+    "Väder och Ljus ändrar stämningen: prova en kväll med eldflugor.": "Weather and Light change the mood: try an evening with fireflies.",
+    "När du är nöjd sparar Export bilder, filmer och bakgrunder av ön.": "When you are happy, Export saves pictures, films and wallpapers of the island.",
+    "Inga fler tips": "No more tips",
     "Språk": "Language", "Svenska": "Svenska", "English": "English",
 }
