@@ -262,6 +262,35 @@ static func thumbnail(main: Node, size := THUMB) -> Image:
 	return img
 
 
+## The current view at `size`, without the panel, as a picture.
+static func still_image(main: Node, size: Vector2i) -> Image:
+	var sub := SubViewport.new()
+	sub.size = size
+	sub.world_3d = main.get_viewport().world_3d
+	sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	sub.msaa_3d = Viewport.MSAA_4X
+	var cam := Camera3D.new()
+	var src: Camera3D = main.rig.camera
+	cam.fov = src.fov
+	cam.near = src.near
+	cam.far = src.far
+	cam.attributes = src.attributes
+	sub.add_child(cam)
+	main.add_child(sub)
+	cam.global_transform = src.global_transform
+	cam.v_offset = src.v_offset
+	cam.current = true
+	sub.add_child(main.Post.make_layer(main.post.material_for(Vector2(size))))
+	main.post.full_quality = true
+	main.post.apply()
+	for k in 6:
+		await RenderingServer.frame_post_draw
+	var img := sub.get_texture().get_image()
+	sub.queue_free()
+	main.post.full_quality = false
+	return img
+
+
 ## Render the current view at `size`, without the panel, and save it.
 static func still(main: Node, size: Vector2i) -> String:
 	var sub := SubViewport.new()

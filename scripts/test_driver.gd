@@ -10,6 +10,26 @@ const Catalog := preload("res://scripts/prop_catalog.gd")
 static func run(main: Node, name: String) -> void:
 	await _frames(main, 20)
 	match name:
+		"store_shots":
+			# pictures for the shop page: the showcase island from a few sides
+			# and times of day, at 4K, without the panel (shots/store/)
+			await run(main, "showcase")
+			var dir := ProjectSettings.globalize_path("res://shots/store")
+			DirAccess.make_dir_recursive_absolute(dir)
+			var views := [["golden", 17.6, 30.0, 24.0, 0.78], ["morning", 8.0, -60.0, 20.0, 0.78], ["dusk", 18.4, 120.0, 26.0, 0.8],
+				["night", 23.0, 200.0, 22.0, 0.8], ["close", 15.0, 0.0, 12.0, 0.55], ["capsule", 17.6, 30.0, 20.0, 1.05]]
+			for v in views:
+				main.weather.hour = v[1]
+				main.weather.settle()
+				main.rig.goal_yaw = deg_to_rad(v[2])
+				main.rig.goal_pitch = deg_to_rad(v[3])
+				main.rig.stand_back = v[4]
+				main.rig.frame_drop = 0.17 if v[0] == "capsule" else 0.0
+				main.rig.settle()
+				await _frames(main, 40)
+				var img: Image = await main.IslandFile.still_image(main, Vector2i(3840, 2160))
+				img.save_png(dir.path_join("%s.png" % v[0]))
+				print("  ", v[0])
 		"pop":
 			# things placed by hand grow in with a bounce and a puff: a tree and
 			# a stone caught a moment after they were set down
