@@ -348,6 +348,9 @@ func _build_settings() -> Control:
 	settings_extra.add_theme_constant_override("separation", 10)
 	box.add_child(settings_extra)
 
+	box.add_child(_heading("Ljud"))
+	for bus in ["Musik", "Natur", "Effekter"]:
+		box.add_child(_level(bus))
 	box.add_child(_heading("Bild"))
 	_fullscreen = _check(box, "Helskärm", "Fyll hela skärmen (F11)", is_fullscreen(), func(on: bool) -> void: set_fullscreen(on))
 	_fullscreen.visible = not MeshUtil.web()
@@ -387,6 +390,29 @@ func _build_settings() -> Control:
 	done.theme_type_variation = "PrimaryButton"
 	box.add_child(row)
 	return made[0]
+
+
+## A slider for one of the sound buses.
+func _level(bus: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var l := Label.new()
+	l.text = bus
+	l.custom_minimum_size.x = 96
+	row.add_child(l)
+	var s := HSlider.new()
+	s.min_value = 0.0
+	s.max_value = 1.0
+	s.step = 0.01
+	s.value = main.audio.level(bus)
+	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	s.custom_minimum_size = Vector2(160, 22)
+	s.focus_mode = Control.FOCUS_NONE
+	s.value_changed.connect(func(v: float) -> void: main.audio.set_level(bus, v))
+	row.add_child(s)
+	buttons["ljud:" + bus] = s
+	return row
 
 
 func _heading(text: String) -> Label:

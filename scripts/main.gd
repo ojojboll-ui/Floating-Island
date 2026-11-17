@@ -27,6 +27,7 @@ const MeshUtil := preload("res://scripts/mesh_util.gd")
 const Menus := preload("res://scripts/menus.gd")
 const Settings := preload("res://scripts/settings.gd")
 const Brand := preload("res://scripts/brand.gd")
+const Audio := preload("res://scripts/audio.gd")
 
 ## The island saves itself this often (seconds) while it is being built.
 const AUTOSAVE_EVERY := 150.0
@@ -44,6 +45,7 @@ var post
 var roots
 var warmup   # the loading screen while it lasts
 var menus    # title screen, pause, settings, gallery
+var audio    # music, the island's sounds, the tools'
 ## The island being built: its file in the gallery and its name. Empty
 ## until building starts on an island that has not been saved yet.
 var island_path := ""
@@ -142,6 +144,12 @@ func _ready() -> void:
 	brush.roots = roots
 	brush.changed.connect(_on_ground_changed)
 
+	audio = Audio.new()
+	add_child(audio)
+	audio.setup(self)
+	audio.hear_brush(brush)
+	if args.has("record") or args.has("mute"):
+		AudioServer.set_bus_mute(0, true)
 	menus = Menus.new()
 	add_child(menus)
 	menus.setup(self, UI.make_theme())
@@ -352,6 +360,8 @@ func save_island() -> Error:
 ## Ctrl+S: save now, and say so.
 func save_now() -> void:
 	var err: Error = await save_island()
+	if err == OK:
+		audio.play("chime", -6.0)
 	menus.toast(tr("Sparad") if err == OK else tr("Kunde inte spara (%s)") % error_string(err))
 
 

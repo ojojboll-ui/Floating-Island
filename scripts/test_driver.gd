@@ -10,6 +10,22 @@ const Catalog := preload("res://scripts/prop_catalog.gd")
 static func run(main: Node, name: String) -> void:
 	await _frames(main, 20)
 	match name:
+		"listen":
+			# what the program sounds like: the master bus recorded to
+			# shots/listen.wav for --seconds= (default 40), by day unless --hour=
+			var rec := AudioEffectRecord.new()
+			AudioServer.add_bus_effect(0, rec)
+			rec.set_recording_active(true)
+			var seconds := 40.0
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--seconds="):
+					seconds = float(a.substr(10))
+			main.audio._beat_wait = 0.2
+			await main.get_tree().create_timer(seconds).timeout
+			rec.set_recording_active(false)
+			var wav := rec.get_recording()
+			wav.save_to_wav(ProjectSettings.globalize_path("res://shots/listen.wav"))
+			print("  recorded ", seconds, " s")
 		"library":
 			# the gallery of islands, in a folder of its own: build on one, start
 			# another, then rename, copy, remove and open through the same calls

@@ -705,6 +705,7 @@ func _export_row() -> Control:
 	still.text = "Bild"
 	still.tooltip_text = "Spara en stillbild utan panelen"
 	still.pressed.connect(func() -> void:
+		main.audio.play("shutter", -4.0)
 		var path: String = await main.IslandFile.still(main, size_of.call())
 		toast(("Bilden laddas ner: " if MeshUtil.web() else "Bilden sparades: ") + path.get_file()))
 	var film := Button.new()

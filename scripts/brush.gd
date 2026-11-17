@@ -14,6 +14,9 @@ extends Node3D
 
 signal changed(rect: Rect2i)
 signal tool_changed
+## A stroke starts and ends (the sounds follow these): the tool, and where.
+signal stroke_began(tool: int, at: Vector3)
+signal stroke_ended(tool: int)
 
 enum Tool { RAISE, LOWER, SMOOTH, FLATTEN, LAND_ADD, LAND_REMOVE, PAINT, WATER, DRY, PLACE, REMOVE,
 		WALL, PILLAR, ARCH, STAIRS, DEMOLISH, FLOOR, STOREY, DOOR, WINDOW, CARVE, ROOTS }
@@ -184,6 +187,7 @@ func _begin_stroke(screen: Vector2) -> void:
 	_stroke_time = 0.0
 	_scatter = 0.0
 	var p: Vector3 = hit.pos
+	stroke_began.emit(tool, p)
 	props.begin_stroke()
 	if tool == Tool.PLACE and not Input.is_key_pressed(KEY_SHIFT):
 		if hit.get("side", false):
@@ -256,6 +260,7 @@ func _end_stroke() -> void:
 			roots.add(_root_anchors, _ruin_seed)
 			_root_anchors = []
 	ruins.clear_preview()
+	stroke_ended.emit(tool)
 	_draw = PackedVector2Array()
 	_flush()
 
