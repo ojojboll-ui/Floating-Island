@@ -66,6 +66,8 @@ func _ready() -> void:
 	testing = args.has("snapshot") or args.has("record")
 	Settings.remember = not testing
 	Settings.adopt_old()
+	# Swedish on a Swedish computer, English elsewhere, until chosen in the settings
+	TranslationServer.set_locale(String(Settings.get_value("general", "language", "sv" if OS.get_locale_language() == "sv" else "en")))
 	get_window().title = Brand.NAME
 	DisplayServer.set_icon((load("res://icon.png") as Texture2D).get_image())
 	# a film export leaves this behind for its own window size; it must not

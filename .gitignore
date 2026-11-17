@@ -7,6 +7,8 @@
 !brand/**/*.import
 !brand/*.import
 !fonts/*.import
+!i18n/*.import
+!audio/**/*.import
 override.cfg
 
 # renders from snap.sh and the tests

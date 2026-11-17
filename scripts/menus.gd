@@ -347,6 +347,21 @@ func _build_settings() -> Control:
 	var box: VBoxContainer = made[1]
 	var p = main.post
 
+	box.add_child(_heading("Språk"))
+	var lang := OptionButton.new()
+	lang.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	lang.add_item("Svenska")
+	lang.add_item("English")
+	lang.select(0 if TranslationServer.get_locale().begins_with("sv") else 1)
+	lang.focus_mode = Control.FOCUS_NONE
+	lang.item_selected.connect(func(i: int) -> void:
+		var code := "sv" if i == 0 else "en"
+		TranslationServer.set_locale(code)
+		Settings.set_value("general", "language", code)
+		# the panel puts some of its words together, so it is built afresh
+		main.rebuild_ui())
+	buttons["Språk"] = lang
+	box.add_child(lang)
 	settings_extra = VBoxContainer.new()
 	settings_extra.add_theme_constant_override("separation", 10)
 	box.add_child(settings_extra)
@@ -447,6 +462,8 @@ func open_settings() -> void:
 ## file after the sheet is built, and Snabbläge may turn on by itself).
 func sync_graphics() -> void:
 	var p = main.post
+	if buttons.has("Språk"):
+		(buttons["Språk"] as OptionButton).select(0 if TranslationServer.get_locale().begins_with("sv") else 1)
 	for pair in [["Snabbläge", p.fast], ["Mjuka bladkanter", p.soft_leaves], ["Visa bildfrekvens", p.show_fps], ["Helskärm", is_fullscreen()]]:
 		if buttons.has(pair[0]):
 			(buttons[pair[0]] as Button).set_pressed_no_signal(pair[1])

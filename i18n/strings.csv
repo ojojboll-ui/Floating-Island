@@ -1,0 +1,473 @@
+keys,sv,en
+Musik,Musik,Music
+Natur,Natur,Nature
+Effekter,Effekter,Effects
+Sparad,Sparad,Saved
+Kunde inte spara (%s),Kunde inte spara (%s),Could not save (%s)
+Bygg en liten värld i skyn,Bygg en liten värld i skyn,Build a little world in the sky
+Fortsätt,Fortsätt,Continue
+Fortsätt där du slutade,Fortsätt där du slutade,Carry on where you left off
+Ny ö,Ny ö,New island
+Börja på en ny ö. Den du har finns kvar under Mina öar,Börja på en ny ö. Den du har finns kvar under Mina öar,Start a new island. The one you have stays under My islands
+Mina öar,Mina öar,My islands
+Mina öar ,Mina öar ,My islands
+Alla öar du har byggt,Alla öar du har byggt,Every island you have built
+Inställningar,Inställningar,Settings
+Inställningar ,Inställningar ,Settings
+Avsluta,Avsluta,Quit
+Avsluta ,Avsluta ,Quit
+Börja bygga,Börja bygga,Start building
+Paus,Paus,Paused
+Tillbaka till ön,Tillbaka till ön,Back to the island
+Spara en kopia…,Spara en kopia…,Save a copy…
+"Spara ön som en fil någon annanstans, till exempel för att skicka den till någon","Spara ön som en fil någon annanstans, till exempel för att skicka den till någon","Save the island as a file somewhere else, for instance to send it to someone"
+Öppna en fil…,Öppna en fil…,Open a file…
+Öppna en ö från en fil,Öppna en ö från en fil,Open an island from a file
+Om Skyholme,Om Skyholme,About Skyholme
+"Vem som gjort vad, och licenserna","Vem som gjort vad, och licenserna","Who made what, and the licences"
+Till titelskärmen,Till titelskärmen,To the title screen
+Ön sparas av sig själv,Ön sparas av sig själv,The island saves itself
+Ljud,Ljud,Sound
+Bild,Bild,Picture
+Helskärm,Helskärm,Full screen
+Fyll hela skärmen (F11),Fyll hela skärmen (F11),Fill the whole screen (F11)
+Snabbläge,Snabbläge,Fast mode
+"Billigare kantutjämning, inget studsande ljus, mindre och skarpare solskuggor, grövre dimma och skärpedjup: ungefär 3 ms snabbare per bild. Slås på av sig själv när datorn inte hinner med, tills du väljer här","Billigare kantutjämning, inget studsande ljus, mindre och skarpare solskuggor, grövre dimma och skärpedjup: ungefär 3 ms snabbare per bild. Slås på av sig själv när datorn inte hinner med, tills du väljer här","Cheaper edge smoothing, no bounced light, smaller and sharper sun shadows, coarser mist and depth of field: about 3 ms faster a frame. Turns itself on when the computer cannot keep up, until you choose here"
+Mjuka bladkanter,Mjuka bladkanter,Soft leaf edges
+"Jämnare kanter på löven. Kronorna blir då ljusare och plattare inuti, och en skog kostar ungefär 2 ms mer per bild. Gör ingenting i Snabbläge","Jämnare kanter på löven. Kronorna blir då ljusare och plattare inuti, och en skog kostar ungefär 2 ms mer per bild. Gör ingenting i Snabbläge","Smoother leaf edges. Crowns then look lighter and flatter inside, and a wood costs about 2 ms more a frame. Does nothing in Fast mode"
+Visa bildfrekvens,Visa bildfrekvens,Show frame rate
+"Bilder per sekund och millisekunder per bild, nere till höger","Bilder per sekund och millisekunder per bild, nere till höger","Frames a second and milliseconds a frame, bottom right"
+"Inställningarna sparas på datorn, inte i ön. Bilder och filmer som exporteras får alltid full kvalitet.","Inställningarna sparas på datorn, inte i ön. Bilder och filmer som exporteras får alltid full kvalitet.","Settings are kept on this computer, not in the island. Exported pictures and films always get full quality."
+Klar,Klar,Done
+Version %s,Version %s,Version %s
+"Allt på ön, musiken och ljuden är skapat av programmet självt.","Allt på ön, musiken och ljuden är skapat av programmet självt.","Everything on the island, the music and the sounds are made by the program itself."
+"Typsnitt: IM FELL English av Igino Marini (iginomarini.com), SIL Open Font License 1.1.","Typsnitt: IM FELL English av Igino Marini (iginomarini.com), SIL Open Font License 1.1.","Typeface: IM FELL English by Igino Marini (iginomarini.com), SIL Open Font License 1.1."
+"Barkens strukturer: Quaternius (quaternius.com), CC0.","Barkens strukturer: Quaternius (quaternius.com), CC0.","Bark textures: Quaternius (quaternius.com), CC0."
+"Byggt med Godot Engine (godotengine.org), MIT-licens:","Byggt med Godot Engine (godotengine.org), MIT-licens:","Made with Godot Engine (godotengine.org), MIT licence:"
+Stäng,Stäng,Close
+Stäng ,Stäng ,Close
+Öarna sparas av sig själva medan du bygger.,Öarna sparas av sig själva medan du bygger.,Islands save themselves while you build.
+"+
+Ny ö","+
+Ny ö","+
+New island"
+Öppna,Öppna,Open
+"Byt namn, kopiera eller ta bort","Byt namn, kopiera eller ta bort","Rename, copy or remove"
+Byt namn,Byt namn,Rename
+Gör en kopia,Gör en kopia,Make a copy
+Ta bort,Ta bort,Remove
+Vad ska ön heta?,Vad ska ön heta?,What should the island be called?
+%s kopia,%s kopia,%s copy
+Ta bort %s? Den läggs i papperskorgen.,Ta bort %s? Den läggs i papperskorgen.,Remove %s? It goes to the recycle bin.
+Kunde inte öppna (%s),Kunde inte öppna (%s),Could not open (%s)
+Avbryt,Avbryt,Cancel
+Ön laddas ner som %s,Ön laddas ner som %s,The island downloads as %s
+Sparad: %s,Sparad: %s,Saved: %s
+Ön öppnades,Ön öppnades,The island opened
+Öppnade %s,Öppnade %s,Opened %s
+Ö,Ö,Island
+Standard,Standard,Standard
+Miniatyr,Miniatyr,Miniature
+Ovanifrån,Ovanifrån,From above
+Låg vinkel,Låg vinkel,Low angle
+Underifrån,Underifrån,From below
+Närbild,Närbild,Close-up
+Vidvinkel,Vidvinkel,Wide angle
+Teleobjektiv,Teleobjektiv,Telephoto
+Lövträd,Lövträd,Leafy tree
+Gran,Gran,Spruce
+Höstträd,Höstträd,Autumn tree
+Torrträd,Torrträd,Dead tree
+Sagoträd,Sagoträd,Fairy tree
+Buske,Buske,Bush
+Blombuske,Blombuske,Flowering bush
+Ormbunke,Ormbunke,Fern
+Högt gräs,Högt gräs,Tall grass
+Blommor,Blommor,Flowers
+Klöver,Klöver,Clover
+Svamp,Svamp,Mushroom
+Stenblock,Stenblock,Boulder
+Småsten,Småsten,Pebbles
+Trampstenar,Trampstenar,Stepping stones
+Berg,Berg,Rock
+Stock,Stock,Log
+Stubbe,Stubbe,Stump
+Eldstad,Eldstad,Fire pit
+Fackla,Fackla,Torch
+Stearinljus,Stearinljus,Candles
+Lykta,Lykta,Lantern
+Tält,Tält,Tent
+Ryggsäck,Ryggsäck,Backpack
+Koffert,Koffert,Chest
+Gryta,Gryta,Pot
+Picknickfilt,Picknickfilt,Picnic blanket
+Spade,Spade,Spade
+Hacka,Hacka,Pickaxe
+Yxa,Yxa,Axe
+Huggkubbe,Huggkubbe,Chopping block
+Flaskor,Flaskor,Bottles
+Böcker,Böcker,Books
+Korg,Korg,Basket
+Tunna,Tunna,Barrel
+Vedtrave,Vedtrave,Woodpile
+Rund vedtrave,Rund vedtrave,Round woodpile
+Skylt,Skylt,Signpost
+Vass,Vass,Reeds
+Näckros,Näckros,Water lily
+Storlek,Storlek,Size
+"Hur stora stenarna är, tvärs över","Hur stora stenarna är, tvärs över","How big the stones are, across"
+Variation,Variation,Variation
+Hur mycket de skiljer sig i storlek,Hur mycket de skiljer sig i storlek,How much they differ in size
+Kantighet,Kantighet,Angularity
+"Nötta och runda, eller huggna med skarpa kanter","Nötta och runda, eller huggna med skarpa kanter","Worn and round, or hewn with sharp edges"
+Platthet,Platthet,Flatness
+"Lika höga som breda, eller flata hällar","Lika höga som breda, eller flata hällar","As tall as they are wide, or flat slabs"
+Avlånghet,Avlånghet,Length
+"Runda, eller dubbelt så långa som breda","Runda, eller dubbelt så långa som breda","Round, or twice as long as wide"
+Mossa,Mossa,Moss
+Hur mycket mossa; mer nära vatten och under träd,Hur mycket mossa; mer nära vatten och under träd,How much moss; more near water and under trees
+Textur,Textur,Texture
+"Sprickor, gropar och kantlinjer i stenen","Sprickor, gropar och kantlinjer i stenen","Cracks, pits and edge lines in the stone"
+Relief,Relief,Relief
+Hur djupt sprickor och gropar syns i ljuset,Hur djupt sprickor och gropar syns i ljuset,How deep cracks and pits show in the light
+Höjd,Höjd,Height
+Hur högt trädet är,Hur högt trädet är,How tall the tree is
+Hur mycket träden skiljer sig i höjd,Hur mycket träden skiljer sig i höjd,How much the trees differ in height
+Stam,Stam,Trunk
+Stammens tjocklek vid roten,Stammens tjocklek vid roten,How thick the trunk is at its foot
+Krokighet,Krokighet,Crookedness
+"Raka stammar och grenar, eller vridna och knotiga","Raka stammar och grenar, eller vridna och knotiga","Straight trunks and branches, or twisted and gnarled"
+Grenar,Grenar,Branches
+Hur många huvudgrenar som går ut från stammen,Hur många huvudgrenar som går ut från stammen,How many main branches leave the trunk
+Förgrening,Förgrening,Forking
+Hur många led grenarna delar sig i,Hur många led grenarna delar sig i,How many times the branches divide
+Grenlängd,Grenlängd,Branch length
+Hur långa grenarna är,Hur långa grenarna är,How long the branches are
+Grenvinkel,Grenvinkel,Branch angle
+Vinkeln grenarna växer ut i från stammen,Vinkeln grenarna växer ut i från stammen,The angle branches grow out from the trunk at
+Kronform,Kronform,Crown shape
+"Spetsig som en gran, rund, eller bred som ett paraply","Spetsig som en gran, rund, eller bred som ett paraply","Pointed like a spruce, round, or wide like an umbrella"
+Stambas,Stambas,Clear trunk
+Hur högt upp de första grenarna sitter,Hur högt upp de första grenarna sitter,How high up the first branches are
+Lövmängd,Lövmängd,Foliage
+Hur tät kronan är; noll ger ett kalt träd,Hur tät kronan är; noll ger ett kalt träd,How dense the crown is; zero gives a bare tree
+Lövstorlek,Lövstorlek,Leaf size
+Hur stora lövklungorna är,Hur stora lövklungorna är,How big the leaf clusters are
+Frukt,Frukt,Fruit
+"Äpplen, bär eller blom i kronan","Äpplen, bär eller blom i kronan","Apples, berries or blossom in the crown"
+Fruktstorlek,Fruktstorlek,Fruit size
+Hur stora frukterna är,Hur stora frukterna är,How big the fruit is
+Mossa på grenarnas ovansida och runt foten; mycket mossa kryper fläckvis upp längs stammen till första förgreningen,Mossa på grenarnas ovansida och runt foten; mycket mossa kryper fläckvis upp längs stammen till första förgreningen,Moss on top of the branches and round the foot; a lot of moss creeps in patches up the trunk to the first fork
+Struktur,Struktur,Structure
+Hur tydligt barkens ådring och knutor syns,Hur tydligt barkens ådring och knutor syns,How clearly the bark's grain and knots show
+Hur djupt barken syns i ljuset,Hur djupt barken syns i ljuset,How deep the bark shows in the light
+Hur hög granen är,Hur hög granen är,How tall the spruce is
+Hur mycket granarna skiljer sig i höjd,Hur mycket granarna skiljer sig i höjd,How much the spruces differ in height
+Stammens tjocklek,Stammens tjocklek,How thick the trunk is
+Våningar,Våningar,Tiers
+Hur många grenvåningar granen har,Hur många grenvåningar granen har,How many tiers of branches the spruce has
+Bredd,Bredd,Width
+Hur breda våningarna är,Hur breda våningarna är,How wide the tiers are
+Hängning,Hängning,Droop
+Hur mycket grenarna hänger,Hur mycket grenarna hänger,How much the branches droop
+"Spetsig kon, eller rundare topp","Spetsig kon, eller rundare topp","A pointed cone, or a rounder top"
+Hur högt upp de nedersta grenarna sitter,Hur högt upp de nedersta grenarna sitter,How high up the lowest branches are
+Fransighet,Fransighet,Fringe
+"Släta kanter, eller fransiga och taggiga","Släta kanter, eller fransiga och taggiga","Smooth edges, or fringed and spiky"
+Rak eller lite krokig stam,Rak eller lite krokig stam,A straight or slightly crooked trunk
+Hur hög busken är,Hur hög busken är,How tall the bush is
+Hur mycket buskarna skiljer sig i höjd,Hur mycket buskarna skiljer sig i höjd,How much the bushes differ in height
+Raka eller knotiga grenar,Raka eller knotiga grenar,Straight or gnarled branches
+Hur många grenar som växer upp ur roten,Hur många grenar som växer upp ur roten,How many branches grow up from the root
+Upprätt eller utbredd,Upprätt eller utbredd,Upright or spreading
+Hur tät busken är,Hur tät busken är,How dense the bush is
+Blom/bär,Blom/bär,Blossom/berries
+Blommor eller bär på busken,Blommor eller bär på busken,Flowers or berries on the bush
+Hur stora blommorna eller bären är,Hur stora blommorna eller bären är,How big the flowers or berries are
+Hur hög ormbunken är,Hur hög ormbunken är,How tall the fern is
+Blad,Blad,Fronds
+Hur många blad som växer ur mitten,Hur många blad som växer ur mitten,How many fronds grow from the middle
+Böjning,Böjning,Bend
+Hur mycket bladen böjer sig ner,Hur mycket bladen böjer sig ner,How much the fronds bend down
+Hur breda bladen är,Hur breda bladen är,How wide the fronds are
+Hur höga blommorna är,Hur höga blommorna är,How tall the flowers are
+Hur mycket de skiljer sig i höjd,Hur mycket de skiljer sig i höjd,How much they differ in height
+Stjälkar,Stjälkar,Stems
+Hur många blommor i varje tuva,Hur många blommor i varje tuva,How many flowers in each tuft
+Kronblad,Kronblad,Petals
+Hur många kronblad varje blomma har,Hur många kronblad varje blomma har,How many petals each flower has
+Blomstorlek,Blomstorlek,Flower size
+Hur stora blommorna är,Hur stora blommorna är,How big the flowers are
+Kupning,Kupning,Cupping
+"Platta som en prästkrage, eller kupade som en tulpan","Platta som en prästkrage, eller kupade som en tulpan","Flat like a daisy, or cupped like a tulip"
+Hur stor varje klövertuva är,Hur stor varje klövertuva är,How big each clover tuft is
+Hur mycket tuvorna skiljer sig,Hur mycket tuvorna skiljer sig,How much the tufts differ
+Täthet,Täthet,Density
+Hur många blad i en tuva,Hur många blad i en tuva,How many leaves in a tuft
+Hur många blomhuvuden,Hur många blomhuvuden,How many flower heads
+Hur höga svamparna är,Hur höga svamparna är,How tall the mushrooms are
+Antal,Antal,Count
+Hur många svampar i varje klunga,Hur många svampar i varje klunga,How many mushrooms in each cluster
+Hattbredd,Hattbredd,Cap width
+Hur breda hattarna är,Hur breda hattarna är,How wide the caps are
+Hattform,Hattform,Cap shape
+"Platt, välvd eller klockformad hatt","Platt, välvd eller klockformad hatt","A flat, domed or bell-shaped cap"
+Prickar,Prickar,Spots
+"Vita prickar på hatten, som en flugsvamp","Vita prickar på hatten, som en flugsvamp","White spots on the cap, like a fly agaric"
+Hur högt gräset är,Hur högt gräset är,How tall the grass is
+Hur mycket tuvorna skiljer sig i höjd,Hur mycket tuvorna skiljer sig i höjd,How much the tufts differ in height
+Strån,Strån,Blades
+Hur många strån i varje tuva,Hur många strån i varje tuva,How many blades in each tuft
+"Raka strån, eller böjda som i vind","Raka strån, eller böjda som i vind","Straight blades, or bent as in wind"
+Hur breda strånа är,Hur breda strånа är,How wide the blades are
+Hur breda stråna är,Hur breda stråna är,How wide the blades are
+Spridning,Spridning,Spread
+"Tät tuva, eller utspridd","Tät tuva, eller utspridd","A tight tuft, or spread out"
+Vippor,Vippor,Seed heads
+Fröställningar ovanför stråna,Fröställningar ovanför stråna,Seed heads above the blades
+Gräsfärg,Gräsfärg,Grass colour
+Hur mycket gräset tar efter gräsmattan; noll ger den egna färgen,Hur mycket gräset tar efter gräsmattan; noll ger den egna färgen,How much it takes after the lawn; zero keeps its own colour
+Hur stor saken är,Hur stor saken är,How big the thing is
+Ljusstyrka,Ljusstyrka,Brightness
+Hur starkt det lyser,Hur starkt det lyser,How brightly it shines
+Hur stor den är,Hur stor den är,How big it is
+Tjocklek,Tjocklek,Thickness
+Hur grov den är,Hur grov den är,How thick it is
+Hur mossig den är,Hur mossig den är,How mossy it is
+Svampar,Svampar,Fungi
+Tickor som växer på den,Tickor som växer på den,Bracket fungi growing on it
+Ljus och eld,Ljus och eld,Light and fire
+Läger,Läger,Camp
+Ved och verktyg,Ved och verktyg,Wood and tools
+Smått,Smått,Small things
+Färg,Färg,Colour
+Färg 2,Färg 2,Colour 2
+Trä,Trä,Wood
+Löv,Löv,Leaves
+Barr,Barr,Needles
+Mitt,Mitt,Centre
+Blomma,Blomma,Flower
+Hatt,Hatt,Cap
+Fot,Fot,Stem
+Strå,Strå,Blade
+Vippa,Vippa,Seed head
+Träd,Träd,Trees
+Buskar,Buskar,Bushes
+Stenar,Stenar,Stones
+Död ved,Död ved,Dead wood
+Vid vattnet,Vid vattnet,By the water
+Gräs,Gräs,Grass
+Måla gräs,Måla gräs,Paint grass
+Plattor,Plattor,Paving
+Lagda stenplattor,Lagda stenplattor,Laid paving stones
+Lösa stenar i olika storlekar,Lösa stenar i olika storlekar,Loose stones of all sizes
+Sand,Sand,Sand
+Måla sand,Måla sand,Paint sand
+Måla mossa,Måla mossa,Paint moss
+Jord,Jord,Soil
+Måla jord,Måla jord,Paint soil
+Meny,Meny,Menu
+"Mina öar, inställningar och mer (Esc)","Mina öar, inställningar och mer (Esc)","My islands, settings and more (Esc)"
+Ångra,Ångra,Undo
+Gör om,Gör om,Redo
+Göm panelen (Tab),Göm panelen (Tab),Hide the panel (Tab)
+Mark,Mark,Ground
+Växter,Växter,Plants
+Ruiner,Ruiner,Ruins
+Prylar,Prylar,Things
+Väder,Väder,Weather
+Ljus,Ljus,Light
+Kamera,Kamera,Camera
+Export,Export,Export
+Verktyg  ›,Verktyg  ›,Tools  ›
+Visa panelen (Tab),Visa panelen (Tab),Show the panel (Tab)
+Forma,Forma,Shape
+Höj,Höj,Raise
+Höj marken (Shift: sänk),Höj marken (Shift: sänk),Raise the ground (Shift: lower)
+Sänk,Sänk,Lower
+Sänk marken (Shift: höj),Sänk marken (Shift: höj),Lower the ground (Shift: raise)
+Jämna,Jämna,Smooth
+Jämna ut gropar och toppar,Jämna ut gropar och toppar,Smooth out hollows and bumps
+Platta,Platta,Flatten
+Platta till på höjden där du börjar dra,Platta till på höjden där du börjar dra,Flatten to the height where you start
+Rita land,Rita land,Draw land
+Dra ut ön i luften (Shift: sudda),Dra ut ön i luften (Shift: sudda),Draw the island out into the air (Shift: erase)
+Sudda land,Sudda land,Erase land
+Ta bort land (Shift: rita),Ta bort land (Shift: rita),Remove land (Shift: draw)
+Undersida,Undersida,Underside
+Sudda under,Sudda under,Carve under
+"Sudda bort öns undersida nedifrån, upp till det ljusa berget under jorden. Fungerar bäst med kameran under ön (Shift: bygg på igen)","Sudda bort öns undersida nedifrån, upp till det ljusa berget under jorden. Fungerar bäst med kameran under ön (Shift: bygg på igen)","Carve away the island's underside from below, up to the pale rock under the soil. Works best with the camera under the island (Shift: build it back)"
+Rötter,Rötter,Roots
+"Rita rötter: på marken kryper de över gräs, sten och golv och tippar över kanten; på undersidan och klippan hänger de ner. Reglagen nedanför (Shift: sudda rötter)","Rita rötter: på marken kryper de över gräs, sten och golv och tippar över kanten; på undersidan och klippan hänger de ner. Reglagen nedanför (Shift: sudda rötter)","Draw roots: on the ground they crawl over grass, stone and floors and tip over the edge; on the underside and the cliff they hang down. Dials below (Shift: erase roots)"
+Sudda rötter,Sudda rötter,Erase roots
+Sudda bort delar av rötterna som penseln drar över; det som växer vidare därifrån försvinner också,Sudda bort delar av rötterna som penseln drar över; det som växer vidare därifrån försvinner också,Erase the parts of roots the brush passes over; whatever grows on from there goes too
+Vatten,Vatten,Water
+Gräv en damm eller bäck. Når vattnet kanten blir det vattenfall (Shift: torka),Gräv en damm eller bäck. Når vattnet kanten blir det vattenfall (Shift: torka),Dig a pond or a stream. Water that reaches the edge becomes a waterfall (Shift: dry)
+Torka,Torka,Dry
+Ta bort vatten och fyll igen gropen (Shift: vatten),Ta bort vatten och fyll igen gropen (Shift: vatten),Take the water away and fill the hollow (Shift: water)
+Måla,Måla,Paint
+Pensel,Pensel,Brush
+Styrka,Styrka,Strength
+Hur tätt det som målas ut står,Hur tätt det som målas ut står,How close together what is painted stands
+Klungor,Klungor,Clumps
+"Jämnt utspritt, eller samlat i grupper; småsten samlas kring stenblockens fot","Jämnt utspritt, eller samlat i grupper; småsten samlas kring stenblockens fot","Evenly spread, or gathered in groups; pebbles gather round the boulders"
+Vänster: verktyg   Shift: omvänt   Höger: rotera   Mitten: panorera   Hjul: zooma   [ ]: storlek   Q E: vrid   Tab: göm panelen,Vänster: verktyg   Shift: omvänt   Höger: rotera   Mitten: panorera   Hjul: zooma   [ ]: storlek   Q E: vrid   Tab: göm panelen,Left: tool   Shift: reverse   Right: orbit   Middle: pan   Wheel: zoom   [ ]: size   Q E: turn   Tab: hide panel
+Ta bort allt under penseln,Ta bort allt under penseln,Remove everything under the brush
+Verktyg,Verktyg,Tools
+Ta bort saker,Ta bort saker,Remove things
+. Ändrar också det senast målade,. Ändrar också det senast målade,. Also changes what was painted last
+Grundstil,Grundstil,Default style
+Himmel,Himmel,Sky
+Tid,Tid,Time
+Måne,Måne,Moon
+Moln,Moln,Clouds
+Dimma,Dimma,Mist
+Regn,Regn,Rain
+Snö,Snö,Snow
+Liv,Liv,Life
+Vind,Vind,Wind
+Eldflugor,Eldflugor,Fireflies
+Låt tiden gå,Låt tiden gå,Let time pass
+"Ett dygn tar fyra minuter, och månen går genom sina faser på åtta dygn","Ett dygn tar fyra minuter, och månen går genom sina faser på åtta dygn","A day takes four minutes, and the moon goes through its phases in eight days"
+Färgton,Färgton,Tint
+Horisont,Horisont,Horizon
+Under,Under,Below
+Sol,Sol,Sun
+Vit lämnar dygnets färg som den är,Vit lämnar dygnets färg som den är,White leaves the day's colour as it is
+Omgivning,Omgivning,Ambient
+Exponering,Exponering,Exposure
+Återställ ljuset,Återställ ljuset,Reset the light
+Lins,Lins,Lens
+Brännvidd,Brännvidd,Focal length
+Fokus,Fokus,Focus
+Bländare,Bländare,Aperture
+"Färdiga kameravyer med vinkel, höjd, zoom och lins. Standard är startvyn","Färdiga kameravyer med vinkel, höjd, zoom och lins. Standard är startvyn","Ready camera views with angle, height, zoom and lens. Standard is the starting view"
+Kameravy,Kameravy,Camera view
+Zoom,Zoom,Zoom
+Vinkel,Vinkel,Angle
+Återställ kameran,Återställ kameran,Reset the camera
+"Tillbaka till den valda kameravyn, eller till Standard om ingen är vald. Rotationen ändras inte","Tillbaka till den valda kameravyn, eller till Standard om ingen är vald. Rotationen ändras inte","Back to the chosen camera view, or to Standard if none is chosen. The rotation is left as it is"
+Rotation,Rotation,Rotation
+Fart,Fart,Speed
+Motsols,Motsols,Anticlockwise
+Medsols,Medsols,Clockwise
+"Vilket håll kameran går runt ön, sett uppifrån","Vilket håll kameran går runt ön, sett uppifrån","Which way the camera circles the island, seen from above"
+Fartens våg: dra punkterna för att forma den,Fartens våg: dra punkterna för att forma den,The speed's wave: drag the points to shape it
+Höjdvåg,Höjdvåg,Height wave
+Kamerans väg upp och ner: dra punkterna för att forma den,Kamerans väg upp och ner: dra punkterna för att forma den,The camera's wave up and down: drag the points to shape it
+Glöd,Glöd,Glow
+Hur mycket ljusa ytor glöder,Hur mycket ljusa ytor glöder,How much bright surfaces glow
+Bloom,Bloom,Bloom
+"Låter hela bilden blöda lite ljus, inte bara det starkaste","Låter hela bilden blöda lite ljus, inte bara det starkaste","Lets the whole picture bleed a little light, not just the brightest"
+Tröskel,Tröskel,Threshold
+Hur ljust något måste vara för att glöda,Hur ljust något måste vara för att glöda,How bright something must be to glow
+Ljusstrålar,Ljusstrålar,Light rays
+Strålar,Strålar,Rays
+Solstrålar som strömmar ut från solen när den syns i bild,Solstrålar som strömmar ut från solen när den syns i bild,Sunbeams streaming from the sun when it is in view
+Längd,Längd,Length
+Hur långt strålarna når från solen,Hur långt strålarna når från solen,How far the rays reach from the sun
+Volymljus,Volymljus,Volumetric light
+"Ett dis i luften som solen lyser upp, så att ljuset faller i skaft mellan träd och murar","Ett dis i luften som solen lyser upp, så att ljuset faller i skaft mellan träd och murar","A haze in the air that the sun lights up, so light falls in shafts between trees and walls"
+Ljus i dis,Ljus i dis,Light in haze
+Hur starkt solen och månen lyser upp diset,Hur starkt solen och månen lyser upp diset,How brightly the sun and moon light the haze
+Kontrast,Kontrast,Contrast
+Ljushet,Ljushet,Brightness
+Mättnad,Mättnad,Saturation
+Mer eller mindre färg; dygnet ändrar den också,Mer eller mindre färg; dygnet ändrar den också,More or less colour; the time of day changes it too
+Temperatur,Temperatur,Temperature
+"Kallare åt vänster, varmare åt höger","Kallare åt vänster, varmare åt höger","Cooler to the left, warmer to the right"
+"Grönare åt vänster, mer magenta åt höger","Grönare åt vänster, mer magenta åt höger","Greener to the left, more magenta to the right"
+Skuggor,Skuggor,Shadows
+Högdagrar,Högdagrar,Highlights
+En färgton i ,En färgton i ,A tint in the 
+; vit lämnar dem som de är,; vit lämnar dem som de är,; white leaves them as they are
+Lins och film,Lins och film,Lens and film
+Vinjett,Vinjett,Vignette
+Mörkare hörn,Mörkare hörn,Darker corners
+Filmkorn,Filmkorn,Film grain
+Korn som på film,Korn som på film,Grain as on film
+Färgfransar,Färgfransar,Colour fringes
+"Färgerna glider isär ut mot hörnen, som i en enkel lins","Färgerna glider isär ut mot hörnen, som i en enkel lins","Colours drift apart toward the corners, as in a simple lens"
+Skärpa,Skärpa,Sharpness
+Skärper kanterna,Skärper kanterna,Sharpens the edges
+Hörnskugga,Hörnskugga,Ambient occlusion
+Skuggan i vrår och där saker möter marken,Skuggan i vrår och där saker möter marken,The shade in corners and where things meet the ground
+Återställ effekterna,Återställ effekterna,Reset the effects
+"Skalar hela rotsystemet: längd, bredd och tjocklek tillsammans, så formen blir densamma","Skalar hela rotsystemet: längd, bredd och tjocklek tillsammans, så formen blir densamma","Scales the whole root system: length, width and thickness together, so the shape stays the same"
+Hur långt rötterna når,Hur långt rötterna når,How far the roots reach
+Hur brett de breder ut sig,Hur brett de breder ut sig,How wide they spread
+Hur grova de är,Hur grova de är,How thick they are
+"Hur tätt rötterna söker sig fram: glest ger få långa rötter, tätt ett fint nät","Hur tätt rötterna söker sig fram: glest ger få långa rötter, tätt ett fint nät","How densely the roots seek their way: sparse gives a few long roots, dense a fine net"
+Högst så många grenar ur varje klyka; 1 ger ogrenade rötter,Högst så många grenar ur varje klyka; 1 ger ogrenade rötter,At most this many branches from each fork; 1 gives unbranched roots
+Mellanrum,Mellanrum,Spacing
+Minsta sträcka längs en rot mellan två klykor,Minsta sträcka längs en rot mellan två klykor,The least distance along a root between two forks
+Vinkeln som en ny gren lämnar sin rot i,Vinkeln som en ny gren lämnar sin rot i,The angle a new branch leaves its root at
+Djup,Djup,Depth
+"Hur många gånger en rot får dela sig, led efter led","Hur många gånger en rot får dela sig, led efter led","How many times a root may divide, step after step"
+Slingring,Slingring,Winding
+"Raka, eller slingrande som ormar","Raka, eller slingrande som ormar","Straight, or winding like snakes"
+Klättra,Klättra,Climb
+"Hur gärna rötterna klättrar över murar, pelare och stenar i stället för att gå runt dem","Hur gärna rötterna klättrar över murar, pelare och stenar i stället för att gå runt dem","How readily the roots climb over walls, pillars and stones instead of going round them"
+Tyngd,Tyngd,Weight
+"Hängande rötter: rakt ner, eller ut åt sidan. På marken: hur långt de faller över kanten","Hängande rötter: rakt ner, eller ut åt sidan. På marken: hur långt de faller över kanten","Hanging roots: straight down, or out to the side. On the ground: how far they fall over the edge"
+"Slät målad färg, eller full barktextur","Slät målad färg, eller full barktextur","Smooth painted colour, or full bark texture"
+"Mossa ovanpå rötterna, samma som på stenarna","Mossa ovanpå rötterna, samma som på stenarna","Moss on top of the roots, as on the stones"
+Hur tydligt åsar och fåror syns,Hur tydligt åsar och fåror syns,How clearly ridges and furrows show
+Hur djupt fårorna syns i ljuset,Hur djupt fårorna syns i ljuset,How deep the furrows show in the light
+. Ändrar också de senast ritade rötterna,. Ändrar också de senast ritade rötterna,. Also changes the roots drawn last
+Rötternas färg,Rötternas färg,The roots' colour
+Stiliserat,Stiliserat,Stylised
+"Tillbaka till grundstilen: grova, mjuka och få grenar","Tillbaka till grundstilen: grova, mjuka och få grenar","Back to the default style: thick, smooth and few branches"
+Upplösning och längd,Upplösning och längd,Size and length
+Exportera,Exportera,Export
+Spara en stillbild utan panelen,Spara en stillbild utan panelen,Save a still picture without the panel
+Bilden laddas ner: ,Bilden laddas ner: ,The picture downloads: 
+Bilden sparades: ,Bilden sparades: ,Picture saved: 
+Film,Film,Film
+"Spela in kamerans rotation och höjdvåg i ett eget fönster, så lång som Längd","Spela in kamerans rotation och höjdvåg i ett eget fönster, så lång som Längd","Record the camera's rotation and height wave in a window of its own, as long as Length"
+Filmen spelas in i ett eget fönster: ,Filmen spelas in i ett eget fönster: ,The film records in a window of its own: 
+Bakgrund,Bakgrund,Wallpaper
+"En sömlös loop: ett helt varv runt ön med hela vågor, eller en höjdvåg om kameran står still","En sömlös loop: ett helt varv runt ön med hela vågor, eller en höjdvåg om kameran står still","A seamless loop: one full turn round the island with whole waves, or a height wave if the camera stands still"
+Loopen spelas in: ,Loopen spelas in: ,The loop records: 
+. Lägg den i Lively Wallpaper som bakgrund.,. Lägg den i Lively Wallpaper som bakgrund.,. Use it as a background in Lively Wallpaper.
+"Filmer spelas in i ett eget fönster, ungefär fem gånger långsammare än filmen är lång. Bakgrunden blir en loop för Lively Wallpaper (gratis) eller Wallpaper Engine.","Filmer spelas in i ett eget fönster, ungefär fem gånger långsammare än filmen är lång. Bakgrunden blir en loop för Lively Wallpaper (gratis) eller Wallpaper Engine.","Films record in a window of their own, about five times slower than the film is long. The wallpaper is a loop for Lively Wallpaper (free) or Wallpaper Engine."
+Bilden laddas ner av webbläsaren. Filmer och bakgrunder finns i versionerna för Windows och Linux.,Bilden laddas ner av webbläsaren. Filmer och bakgrunder finns i versionerna för Windows och Linux.,The browser downloads the picture. Films and wallpapers are in the Windows and Linux versions.
+Sinus,Sinus,Sine
+Tillbaka till en ren sinusvåg,Tillbaka till en ren sinusvåg,Back to a plain sine wave
+%d bilder/s  ·  %.1f ms,%d bilder/s  ·  %.1f ms,%d fps  ·  %.1f ms
+Bygg,Bygg,Build
+Mur,Mur,Wall
+Dra en mur längs marken; börja eller sluta vid en annan bit så hänger de ihop,Dra en mur längs marken; börja eller sluta vid en annan bit så hänger de ihop,Draw a wall along the ground; start or end at another piece and they join
+Pelare,Pelare,Pillar
+Klicka för en pelare,Klicka för en pelare,Click for a pillar
+Valv,Valv,Arch
+Dra från den ena foten till den andra. Längs en mur blir valvet en öppning i muren,Dra från den ena foten till den andra. Längs en mur blir valvet en öppning i muren,Drag from one foot to the other. Along a wall the arch becomes an opening in it
+Trappa,Trappa,Stairs
+Dra från nedersta steget uppåt,Dra från nedersta steget uppåt,Drag from the bottom step up
+Golv,Golv,Floor
+"Måla stengolv på marken, eller mer av en våning du börjar på","Måla stengolv på marken, eller mer av en våning du börjar på","Paint stone floor on the ground, or more of a storey you start on"
+Övervåning,Övervåning,Upper storey
+"Klicka på en trappa, pelare, mur eller ett golv och måla: en ny våning läggs på dess topp. På bar mark hamnar den en Höjd upp","Klicka på en trappa, pelare, mur eller ett golv och måla: en ny våning läggs på dess topp. På bar mark hamnar den en Höjd upp","Click on stairs, a pillar, a wall or a floor and paint: a new storey is laid on its top. On bare ground it goes one Height up"
+Öppningar,Öppningar,Openings
+Dörr,Dörr,Door
+"Klicka på en mur för en dörröppning, dra längs muren för fler","Klicka på en mur för en dörröppning, dra längs muren för fler","Click on a wall for a doorway, drag along it for more"
+Fönster,Fönster,Window
+"Klicka på en mur för ett fönster, dra längs muren för fler","Klicka på en mur för ett fönster, dra längs muren för fler","Click on a wall for a window, drag along it for more"
+Riv,Riv,Demolish
+Riv det som står under penseln; murar kapas bara där,Riv det som står under penseln; murar kapas bara där,Demolish what is under the brush; walls are cut only there
+Ruin,Ruin,Ruin
+Ålder,Ålder,Age
+Fyrkantig pensel,Fyrkantig pensel,Square brush
+"Golv och övervåningar målas med en fyrkantig pensel längs rutnätet, så de får raka sidor och långa väggar. Håll Shift för raka streck (även murar)","Golv och övervåningar målas med en fyrkantig pensel längs rutnätet, så de får raka sidor och långa väggar. Håll Shift för raka streck (även murar)","Floors and upper storeys are painted with a square brush along the grid, so they get straight sides and long walls. Hold Shift for straight lines (walls too)"
+": klicka för en, håll och dra för fler (Shift: ta bort ",": klicka för en, håll och dra för fler (Shift: ta bort ",": click for one, hold and drag for more (Shift: remove "
+Nymåne,Nymåne,New moon
+Växande,Växande,Waxing
+Halvmåne,Halvmåne,Half moon
+Fullmåne,Fullmåne,Full moon
+Avtagande,Avtagande,Waning
+Snabbläge är på: grafiken är inbyggd i processorn. Du kan slå av det under Inställningar.,Snabbläge är på: grafiken är inbyggd i processorn. Du kan slå av det under Inställningar.,Fast mode is on: the graphics are built into the processor. You can turn it off under Settings.
+Snabbläge är på: datorn hann inte med bilden. Du kan slå av det under Inställningar.,Snabbläge är på: datorn hann inte med bilden. Du kan slå av det under Inställningar.,Fast mode is on: the computer could not keep up. You can turn it off under Settings.
+Ön vaknar. Första gången på en ny dator tar det en stund.,Ön vaknar. Första gången på en ny dator tar det en stund.,The island is waking. The first time on a new computer takes a little while.
+Språk,Språk,Language
+Svenska,Svenska,Svenska
+English,English,English

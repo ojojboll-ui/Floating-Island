@@ -53,3 +53,8 @@ rain_amount={
 "type": "float",
 "value": 0.0
 }
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://i18n/strings.sv.translation", "res://i18n/strings.en.translation")
+locale/fallback="sv"

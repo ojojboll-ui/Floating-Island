@@ -10,6 +10,14 @@ const Catalog := preload("res://scripts/prop_catalog.gd")
 static func run(main: Node, name: String) -> void:
 	await _frames(main, 20)
 	match name:
+		"english":
+			# the program in English: the settings sheet over the Plants page
+			TranslationServer.set_locale("en")
+			main.rebuild_ui()
+			await _frames(main, 3)
+			main.ui.tabs.current_tab = 1
+			main.menus.open_settings()
+			await _frames(main, 20)
 		"store_shots":
 			# pictures for the shop page: the showcase island from a few sides
 			# and times of day, at 4K, without the panel (shots/store/)

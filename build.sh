@@ -15,4 +15,4 @@ chmod +x builds/linux/Skyholme.x86_64
 cd builds
 rm -f Skyholme-linux.zip Skyholme-windows.zip Skyholme-web.zip
 powershell -NoProfile -Command "Compress-Archive -Path linux\* -DestinationPath Skyholme-linux.zip; Compress-Archive -Path windows\* -DestinationPath Skyholme-windows.zip; Compress-Archive -Path web\* -DestinationPath Skyholme-web.zip" >/dev/null
-ls -la FloatingIsland-*.zip
+ls -la Skyholme-*.zip

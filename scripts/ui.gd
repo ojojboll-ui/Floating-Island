@@ -303,7 +303,7 @@ func _kind_box(kind: String) -> Control:
 			lo = minf(lo, float(st.size) * 0.3)
 		var sl := _slider(spec[0], lo, hi, st[key], func(v: float) -> void: p.set_style(kind, key, v), spec[4], 1.0 if spec[4] in ["count", "deg"] else 0.01)
 		sl.drag_started.connect(func() -> void: brush.push_undo())
-		(sl.get_parent() as Control).tooltip_text = spec[5] + ". Ändrar också det senast målade"
+		(sl.get_parent() as Control).tooltip_text = tr(spec[5]) + tr(". Ändrar också det senast målade")
 		box.add_child(sl.get_parent())
 		dials.append([sl, key])
 	# colours wrap onto a second line rather than widen the panel
@@ -566,7 +566,7 @@ func _effects_row() -> Control:
 		pick.edit_alpha = false
 		pick.custom_minimum_size = Vector2(46, 26)
 		pick.focus_mode = Control.FOCUS_NONE
-		pick.tooltip_text = "En färgton i " + pair[0].to_lower() + "; vit lämnar dem som de är"
+		pick.tooltip_text = tr("En färgton i ") + tr(pair[0]).to_lower() + tr("; vit lämnar dem som de är")
 		pick.color_changed.connect(func(c: Color) -> void: p.set(key, c))
 		split.add_child(pick)
 		pickers.append(pick)
@@ -621,7 +621,7 @@ func _root_box() -> Control:
 		var key: String = spec[1]
 		var sl := _slider(spec[0], spec[2], spec[3], r.style[key], func(v: float) -> void: r.set_style(key, v), spec[4], spec[6] if spec.size() > 6 else 0.01)
 		sl.drag_started.connect(func() -> void: brush.push_undo())
-		(sl.get_parent() as Control).tooltip_text = spec[5] + ". Ändrar också de senast ritade rötterna"
+		(sl.get_parent() as Control).tooltip_text = tr(spec[5]) + tr(". Ändrar också de senast ritade rötterna")
 		box.add_child(sl.get_parent())
 		dials.append([sl, key])
 	var line := HBoxContainer.new()
@@ -707,19 +707,19 @@ func _export_row() -> Control:
 	still.pressed.connect(func() -> void:
 		main.audio.play("shutter", -4.0)
 		var path: String = await main.IslandFile.still(main, size_of.call())
-		toast(("Bilden laddas ner: " if MeshUtil.web() else "Bilden sparades: ") + path.get_file()))
+		toast(tr("Bilden laddas ner: " if MeshUtil.web() else "Bilden sparades: ") + path.get_file()))
 	var film := Button.new()
 	film.text = "Film"
 	film.tooltip_text = "Spela in kamerans rotation och höjdvåg i ett eget fönster, så lång som Längd"
 	film.pressed.connect(func() -> void:
 		var path: String = main.IslandFile.film(main, length.value, size_of.call(), false)
-		toast("Filmen spelas in i ett eget fönster: " + path.get_file()))
+		toast(tr("Filmen spelas in i ett eget fönster: ") + path.get_file()))
 	var wall := Button.new()
 	wall.text = "Bakgrund"
 	wall.tooltip_text = "En sömlös loop: ett helt varv runt ön med hela vågor, eller en höjdvåg om kameran står still"
 	wall.pressed.connect(func() -> void:
 		var path: String = main.IslandFile.film(main, length.value, size_of.call(), true)
-		toast("Loopen spelas in: " + path.get_file() + ". Lägg den i Lively Wallpaper som bakgrund."))
+		toast(tr("Loopen spelas in: ") + path.get_file() + tr(". Lägg den i Lively Wallpaper som bakgrund.")))
 	for b in [still, film, wall]:
 		b.focus_mode = Control.FOCUS_NONE
 		shots.add_child(b)
@@ -1016,7 +1016,7 @@ func _ruins_row() -> Control:
 
 func _place_button(kind: String) -> Button:
 	var label: String = Catalog.KINDS[kind].label
-	var b := _tool_button(label, Brush.Tool.PLACE, null, label + ": klicka för en, håll och dra för fler (Shift: ta bort " + label.to_lower() + ")")
+	var b := _tool_button(label, Brush.Tool.PLACE, null, tr(label) + tr(": klicka för en, håll och dra för fler (Shift: ta bort ") + tr(label).to_lower() + ")")
 	for c in b.toggled.get_connections():
 		b.toggled.disconnect(c.callable)
 	b.toggled.connect(func(on: bool) -> void:
