@@ -74,6 +74,67 @@ def leaf(d, x, y, sx, sy, ang, size):
     d.polygon([(x, y), (mid[0] + nx, mid[1] + ny), tip, (mid[0] - nx, mid[1] - ny)], fill=MOSS + (255,), outline=INK + (255,))
 
 
+RUST = (196, 104, 44)
+
+
+def lance(d, x, y, dx, dy, size, col):
+    """A small lance tip pointing (dx, dy)."""
+    nx, ny = -dy, dx
+    d.polygon([(x + dx * size, y + dy * size), (x + nx * size * 0.35, y + ny * size * 0.35),
+               (x - dx * size * 0.5, y - dy * size * 0.5), (x - nx * size * 0.35, y - ny * size * 0.35)], fill=col)
+
+
+def quatrefoil(d, x, y, r, col, width, back):
+    """A four-petalled flower: four filled pointed petals, each with a light
+    vein, round a small eye."""
+    for k in range(4):
+        a = k * math.pi / 2 + math.pi / 4
+        ca, sa = math.cos(a), math.sin(a)
+        tip = (x + ca * r, y + sa * r)
+        mid = (x + ca * r * 0.55, y + sa * r * 0.55)
+        side = (-sa * r * 0.3, ca * r * 0.3)
+        d.polygon([(x + ca * r * 0.12, y + sa * r * 0.12), (mid[0] + side[0], mid[1] + side[1]), tip, (mid[0] - side[0], mid[1] - side[1])], fill=col)
+        d.line([(x + ca * r * 0.3, y + sa * r * 0.3), (x + ca * r * 0.72, y + sa * r * 0.72)], fill=back, width=max(1, width // 2))
+    d.ellipse([x - r * 0.16, y - r * 0.16, x + r * 0.16, y + r * 0.16], fill=col)
+
+
+def spiral(x, y, r0, turns, sx, sy, start):
+    """Points of a spiral winding inward from radius r0."""
+    pts = []
+    n = int(90 * turns)
+    for k in range(n + 1):
+        t = k / n
+        a = start + sx * sy * t * turns * 2 * math.pi
+        r = r0 * (1.0 - t * 0.85)
+        pts.append((x + math.cos(a) * r, y + math.sin(a) * r))
+    return pts
+
+
+def scroll(d, x, y, sx, size, col, width):
+    """A tendril along the edge ending in a curl, like a fiddlehead."""
+    end = (x + sx * size * 1.3, y)
+    stem = [(x - sx * size * 1.2 + sx * t * size * 2.5 / 60, y + math.sin(t / 60 * math.pi) * size * 0.25) for t in range(61)]
+    d.line(stem, fill=col, width=width, joint="curve")
+    cx, cy = stem[-1][0], stem[-1][1] - size * 0.5
+    d.line(spiral(cx, cy, size * 0.5, 1.4, sx, 1, math.pi / 2), fill=col, width=width, joint="curve")
+    d.line(spiral(stem[0][0], stem[0][1] - size * 0.32, size * 0.32, 1.1, -sx, -1, math.pi / 2), fill=col, width=width, joint="curve")
+
+
+def corner(d, cx, cy, sx, sy, scale, ink):
+    """One corner: a bracket of fine rule with a diamond where it turns and
+    lance tips at its ends, a rust scroll and a little flower inside it."""
+    w = max(1, int(2 * scale))
+    reach = 46 * scale
+    d.line([(cx, cy), (cx + sx * reach, cy)], fill=ink, width=w)
+    d.line([(cx, cy), (cx, cy + sy * reach)], fill=ink, width=w)
+    s = 5 * scale
+    d.polygon([(cx - s, cy), (cx, cy - s), (cx + s, cy), (cx, cy + s)], fill=ink)
+    lance(d, cx + sx * reach, cy, sx, 0, 6 * scale, ink)
+    lance(d, cx, cy + sy * reach, 0, sy, 6 * scale, ink)
+    scroll(d, cx + sx * 26 * scale, cy + sy * 15 * scale, sx, 10 * scale, RUST + (255,), w)
+    quatrefoil(d, cx + sx * 16 * scale, cy + sy * 31 * scale, 9 * scale, ink, w, PARCH + (255,))
+
+
 def panel(name, size, seed, corner_curls=True, radius=30):
     w = h = size * S
     img = parchment(w, h, seed, radius=radius)
@@ -81,13 +142,12 @@ def panel(name, size, seed, corner_curls=True, radius=30):
     d = ImageDraw.Draw(ink)
     m = 12 * S
     # a double rule, the inner one finer
-    d.rounded_rectangle([m, m, w - 1 - m, h - 1 - m], radius=(radius - 10) * S, outline=INK + (150,), width=2 * S)
+    d.rounded_rectangle([m, m, w - 1 - m, h - 1 - m], radius=(radius - 10) * S, outline=INK + (70,), width=1 * S)
     m2 = m + 6 * S
-    d.rounded_rectangle([m2, m2, w - 1 - m2, h - 1 - m2], radius=(radius - 15) * S, outline=INK + (90,), width=1 * S)
     if corner_curls:
         c = m2 + 5 * S
         for sx, sy, cx, cy in ((1, 1, c, c), (-1, 1, w - c, c), (1, -1, c, h - c), (-1, -1, w - c, h - c)):
-            curl(d, cx, cy, sx, sy, S * 0.55, 2 * S)
+            corner(d, cx, cy, sx, sy, S, INK + (255,))
     img.alpha_composite(ink)
     img = img.resize((size, size), Image.LANCZOS)
     img.save(os.path.join(OUT, name + ".png"))
