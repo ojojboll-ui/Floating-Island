@@ -8,7 +8,7 @@ const Brush := preload("res://scripts/brush.gd")
 const Catalog := preload("res://scripts/prop_catalog.gd")
 const MeshUtil := preload("res://scripts/mesh_util.gd")
 
-const INK := Color(0.27, 0.21, 0.16)
+const INK := Color(0.29, 0.21, 0.15)
 const PAPER := Color(0.985, 0.965, 0.925, 0.93)
 const CHIP := Color(0.93, 0.895, 0.83)
 const CHIP_HOVER := Color(0.96, 0.93, 0.87)
@@ -46,8 +46,8 @@ var ruins
 var weather
 var main
 var rig
-var _toast: Label
-var _soft_leaves: CheckButton
+var _hint: Label
+var _age_slider: HSlider
 var _fps: Label
 var _fps_wait := 0.0
 var _cam_sliders := {}
@@ -71,7 +71,7 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.theme = _make_theme()
+	root.theme = make_theme()
 	add_child(root)
 
 	_dock = PanelContainer.new()
@@ -89,7 +89,7 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	# file and history along the top, and the button that folds the panel
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 4)
-	for pair in [["Spara", "Spara ön som en fil (Ctrl+S)", _save_dialog], ["Öppna", "Öppna en sparad ö (Ctrl+O)", _open_dialog],
+	for pair in [["Meny", "Mina öar, inställningar och mer (Esc)", func() -> void: main.menus.open_pause()],
 			["Ångra", "Ctrl+Z", func() -> void: brush.undo()], ["Gör om", "Ctrl+Y", func() -> void: brush.redo()]]:
 		var fb := Button.new()
 		fb.text = pair[0]
@@ -116,7 +116,7 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	tabs.columns = 4
 	tabs.add_theme_constant_override("h_separation", 2)
 	tabs.add_theme_constant_override("v_separation", 2)
-	for t in ["Mark", "Växter", "Ruiner", "Prylar", "Väder", "Ljus", "Kamera", "Effekter", "Export", "Grafik"]:
+	for t in ["Mark", "Växter", "Ruiner", "Prylar", "Väder", "Ljus", "Kamera", "Effekter", "Export"]:
 		tabs.add_tab(t)
 	column.add_child(tabs)
 	column.add_child(HSeparator.new())
@@ -155,10 +155,7 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	var export_page := _export_row()
 	export_page.visible = false
 	body.add_child(export_page)
-	var graphics_page := _graphics_row()
-	graphics_page.visible = false
-	body.add_child(graphics_page)
-	_pages = [row, plants, ruin_page, items_page, weather_page, light_page, camera_page, effects_page, export_page, graphics_page]
+	_pages = [row, plants, ruin_page, items_page, weather_page, light_page, camera_page, effects_page, export_page]
 	tabs.tab_changed.connect(_show_page)
 
 	# folded away, the panel is this little tab on the edge
@@ -217,17 +214,6 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	body.add_child(sliders)
 	_brush_dials = sliders
 
-	_toast = Label.new()
-	_toast.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_toast.offset_top = 64
-	_toast.add_theme_color_override("font_color", Color(1, 1, 1))
-	_toast.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
-	_toast.add_theme_constant_override("shadow_offset_y", 1)
-	_toast.add_theme_font_size_override("font_size", 17)
-	_toast.modulate.a = 0.0
-	root.add_child(_toast)
-
 	# the frame rate, when Grafik asks for it
 	_fps = Label.new()
 	_fps.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -244,17 +230,17 @@ func setup(b, ruin_layer, weather_node, main_node) -> void:
 	_fps.visible = false
 	root.add_child(_fps)
 
-	var hint := Label.new()
-	hint.text = "Vänster: verktyg   Shift: omvänt   Höger: rotera   Mitten: panorera   Hjul: zooma   [ ]: storlek   Q E: vrid   Tab: göm panelen"
-	hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
-	hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.35))
-	hint.add_theme_constant_override("shadow_offset_y", 1)
-	hint.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	hint.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	hint.offset_left = -20
-	hint.offset_right = -20
-	hint.offset_top = 18
-	root.add_child(hint)
+	_hint = Label.new()
+	_hint.text = "Vänster: verktyg   Shift: omvänt   Höger: rotera   Mitten: panorera   Hjul: zooma   [ ]: storlek   Q E: vrid   Tab: göm panelen"
+	_hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
+	_hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.35))
+	_hint.add_theme_constant_override("shadow_offset_y", 1)
+	_hint.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_hint.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_hint.offset_left = -20
+	_hint.offset_right = -20
+	_hint.offset_top = 18
+	root.add_child(_hint)
 
 	brush.tool_changed.connect(_sync)
 	(_group.get_buttons()[0] as Button).button_pressed = true
@@ -691,78 +677,8 @@ func _page() -> VBoxContainer:
 ## The Grafik page: this computer's own graphics settings. They are kept on
 ## the computer (post.gd PREFS), not in the island, and an exported picture
 ## or film gets full quality whatever they say.
-## The Grafik buttons as the settings stand (they are read from this
-## computer's file after the panel is built, and Snabbläge may turn on by
-## itself).
-func sync_graphics() -> void:
-	var p = main.post
-	for pair in [["Snabbläge", p.fast], ["Mjuka bladkanter", p.soft_leaves], ["Visa bildfrekvens", p.show_fps]]:
-		if buttons.has(pair[0]):
-			(buttons[pair[0]] as Button).set_pressed_no_signal(pair[1])
-
-
-func _graphics_row() -> Control:
-	var row := _page()
-	var p = main.post
-	var box := _column("Grafik på den här datorn")
-	box.add_theme_constant_override("separation", 8)
-	var fast := CheckButton.new()
-	fast.text = "Snabbläge"
-	fast.tooltip_text = "Billigare kantutjämning, inget studsande ljus (SSIL), mindre och skarpare solskuggor, grövre dimma och skärpedjup: ungefär 3 ms snabbare per bild. Slås på av sig själv när datorn inte hinner med, tills du väljer här"
-	fast.focus_mode = Control.FOCUS_NONE
-	fast.button_pressed = p.fast
-	fast.toggled.connect(func(on: bool) -> void:
-		p.fast = on
-		p.fast_chosen = true
-		p.save_prefs())
-	buttons["Snabbläge"] = fast
-	box.add_child(fast)
-	_soft_leaves = CheckButton.new()
-	_soft_leaves.text = "Mjuka bladkanter"
-	_soft_leaves.tooltip_text = "Jämnare kanter på löven, med kantutjämningen. Kronorna blir då ljusare och plattare inuti, eftersom hörnskuggan inte ser löven, och en skog kostar ungefär 2 ms mer per bild. Gör ingenting i Snabbläge"
-	_soft_leaves.focus_mode = Control.FOCUS_NONE
-	_soft_leaves.button_pressed = p.soft_leaves
-	_soft_leaves.toggled.connect(func(on: bool) -> void:
-		p.soft_leaves = on
-		p.save_prefs())
-	buttons["Mjuka bladkanter"] = _soft_leaves
-	box.add_child(_soft_leaves)
-	var fps := CheckButton.new()
-	fps.text = "Visa bildfrekvens"
-	fps.tooltip_text = "Bilder per sekund och millisekunder per bild, nere till höger"
-	fps.focus_mode = Control.FOCUS_NONE
-	fps.button_pressed = p.show_fps
-	fps.toggled.connect(func(on: bool) -> void:
-		p.show_fps = on
-		p.save_prefs())
-	buttons["Visa bildfrekvens"] = fps
-	box.add_child(fps)
-	sync_graphics()
-	row.add_child(box)
-
-	var about := _column("Datorn")
-	var info := Label.new()
-	var how := "Vulkan"
-	if MeshUtil.lite():
-		how = "WebGL 2, enklare grafik" if MeshUtil.web() else "OpenGL, enklare grafik"
-	info.text = "%s\n%s" % [RenderingServer.get_video_adapter_name(), how]
-	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info.custom_minimum_size.x = 200
-	info.add_theme_font_size_override("font_size", 13)
-	about.add_child(info)
-	var note := Label.new()
-	note.text = "Inställningarna sparas på datorn, inte i ön. Bilder och filmer som exporteras får alltid full kvalitet."
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	note.custom_minimum_size.x = 200
-	note.add_theme_font_size_override("font_size", 13)
-	note.add_theme_color_override("font_color", Color(INK, 0.65))
-	about.add_child(note)
-	row.add_child(about)
-	return row
-
-
 ## The Export page: a still, a film of the camera's waves, or a looping
-## wallpaper. Everything lands in Bilder\Floating Island.
+## wallpaper. Everything lands in Bilder\Skyholme.
 func _export_row() -> Control:
 	var row := _page()
 	var r = rig
@@ -824,7 +740,24 @@ func _export_row() -> Control:
 	return row
 
 
+## A panel built afresh takes over: this one lets go of the camera and brush.
+func _exit_tree() -> void:
+	if rig.moved.is_connected(_sync_camera):
+		rig.moved.disconnect(_sync_camera)
+	if brush.tool_changed.is_connected(_sync):
+		brush.tool_changed.disconnect(_sync)
+	if ruins.age_changed.is_connected(_on_age):
+		ruins.age_changed.disconnect(_on_age)
+
+
+func _on_age(v: float) -> void:
+	_age_slider.set_value_no_signal(v)
+	_show(_age_slider)
+
+
 func _sync_camera() -> void:
+	if is_queued_for_deletion():
+		return
 	_cam_sliders.zoom.set_value_no_signal(rig.goal_distance)
 	_cam_sliders.yaw.set_value_no_signal(fposmod(rad_to_deg(rig.goal_yaw), 360.0))
 	_cam_sliders.pitch.set_value_no_signal(rad_to_deg(rig.goal_pitch))
@@ -933,6 +866,27 @@ class WaveEditor extends Control:
 		draw_circle(Vector2(x * w, mid - rig.wave(shape, ph) * _amp()), 4.0, ink)
 
 
+## Bring the panel and its hints in (when building starts), or take them
+## away (for the title screen).
+func present(on: bool) -> void:
+	if on == visible:
+		return
+	visible = on
+	if not on:
+		return
+	_hint.modulate.a = 0.0
+	var fade := create_tween()
+	fade.tween_interval(0.3)
+	fade.tween_property(_hint, "modulate:a", 1.0, 0.6)
+	if not collapsed:
+		var away := float(DOCK_WIDTH + MARGIN * 2)
+		_dock.offset_left = MARGIN - away
+		_dock.offset_right = MARGIN + DOCK_WIDTH - away
+		var tw := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT).set_parallel()
+		tw.tween_property(_dock, "offset_left", MARGIN, 0.45)
+		tw.tween_property(_dock, "offset_right", MARGIN + DOCK_WIDTH, 0.45)
+
+
 ## Fold the panel away to its tab on the edge, or bring it back.
 func set_collapsed(on: bool) -> void:
 	collapsed = on
@@ -961,9 +915,6 @@ func _process(delta: float) -> void:
 		_fps_wait = 0.5
 		var f := Engine.get_frames_per_second()
 		_fps.text = "%d bilder/s  ·  %.1f ms" % [f, 1000.0 / maxf(f, 1.0)]
-	# soft leaf edges do nothing in Snabbläge (which may turn on by itself)
-	if _soft_leaves:
-		_soft_leaves.disabled = main.post.fast
 	# keep the island in the middle of the free part of the screen
 	var width := get_viewport().get_visible_rect().size.x
 	var shift := 0.0
@@ -1004,61 +955,7 @@ class TabGrid extends GridContainer:
 
 
 func toast(text: String) -> void:
-	_toast.text = text
-	_toast.modulate.a = 1.0
-	var tw := create_tween()
-	tw.tween_interval(3.5)
-	tw.tween_property(_toast, "modulate:a", 0.0, 1.0)
-
-
-func _save_dialog() -> void:
-	if MeshUtil.web():
-		var err: int = main.IslandFile.download_island(main, "Min ö.island")
-		toast("Ön laddas ner som Min ö.island" if err == OK else "Kunde inte spara (%s)" % error_string(err))
-		return
-	var d := FileDialog.new()
-	d.file_mode = FileDialog.FILE_MODE_SAVE_FILE
-	d.access = FileDialog.ACCESS_FILESYSTEM
-	d.use_native_dialog = true
-	d.filters = PackedStringArray(["*.island ; Flytande ö"])
-	d.current_dir = main.IslandFile.folder()
-	d.current_file = "Min ö.island"
-	d.file_selected.connect(func(path: String) -> void:
-		if not path.ends_with(".island"):
-			path += ".island"
-		var err: int = main.IslandFile.save(main, path)
-		toast("Sparad: " + path.get_file() if err == OK else "Kunde inte spara (%s)" % error_string(err)))
-	add_child(d)
-	d.popup_centered()
-
-
-func _open_dialog() -> void:
-	if MeshUtil.web():
-		main.IslandFile.pick_upload(func(bytes: PackedByteArray) -> void:
-			var err: int = main.IslandFile.open_bytes(main, bytes)
-			if err == OK:
-				_after_open()
-			toast("Ön öppnades" if err == OK else "Kunde inte öppna (%s)" % error_string(err)))
-		return
-	var d := FileDialog.new()
-	d.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-	d.access = FileDialog.ACCESS_FILESYSTEM
-	d.use_native_dialog = true
-	d.filters = PackedStringArray(["*.island ; Flytande ö"])
-	d.current_dir = main.IslandFile.folder()
-	d.file_selected.connect(func(path: String) -> void:
-		var err: int = main.IslandFile.open(main, path)
-		if err == OK:
-			_after_open()
-		toast("Öppnade " + path.get_file() if err == OK else "Kunde inte öppna (%s)" % error_string(err)))
-	add_child(d)
-	d.popup_centered()
-
-
-## A different island is open: build the panel afresh, so every dial
-## shows its settings.
-func _after_open() -> void:
-	main.call_deferred("rebuild_ui")
+	main.menus.toast(text)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -1068,9 +965,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif k and k.pressed and k.ctrl_pressed:
 		if k.keycode == KEY_S:
-			_save_dialog()
+			main.save_now()
 		elif k.keycode == KEY_O:
-			_open_dialog()
+			main.menus.open_gallery()
 
 
 ## The Ruiner page: what to build, and the two dials for ruins: how tall new
@@ -1101,9 +998,8 @@ func _ruins_row() -> Control:
 	var age := _slider("Ålder", 0.0, 1.0, ruins.age, func(v: float) -> void: ruins.material.set_shader_parameter("age", v), "%")
 	age.drag_started.connect(func() -> void: brush.push_undo())
 	age.drag_ended.connect(func(_changed: bool) -> void: ruins.set_age(age.value))
-	ruins.age_changed.connect(func(v: float) -> void:
-		age.set_value_no_signal(v)
-		_show(age))
+	_age_slider = age
+	ruins.age_changed.connect(_on_age)
 	dials.add_child(age.get_parent())
 	var square := CheckButton.new()
 	square.text = "Fyrkantig pensel"
@@ -1168,8 +1064,9 @@ func _section(title: String, items: Array) -> VBoxContainer:
 func _header(title: String) -> Label:
 	var l := Label.new()
 	l.text = title
-	l.add_theme_font_size_override("font_size", 13)
-	l.add_theme_color_override("font_color", Color(INK, 0.6))
+	l.add_theme_font_size_override("font_size", 15)
+	l.add_theme_font_override("font", load("res://fonts/IMFellEnglishSC.ttf"))
+	l.add_theme_color_override("font_color", Color(INK, 0.66))
 	return l
 
 
@@ -1264,7 +1161,7 @@ static func _swatch(c: Color) -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
-func _make_theme() -> Theme:
+static func make_theme() -> Theme:
 	var th := Theme.new()
 	th.default_font_size = 15
 
@@ -1379,7 +1276,269 @@ func _make_theme() -> Theme:
 	th.set_stylebox("grabber_area_highlight", "HSlider", fill)
 	th.set_icon("grabber", "HSlider", _knob(Color(1, 1, 1)))
 	th.set_icon("grabber_highlight", "HSlider", _knob(Color(1, 0.98, 0.94)))
+
+	# the title's buttons: bigger, floating on the picture
+	th.set_type_variation("TitleButton", "Button")
+	var mb := _chip(Color(PAPER, 0.96))
+	mb.set_corner_radius_all(17)
+	mb.content_margin_left = 22
+	mb.content_margin_right = 22
+	mb.content_margin_top = 11
+	mb.content_margin_bottom = 11
+	mb.shadow_color = Color(0.1, 0.12, 0.2, 0.2)
+	mb.shadow_size = 8
+	mb.shadow_offset = Vector2(0, 3)
+	var mb_hover := mb.duplicate() as StyleBoxFlat
+	mb_hover.bg_color = Color(1, 1, 1)
+	var mb_down := mb.duplicate() as StyleBoxFlat
+	mb_down.bg_color = CHIP
+	mb_down.shadow_size = 4
+	mb_down.shadow_offset = Vector2(0, 1)
+	th.set_stylebox("normal", "TitleButton", mb)
+	th.set_stylebox("hover", "TitleButton", mb_hover)
+	th.set_stylebox("pressed", "TitleButton", mb_down)
+	th.set_stylebox("hover_pressed", "TitleButton", mb_down)
+	th.set_color("font_pressed_color", "TitleButton", INK)
+	th.set_color("font_hover_pressed_color", "TitleButton", INK)
+	th.set_font_size("font_size", "TitleButton", 18)
+
+	# the one a screen leads to: green
+	th.set_type_variation("PrimaryButton", "Button")
+	var pb := mb.duplicate() as StyleBoxFlat
+	pb.bg_color = ACCENT
+	var pb_hover := pb.duplicate() as StyleBoxFlat
+	pb_hover.bg_color = ACCENT.lightened(0.1)
+	var pb_down := pb.duplicate() as StyleBoxFlat
+	pb_down.bg_color = ACCENT.darkened(0.08)
+	pb_down.shadow_size = 4
+	pb_down.shadow_offset = Vector2(0, 1)
+	th.set_stylebox("normal", "PrimaryButton", pb)
+	th.set_stylebox("hover", "PrimaryButton", pb_hover)
+	th.set_stylebox("pressed", "PrimaryButton", pb_down)
+	th.set_stylebox("hover_pressed", "PrimaryButton", pb_down)
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+		th.set_color(state, "PrimaryButton", Color.WHITE)
+	th.set_font_size("font_size", "PrimaryButton", 18)
+
+	# buttons on a sheet of paper
+	th.set_type_variation("SheetButton", "Button")
+	for state in ["normal", "hover", "pressed", "hover_pressed"]:
+		var sb := (th.get_stylebox(state, "Button") as StyleBoxFlat).duplicate() as StyleBoxFlat
+		sb.set_corner_radius_all(14)
+		sb.content_margin_left = 18
+		sb.content_margin_right = 18
+		sb.content_margin_top = 10
+		sb.content_margin_bottom = 10
+		if state.ends_with("pressed"):
+			sb.bg_color = CHIP.darkened(0.06)
+		th.set_stylebox(state, "SheetButton", sb)
+	th.set_color("font_pressed_color", "SheetButton", INK)
+	th.set_color("font_hover_pressed_color", "SheetButton", INK)
+	th.set_font_size("font_size", "SheetButton", 17)
+
+	# the sheets themselves (pause, settings, the gallery)
+	th.set_type_variation("Sheet", "PanelContainer")
+	var sheet := StyleBoxFlat.new()
+	sheet.bg_color = Color(PAPER, 0.985)
+	sheet.set_corner_radius_all(24)
+	sheet.set_content_margin_all(26)
+	sheet.content_margin_top = 20
+	sheet.shadow_color = Color(0.08, 0.1, 0.2, 0.28)
+	sheet.shadow_size = 26
+	sheet.shadow_offset = Vector2(0, 8)
+	th.set_stylebox("panel", "Sheet", sheet)
+
+	# a card in the gallery; the island that is open has a green rim
+	th.set_type_variation("Card", "Button")
+	var card := _chip(Color(1, 1, 1, 0.6))
+	card.set_corner_radius_all(17)
+	card.set_border_width_all(2)
+	card.border_color = Color(INK, 0.06)
+	var card_hover := card.duplicate() as StyleBoxFlat
+	card_hover.bg_color = Color(1, 1, 1)
+	card_hover.border_color = Color(ACCENT, 0.55)
+	th.set_stylebox("normal", "Card", card)
+	th.set_stylebox("hover", "Card", card_hover)
+	th.set_stylebox("pressed", "Card", card_hover)
+	th.set_stylebox("hover_pressed", "Card", card_hover)
+	th.set_color("font_color", "Card", Color(INK, 0.7))
+	th.set_color("font_pressed_color", "Card", INK)
+	th.set_color("font_hover_pressed_color", "Card", INK)
+	th.set_type_variation("CardOpen", "Button")
+	var card_open := card.duplicate() as StyleBoxFlat
+	card_open.border_color = ACCENT
+	card_open.bg_color = Color(1, 1, 1, 0.85)
+	var card_open_hover := card_open.duplicate() as StyleBoxFlat
+	card_open_hover.bg_color = Color(1, 1, 1)
+	th.set_stylebox("normal", "CardOpen", card_open)
+	th.set_stylebox("hover", "CardOpen", card_open_hover)
+	th.set_stylebox("pressed", "CardOpen", card_open_hover)
+	th.set_stylebox("hover_pressed", "CardOpen", card_open_hover)
+
+	# switches: a pill with a knob, no chip behind the words
+	for state in ["normal", "hover", "pressed", "hover_pressed", "disabled", "focus"]:
+		th.set_stylebox(state, "CheckButton", StyleBoxEmpty.new())
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+		th.set_color(state, "CheckButton", INK)
+	th.set_color("font_disabled_color", "CheckButton", Color(INK, 0.4))
+	th.set_icon("checked", "CheckButton", _switch(true, 1.0))
+	th.set_icon("unchecked", "CheckButton", _switch(false, 1.0))
+	th.set_icon("checked_disabled", "CheckButton", _switch(true, 0.4))
+	th.set_icon("unchecked_disabled", "CheckButton", _switch(false, 0.4))
+	th.set_constant("h_separation", "CheckButton", 10)
+
+	# hints, menus that drop down, a line to type in, the scroll bar
+	var tip := StyleBoxFlat.new()
+	tip.bg_color = Color(0.99, 0.975, 0.945)
+	tip.set_corner_radius_all(9)
+	tip.content_margin_left = 10
+	tip.content_margin_right = 10
+	tip.content_margin_top = 6
+	tip.content_margin_bottom = 6
+	tip.shadow_color = Color(0.1, 0.12, 0.2, 0.2)
+	tip.shadow_size = 6
+	tip.shadow_offset = Vector2(0, 2)
+	th.set_stylebox("panel", "TooltipPanel", tip)
+	th.set_color("font_color", "TooltipLabel", INK)
+	th.set_font_size("font_size", "TooltipLabel", 13)
+
+	var drop := tip.duplicate() as StyleBoxFlat
+	drop.set_corner_radius_all(12)
+	drop.set_content_margin_all(6)
+	th.set_stylebox("panel", "PopupMenu", drop)
+	var drop_hover := _chip(CHIP)
+	drop_hover.set_corner_radius_all(8)
+	th.set_stylebox("hover", "PopupMenu", drop_hover)
+	th.set_color("font_color", "PopupMenu", INK)
+	th.set_color("font_hover_color", "PopupMenu", INK)
+	th.set_constant("v_separation", "PopupMenu", 8)
+	th.set_constant("item_start_padding", "PopupMenu", 10)
+	th.set_constant("item_end_padding", "PopupMenu", 10)
+
+	var line := StyleBoxFlat.new()
+	line.bg_color = Color(1, 1, 1)
+	line.set_corner_radius_all(10)
+	line.set_border_width_all(2)
+	line.border_color = Color(INK, 0.14)
+	line.content_margin_left = 12
+	line.content_margin_right = 12
+	line.content_margin_top = 8
+	line.content_margin_bottom = 8
+	var line_focus := line.duplicate() as StyleBoxFlat
+	line_focus.border_color = ACCENT
+	th.set_stylebox("normal", "LineEdit", line)
+	th.set_stylebox("focus", "LineEdit", line_focus)
+	th.set_color("font_color", "LineEdit", INK)
+	th.set_color("caret_color", "LineEdit", INK)
+	th.set_color("selection_color", "LineEdit", Color(ACCENT, 0.35))
+	th.set_font_size("font_size", "LineEdit", 17)
+
+	var bar := StyleBoxFlat.new()
+	bar.bg_color = Color(INK, 0.16)
+	bar.set_corner_radius_all(3)
+	bar.content_margin_left = 3
+	bar.content_margin_right = 3
+	var bar_hover := bar.duplicate() as StyleBoxFlat
+	bar_hover.bg_color = Color(INK, 0.3)
+	th.set_stylebox("scroll", "VScrollBar", StyleBoxEmpty.new())
+	th.set_stylebox("grabber", "VScrollBar", bar)
+	th.set_stylebox("grabber_highlight", "VScrollBar", bar_hover)
+	th.set_stylebox("grabber_pressed", "VScrollBar", bar_hover)
+
+	# ---- the storybook look over all of the above: IM Fell English (fonts/,
+	# SIL OFL), parchment and inked labels (brand/ui, tools/make_ui_art.py)
+	var body: Font = load("res://fonts/IMFeENrm28P.ttf")
+	var caps: Font = load("res://fonts/IMFellEnglishSC.ttf")
+	var italic: Font = load("res://fonts/IMFeENit28P.ttf")
+	th.default_font = body
+	th.default_font_size = 17
+	th.set_font("font", "TabButton", caps)
+	th.set_font_size("font_size", "TabButton", 17)
+	for cls in ["TitleButton", "PrimaryButton", "SheetButton"]:
+		th.set_font("font", cls, caps)
+	th.set_type_variation("Heading", "Label")
+	th.set_font("font", "Heading", caps)
+	th.set_font_size("font_size", "Heading", 25)
+	th.set_type_variation("Tagline", "Label")
+	th.set_font("font", "Tagline", italic)
+
+	th.set_stylebox("panel", "PanelContainer", _art("panel", 64, 30))
+	(th.get_stylebox("panel", "PanelContainer") as StyleBoxTexture).content_margin_top = 26
+	th.set_stylebox("panel", "Sheet", _art("sheet", 64, 38))
+	var tip_art := _art("sheet", 40, 12)
+	tip_art.content_margin_left = 16
+	tip_art.content_margin_right = 16
+	th.set_stylebox("panel", "TooltipPanel", tip_art)
+	th.set_stylebox("panel", "PopupMenu", _art("sheet", 40, 12))
+	var handle := _art("panel", 64, 18)
+	handle.content_margin_top = 12
+	handle.content_margin_bottom = 12
+	for state in ["normal", "hover", "pressed"]:
+		th.set_stylebox(state, "Handle", handle)
+
+	var labels := {"normal": "chip", "hover": "chip_hover", "pressed": "chip_on", "hover_pressed": "chip_on"}
+	for state: String in labels:
+		th.set_stylebox(state, "Button", _art(labels[state], 16, 0, Vector4(13, 6, 13, 7)))
+		th.set_stylebox(state, "SmallButton", _art(labels[state], 16, 0, Vector4(10, 3, 10, 4)))
+		th.set_stylebox(state, "SheetButton", _art(labels[state] if state != "pressed" and state != "hover_pressed" else "chip_hover", 16, 0, Vector4(20, 9, 20, 10)))
+		th.set_stylebox(state, "TitleButton", _art(labels[state] if not state.ends_with("pressed") else "chip_hover", 16, 0, Vector4(24, 10, 24, 12)))
+		th.set_stylebox(state, "PrimaryButton", _art("chip_gold", 16, 0, Vector4(24, 10, 24, 12)))
+	th.set_font_size("font_size", "TitleButton", 21)
+	th.set_font_size("font_size", "PrimaryButton", 21)
+	th.set_font_size("font_size", "SheetButton", 19)
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+		th.set_color(state, "PrimaryButton", INK)
+
+	var tab_on := _art("tab_line", 8, 0, Vector4(2, 4, 2, 7))
+	var tab_bare := StyleBoxEmpty.new()
+	tab_bare.content_margin_left = 2
+	tab_bare.content_margin_right = 2
+	tab_bare.content_margin_top = 4
+	tab_bare.content_margin_bottom = 7
+	th.set_stylebox("normal", "TabButton", tab_bare)
+	th.set_stylebox("hover", "TabButton", tab_bare)
+	th.set_stylebox("pressed", "TabButton", tab_on)
+	th.set_stylebox("hover_pressed", "TabButton", tab_on)
 	return th
+
+
+## A piece of the storybook art as a nine-patch box: `margin` pixels of
+## each edge keep their shape; `pad` (left, top, right, bottom) is the room
+## round what it holds, or `content` all round.
+static func _art(name: String, margin: int, content: int, pad := Vector4(-1, -1, -1, -1)) -> StyleBoxTexture:
+	var sb := StyleBoxTexture.new()
+	sb.texture = load("res://brand/ui/%s.png" % name)
+	sb.set_texture_margin_all(margin)
+	if name == "tab_line":
+		sb.texture_margin_top = 0
+		sb.texture_margin_bottom = 0
+	if pad.x >= 0.0:
+		sb.content_margin_left = pad.x
+		sb.content_margin_top = pad.y
+		sb.content_margin_right = pad.z
+		sb.content_margin_bottom = pad.w
+	else:
+		sb.set_content_margin_all(content)
+	return sb
+
+
+## A switch for the CheckButtons: a pill, green when on, with a white knob.
+static func _switch(on: bool, alpha: float) -> ImageTexture:
+	var w := 40
+	var h := 22
+	var img := Image.create_empty(w, h, false, Image.FORMAT_RGBA8)
+	var back := ACCENT if on else Color(0.8, 0.75, 0.67)
+	var knob := Vector2(w - h * 0.5, h * 0.5) if on else Vector2(h * 0.5, h * 0.5)
+	for y in h:
+		for x in w:
+			var p := Vector2(x + 0.5, y + 0.5)
+			# distance to the pill: a line with round ends
+			var along := clampf(p.x, h * 0.5, w - h * 0.5)
+			var d := p.distance_to(Vector2(along, h * 0.5)) - h * 0.5
+			var c := back
+			c = c.lerp(Color.WHITE, clampf(h * 0.5 - 3.0 - p.distance_to(knob) + 0.5, 0.0, 1.0))
+			img.set_pixel(x, y, Color(c, clampf(0.5 - d, 0.0, 1.0) * alpha))
+	return ImageTexture.create_from_image(img)
 
 
 static func _chip(c: Color) -> StyleBoxFlat:

@@ -3,6 +3,10 @@
 *.import
 # but the bark textures keep their settings: compressed, mipmapped, 1024
 !textures/*.import
+!icon.png.import
+!brand/**/*.import
+!brand/*.import
+!fonts/*.import
 override.cfg
 
 # renders from snap.sh and the tests

@@ -15,9 +15,17 @@ extends CanvasLayer
 ## (see post.gd).
 
 signal finished
+## The screen starts to lift: what is behind it (the title) may begin.
+signal revealed
 
 const Catalog := preload("res://scripts/prop_catalog.gd")
 const MeshUtil := preload("res://scripts/mesh_util.gd")
+const Brand := preload("res://scripts/brand.gd")
+
+# the paper and ink of the panel
+const PAPER := Color(0.965, 0.94, 0.89)
+const INK := Color(0.27, 0.21, 0.16)
+const ACCENT := Color(0.47, 0.6, 0.36)
 
 ## Spatial shaders nothing else here draws (the island draws its ground,
 ## cliff, grass and clouds, the things their own), each on a ball so it is
@@ -48,22 +56,22 @@ func run(main_node, chosen: bool, force_weak := false) -> void:
 	# drawn in (with or without MSAA)
 	if not chosen and (force_weak or weak_gpu()):
 		main.post.fast = true
-		reason = "Snabbläge är på: grafiken är inbyggd i processorn. Du kan slå av det under Grafik."
+		reason = "Snabbläge är på: grafiken är inbyggd i processorn. Du kan slå av det under Inställningar."
 	await _warm()
 	print("warm-up: %d ms" % (Time.get_ticks_msec() - started))
 	_stage.queue_free()
+	revealed.emit()
 	var tw := create_tween()
-	tw.tween_property(_shade, "modulate:a", 0.0, 0.5)
+	tw.tween_property(_shade, "modulate:a", 0.0, 0.7)
 	await tw.finished
 	_shade.visible = false
 	if not chosen and not main.post.fast and await _too_slow():
 		main.post.fast = true
-		reason = "Snabbläge är på: datorn hann inte med bilden. Du kan slå av det under Grafik."
+		reason = "Snabbläge är på: datorn hann inte med bilden. Du kan slå av det under Inställningar."
 	if reason != "":
 		print(reason)
-		main.ui.toast(reason)
-		if main.ui.buttons.has("Snabbläge"):
-			(main.ui.buttons["Snabbläge"] as Button).set_pressed_no_signal(true)
+		main.menus.toast(tr(reason))
+		main.menus.sync_graphics()
 	finished.emit()
 	queue_free()
 
@@ -80,7 +88,7 @@ static func weak_gpu() -> bool:
 func _build_screen() -> void:
 	_shade = ColorRect.new()
 	_shade.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_shade.color = Color(0.16, 0.2, 0.26)
+	_shade.color = PAPER
 	_shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_shade)
 	var box := VBoxContainer.new()
@@ -88,23 +96,35 @@ func _build_screen() -> void:
 	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	box.grow_vertical = Control.GROW_DIRECTION_BOTH
 	box.custom_minimum_size = Vector2(420, 0)
-	box.add_theme_constant_override("separation", 12)
+	box.add_theme_constant_override("separation", 14)
 	_shade.add_child(box)
-	var title := Label.new()
-	title.text = "Ön vaknar…"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 26)
-	title.add_theme_color_override("font_color", Color(0.95, 0.94, 0.9))
-	box.add_child(title)
+	# the name, where the start-up picture had it (project.godot, boot_splash)
+	var name := TextureRect.new()
+	var img := (load("res://brand/logo_ink.png") as Texture2D).get_image()
+	img.resize(520, int(img.get_height() * 520.0 / img.get_width()), Image.INTERPOLATE_LANCZOS)
+	name.texture = ImageTexture.create_from_image(img)
+	name.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	box.add_child(name)
 	_bar = ProgressBar.new()
 	_bar.show_percentage = false
 	_bar.custom_minimum_size = Vector2(0, 6)
-	box.add_child(_bar)
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.85, 0.8, 0.72)
+	track.set_corner_radius_all(3)
+	var fill := track.duplicate() as StyleBoxFlat
+	fill.bg_color = ACCENT
+	_bar.add_theme_stylebox_override("background", track)
+	_bar.add_theme_stylebox_override("fill", fill)
+	var slim := MarginContainer.new()
+	slim.add_theme_constant_override("margin_left", 70)
+	slim.add_theme_constant_override("margin_right", 70)
+	slim.add_child(_bar)
+	box.add_child(slim)
 	_note = Label.new()
-	_note.text = "Grafiken förbereds. Första gången på en ny dator tar det en stund."
+	_note.text = "Ön vaknar. Första gången på en ny dator tar det en stund."
 	_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_note.add_theme_font_size_override("font_size", 14)
-	_note.add_theme_color_override("font_color", Color(0.8, 0.82, 0.86))
+	_note.add_theme_color_override("font_color", Color(INK, 0.6))
 	box.add_child(_note)
 
 

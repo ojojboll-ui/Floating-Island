@@ -57,6 +57,16 @@ var _fit_radius := BASE_RADIUS
 # how far the island's picture moves left (negative: right), as a share of
 # the screen's width, to sit in the middle of what the panel leaves free
 var frame_shift := 0.0
+## The title screen's view: the camera stands this many times further back
+## and turns slowly by itself (degrees a second). Neither is saved; both
+## ease, so leaving the title glides in to the island.
+var stand_back := 1.0
+var drift := 0.0
+## How far down the picture the island sits (a share of its height), for
+## the title, where the name is above it.
+var frame_drop := 0.0
+var _back := 1.0
+var _drop := 0.0
 var _shift := 0.0
 
 var camera: Camera3D
@@ -118,6 +128,8 @@ func settle() -> void:
 	yaw = goal_yaw
 	pitch = goal_pitch
 	distance = goal_distance
+	_back = stand_back
+	_drop = frame_drop
 	_fit_center = island_center
 	_fit_radius = island_radius
 	_shift = frame_shift
@@ -185,8 +197,14 @@ func _process(delta: float) -> void:
 		yaw += step
 		spin_phase = fmod(spin_phase + delta / maxf(spin_period, 0.5), 1.0)
 		moved.emit()
+	if drift != 0.0:
+		var turn := deg_to_rad(drift) * delta
+		goal_yaw += turn
+		yaw += turn
 	if bob > 0.0:
 		bob_phase = fmod(bob_phase + delta / maxf(bob_period, 0.5), 1.0)
+	_back = lerpf(_back, stand_back, 1.0 - exp(-delta * 1.6))
+	_drop = lerpf(_drop, frame_drop, 1.0 - exp(-delta * 1.6))
 	var k := 1.0 - exp(-delta * 10.0)
 	target = target.lerp(goal_target, k)
 	yaw = lerpf(yaw, goal_yaw, k)
@@ -200,7 +218,7 @@ func _process(delta: float) -> void:
 
 
 func _scaled_distance() -> float:
-	return distance * _fit_radius / BASE_RADIUS
+	return distance * _back * _fit_radius / BASE_RADIUS
 
 
 func _apply() -> void:
@@ -215,6 +233,7 @@ func _apply() -> void:
 	# is this wide in metres
 	var aspect: float = camera.get_viewport().get_visible_rect().size.aspect() if camera.is_inside_tree() else 16.0 / 9.0
 	camera.h_offset = _shift * 2.0 * d * tan(deg_to_rad(camera.fov) * 0.5) * aspect
+	camera.v_offset = _drop * 2.0 * d * tan(deg_to_rad(camera.fov) * 0.5)
 	# A band of sharpness round the focus point. A wider aperture narrows it
 	# and blurs harder outside it; it is a fixed size in metres, so zooming
 	# in shrinks it relative to the frame and the scene reads ever smaller.

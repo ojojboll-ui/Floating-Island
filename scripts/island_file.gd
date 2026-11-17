@@ -12,18 +12,35 @@ extends RefCounted
 ## smooth even where the live view would stutter. A wallpaper is one full
 ## turn with whole waves in it (see OrbitCamera.fit_loop), so it loops.
 
-const VERSION := 1
+const VERSION := 2
 const EXTENSION := "island"
+const NAME := "Skyholme"
+const THUMB := Vector2i(480, 270)
+
+## A folder to keep the islands in instead of the usual one (tests).
+static var root := ""
 
 
+## Where the islands live: Documents\Skyholme (in a browser, the page's own
+## storage). The folder of the working name it had before is taken over.
 static func folder() -> String:
-	var dir := OS.get_system_dir(OS.SYSTEM_DIR_DOCUMENTS).path_join("Floating Island")
+	if root != "":
+		DirAccess.make_dir_recursive_absolute(root)
+		return root
+	if OS.has_feature("web"):
+		DirAccess.make_dir_recursive_absolute("user://islands")
+		return "user://islands"
+	var docs := OS.get_system_dir(OS.SYSTEM_DIR_DOCUMENTS)
+	var dir := docs.path_join(NAME)
+	var old := docs.path_join("Floating Island")
+	if not DirAccess.dir_exists_absolute(dir) and DirAccess.dir_exists_absolute(old):
+		DirAccess.rename_absolute(old, dir)
 	DirAccess.make_dir_recursive_absolute(dir)
 	return dir
 
 
 static func export_folder() -> String:
-	var dir := OS.get_system_dir(OS.SYSTEM_DIR_PICTURES).path_join("Floating Island")
+	var dir := OS.get_system_dir(OS.SYSTEM_DIR_PICTURES).path_join(NAME)
 	DirAccess.make_dir_recursive_absolute(dir)
 	return dir
 
@@ -33,35 +50,24 @@ static func stamp() -> String:
 	return "%04d-%02d-%02d %02d.%02d.%02d" % [t.year, t.month, t.day, t.hour, t.minute, t.second]
 
 
-static func save(main: Node, path: String) -> Error:
-	var state := {
+## Everything that makes the scene, as one value.
+static func capture(main: Node) -> Dictionary:
+	return {
 		"version": VERSION,
 		"ground": main.data.snapshot(),
 		"props": main.props.snapshot(),
 		"ruins": main.ruins.snapshot(),
 		"roots": main.roots.snapshot(),
-		"prop_styles": main.props.styles,
-		"root_style": main.roots.style,
+		"prop_styles": main.props.styles.duplicate(true),
+		"root_style": main.roots.style.duplicate(true),
 		"weather": main.weather.state(),
 		"camera": main.rig.state(),
 		"post": main.post.state(),
 	}
-	var f := FileAccess.open_compressed(path, FileAccess.WRITE, FileAccess.COMPRESSION_ZSTD)
-	if f == null:
-		return FileAccess.get_open_error()
-	f.store_var(state)
-	f.close()
-	return OK
 
 
-static func open(main: Node, path: String) -> Error:
-	var f := FileAccess.open_compressed(path, FileAccess.READ, FileAccess.COMPRESSION_ZSTD)
-	if f == null:
-		return FileAccess.get_open_error()
-	var state = f.get_var()
-	f.close()
-	if not state is Dictionary or not state.has("ground"):
-		return ERR_FILE_CORRUPT
+## Make the scene what `state` says (from capture, or a file).
+static func apply(main: Node, state: Dictionary) -> void:
 	main.data.restore(state.ground)
 	main.view.rebuild(main.data.full_rect(), main.data.full_rect())
 	main.view.flush()
@@ -84,7 +90,176 @@ static func open(main: Node, path: String) -> Error:
 	main.rig.fit_island(main.data)
 	main.rig.settle()
 	main.brush.clear_history()
+
+
+## Write the island to `path`. The file starts with a small header (its
+## name, when it was saved, a little picture of it), so a gallery of
+## islands can be shown without opening each one; then the island itself.
+static func save(main: Node, path: String, name := "", thumb = null) -> Error:
+	return write(capture(main), path, name, thumb)
+
+
+## `thumb` is the picture (an Image), or one already packed (the bytes).
+static func write(state: Dictionary, path: String, name := "", thumb = null) -> Error:
+	var packed := PackedByteArray()
+	if thumb is Image:
+		packed = (thumb as Image).save_jpg_to_buffer(0.86)
+	elif thumb is PackedByteArray:
+		packed = thumb
+	var head := {
+		"skyholme": VERSION,
+		"name": name if name != "" else path.get_file().get_basename(),
+		"saved": Time.get_unix_time_from_system(),
+		"thumb": packed,
+	}
+	var f := FileAccess.open_compressed(path, FileAccess.WRITE, FileAccess.COMPRESSION_ZSTD)
+	if f == null:
+		return FileAccess.get_open_error()
+	f.store_var(head)
+	f.store_var(state)
+	f.close()
 	return OK
+
+
+static func open(main: Node, path: String) -> Error:
+	var f := FileAccess.open_compressed(path, FileAccess.READ, FileAccess.COMPRESSION_ZSTD)
+	if f == null:
+		return FileAccess.get_open_error()
+	var state = f.get_var()
+	# since version 2 a header comes first; older files are the island alone
+	if state is Dictionary and state.has("skyholme"):
+		state = f.get_var()
+	f.close()
+	if not state is Dictionary or not state.has("ground"):
+		return ERR_FILE_CORRUPT
+	apply(main, state)
+	return OK
+
+
+## An island file's header: name, saved (unix time) and thumb (an Image, or
+## null). An older file without one answers with its file name and date.
+static func header(path: String) -> Dictionary:
+	var out := {"path": path, "name": path.get_file().get_basename(), "saved": float(FileAccess.get_modified_time(path)), "thumb": null}
+	var f := FileAccess.open_compressed(path, FileAccess.READ, FileAccess.COMPRESSION_ZSTD)
+	if f == null:
+		return out
+	var head = f.get_var()
+	f.close()
+	if head is Dictionary and head.has("skyholme"):
+		out.name = String(head.get("name", out.name))
+		out.saved = float(head.get("saved", out.saved))
+		var bytes: PackedByteArray = head.get("thumb", PackedByteArray())
+		if not bytes.is_empty():
+			var img := Image.new()
+			if img.load_jpg_from_buffer(bytes) == OK:
+				out.thumb = img
+	return out
+
+
+## Every island in the folder, the one saved last first.
+static func library() -> Array:
+	var out := []
+	var dir := folder()
+	for file in DirAccess.get_files_at(dir):
+		if file.get_extension() == EXTENSION:
+			out.append(header(dir.path_join(file)))
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.saved > b.saved)
+	return out
+
+
+## A path in the folder for an island called `name`, not yet taken.
+static func fresh_path(name: String) -> String:
+	var clean := name.validate_filename().strip_edges()
+	if clean == "":
+		clean = "Island"
+	var dir := folder()
+	var path := dir.path_join(clean + "." + EXTENSION)
+	var n := 2
+	while FileAccess.file_exists(path):
+		path = dir.path_join("%s %d.%s" % [clean, n, EXTENSION])
+		n += 1
+	return path
+
+
+## The first name of the kind "Ö 3" that no island has yet.
+static func fresh_name(word: String) -> String:
+	var taken := {}
+	for item in library():
+		taken[String(item.name)] = true
+	var n := 1
+	while taken.has("%s %d" % [word, n]):
+		n += 1
+	return "%s %d" % [word, n]
+
+
+## A file as it is stored: [header, island], or [] if it cannot be read.
+static func _parts(path: String) -> Array:
+	var f := FileAccess.open_compressed(path, FileAccess.READ, FileAccess.COMPRESSION_ZSTD)
+	if f == null:
+		return []
+	var first = f.get_var()
+	var out := []
+	if first is Dictionary and first.has("skyholme"):
+		out = [first, f.get_var()]
+	elif first is Dictionary and first.has("ground"):
+		out = [{}, first]
+	f.close()
+	return out
+
+
+## Give an island another name (its file follows). Returns its new path.
+static func rename(path: String, name: String) -> String:
+	var parts := _parts(path)
+	if parts.is_empty():
+		return path
+	var to := fresh_path(name)
+	if write(parts[1], to, name, parts[0].get("thumb", null)) != OK:
+		return path
+	DirAccess.remove_absolute(path)
+	return to
+
+
+## A second island like this one, called `name`. Returns its path.
+static func copy(path: String, name: String) -> String:
+	var parts := _parts(path)
+	if parts.is_empty():
+		return ""
+	var to := fresh_path(name)
+	write(parts[1], to, to.get_file().get_basename(), parts[0].get("thumb", null))
+	return to
+
+
+## Take an island away: to the recycle bin where there is one.
+static func remove(path: String) -> void:
+	if OS.has_feature("web") or OS.move_to_trash(ProjectSettings.globalize_path(path)) != OK:
+		DirAccess.remove_absolute(path)
+
+
+## A small picture of the island as the camera sees it, without the panel
+## (and not slid aside for it).
+static func thumbnail(main: Node, size := THUMB) -> Image:
+	var sub := SubViewport.new()
+	sub.size = size
+	sub.world_3d = main.get_viewport().world_3d
+	sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	sub.msaa_3d = Viewport.MSAA_2X
+	var cam := Camera3D.new()
+	var src: Camera3D = main.rig.camera
+	cam.fov = src.fov
+	cam.near = src.near
+	cam.far = src.far
+	sub.add_child(cam)
+	main.add_child(sub)
+	cam.global_transform = src.global_transform
+	cam.h_offset = 0.0
+	cam.current = true
+	sub.add_child(main.Post.make_layer(main.post.material_for(Vector2(size))))
+	for k in 2:
+		await RenderingServer.frame_post_draw
+	var img := sub.get_texture().get_image()
+	sub.queue_free()
+	img.convert(Image.FORMAT_RGB8)
+	return img
 
 
 ## Render the current view at `size`, without the panel, and save it.
@@ -116,10 +291,10 @@ static func still(main: Node, size: Vector2i) -> String:
 	sub.queue_free()
 	main.post.full_quality = false
 	if OS.has_feature("web"):
-		var name := "Ö %s.png" % stamp()
+		var name := "Skyholme %s.png" % stamp()
 		download(img.save_png_to_buffer(), name, "image/png")
 		return name
-	var path := export_folder().path_join("Ö %s.png" % stamp())
+	var path := export_folder().path_join("Skyholme %s.png" % stamp())
 	img.save_png(path)
 	return path
 

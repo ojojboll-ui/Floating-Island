@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+<defs>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5f96cf"/><stop offset="1" stop-color="#a9d2ee"/></linearGradient>
+<linearGradient id="rock" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a6a4c"/><stop offset="1" stop-color="#5a4334"/></linearGradient>
+<linearGradient id="leaf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fc45a"/><stop offset="1" stop-color="#4f8f3c"/></linearGradient>
+</defs>
+<rect x="8" y="8" width="240" height="240" rx="54" fill="url(#sky)"/>
+<g fill="#ffffff" fill-opacity="0.92">
+<path d="M 34,96 C 30,82 46,74 56,82 C 60,68 84,70 84,86 C 96,86 96,102 84,102 L 42,102 C 36,102 34,100 34,96 Z"/>
+<path d="M 176,70 C 174,60 186,54 193,60 C 197,50 214,52 214,64 C 224,64 224,76 214,76 L 183,76 C 178,76 176,74 176,70 Z"/>
+<path d="M 166,214 C 163,203 176,196 184,203 C 189,191 208,194 208,207 C 219,207 219,221 208,221 L 174,221 C 168,221 166,218 166,214 Z" fill-opacity="0.8"/>
+</g>
+<path d="M 58,150 L 198,150 L 180,176 L 166,180 L 152,214 L 140,196 L 128,236 L 114,200 L 100,206 L 90,178 L 74,174 Z" fill="url(#rock)"/>
+<path d="M 128,236 L 114,200 L 122,160 L 140,196 Z" fill="#000000" fill-opacity="0.14"/>
+<path d="M 152,214 L 140,196 L 160,160 L 166,180 Z" fill="#ffffff" fill-opacity="0.08"/>
+<path d="M 100,206 L 90,178 L 104,160 L 114,200 Z" fill="#ffffff" fill-opacity="0.06"/>
+<path d="M 52,146 C 52,132 204,132 204,146 C 204,158 196,162 188,160 C 180,166 170,160 162,164 C 152,170 142,162 132,166 C 120,170 112,162 102,166 C 92,170 84,160 74,162 C 62,164 52,158 52,146 Z" fill="#6b4a33"/>
+<path d="M 50,142 C 50,124 206,124 206,142 C 206,154 196,156 188,154 C 180,160 170,154 162,158 C 152,164 142,156 132,160 C 120,164 112,156 102,160 C 92,164 84,154 74,156 C 62,158 50,154 50,142 Z" fill="#7fb851"/>
+<path d="M 62,138 C 80,128 176,128 194,138 C 170,134 86,134 62,138 Z" fill="#a6d86c"/>
+<path d="M 121,140 C 124,122 122,108 118,96 L 136,96 C 133,110 133,124 137,140 Z" fill="#6e4a30"/>
+<circle cx="128" cy="66" r="36" fill="url(#leaf)"/>
+<circle cx="100" cy="86" r="24" fill="#5a9a42"/>
+<circle cx="156" cy="86" r="25" fill="#559440"/>
+<circle cx="128" cy="62" r="30" fill="#7fba50"/>
+<circle cx="118" cy="52" r="14" fill="#a6d86c" fill-opacity="0.8"/>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 320" width="960" height="320">
+<g fill="none" stroke="#fff9ed" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="1.000">
+<path transform="translate(42.0 14.0)" d="M 84,74 C 78,42 30,30 14,64 C -6,108 92,110 86,164 C 80,206 22,210 2,172"/>
+<path transform="translate(164.0 14.0)" d="M 0,40 L 0,200 M 60,104 L 2,160 M 24,140 L 66,200"/>
+<path transform="translate(262.0 14.0)" d="M 0,104 L 40,196 M 80,104 C 62,152 46,204 30,234 C 22,250 10,260 -6,258"/>
+<path transform="translate(378.0 14.0)" d="M 0,40 L 0,200 M 0,150 C 0,96 72,92 72,150 L 72,200"/>
+<path transform="translate(626.0 14.0)" d="M 0,40 L 0,200"/>
+<path transform="translate(668.0 14.0)" d="M 0,104 L 0,200 M 0,148 C 0,96 62,94 62,148 L 62,200 M 62,148 C 62,96 124,94 124,148 L 124,200"/>
+<path transform="translate(830.0 14.0)" d="M 4,152 L 96,152 C 98,92 4,86 4,152 C 4,216 74,212 92,182"/>
+</g>
+<path transform="translate(488.0 14.0)" fill="#fff9ed" fill-opacity="1.000" fill-rule="evenodd" d="M 50,92 C 127,92 127,208 50,208 C -27,208 -27,92 50,92 Z M 9,157 C 22,149 36,149 46,149 L 46,139 A 19.5 19.5 0 1 1 54,139 L 54,149 C 64,149 78,149 91,157 L 85,168 L 73,172 L 67,189 L 58,181 L 50,202 L 42,183 L 34,191 L 27,172 L 15,168 Z"/>
+</svg>

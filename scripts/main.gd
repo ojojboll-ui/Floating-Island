@@ -7,6 +7,7 @@ extends Node3D
 ## --fireflies= (0..1) --open=file.island --record=seconds [--loop] --test=name (see test_driver.gd) --noui
 ## --target=x,y,z (what the camera orbits) --tab=n --fold, and any setting of post.gd, e.g. --rays=1
 ## --fast=0/1 (Snabbläge), --warmup (the loading screen in a test run), --gpu=weak
+## --title (the title screen in a test run), --menu=pause|settings|gallery
 
 const IslandData := preload("res://scripts/island_data.gd")
 const IslandView := preload("res://scripts/island_view.gd")
@@ -23,6 +24,12 @@ const Post := preload("res://scripts/post.gd")
 const RootLayer := preload("res://scripts/root_layer.gd")
 const Warmup := preload("res://scripts/warmup.gd")
 const MeshUtil := preload("res://scripts/mesh_util.gd")
+const Menus := preload("res://scripts/menus.gd")
+const Settings := preload("res://scripts/settings.gd")
+const Brand := preload("res://scripts/brand.gd")
+
+## The island saves itself this often (seconds) while it is being built.
+const AUTOSAVE_EVERY := 150.0
 
 var data
 var view
@@ -36,6 +43,16 @@ var weather
 var post
 var roots
 var warmup   # the loading screen while it lasts
+var menus    # title screen, pause, settings, gallery
+## The island being built: its file in the gallery and its name. Empty
+## until building starts on an island that has not been saved yet.
+var island_path := ""
+var island_name := ""
+var playing := false   # building, as opposed to looking at the title
+var testing := false   # a snapshot, test or film run: nothing is remembered
+var _fresh := {}       # the island as it first appears, for Ny ö
+var _saving := false
+var _autosave_wait := AUTOSAVE_EVERY
 var args_age := -1.0   # --age=x for tests
 var args_yaw := -12.0   # --view_yaw=deg for tests that set their own view
 var args_dist := 12.0
@@ -44,6 +61,11 @@ var args_target := Vector3(2.0, 1.5, -2.4)
 
 func _ready() -> void:
 	var args := _parse_args()
+	testing = args.has("snapshot") or args.has("record")
+	Settings.remember = not testing
+	Settings.adopt_old()
+	get_window().title = Brand.NAME
+	DisplayServer.set_icon(Brand.image(Brand.emblem_svg(), 256))
 	# a film export leaves this behind for its own window size; it must not
 	# outlive that start
 	if FileAccess.file_exists(IslandFile.override_path()):
@@ -120,6 +142,9 @@ func _ready() -> void:
 	brush.roots = roots
 	brush.changed.connect(_on_ground_changed)
 
+	menus = Menus.new()
+	add_child(menus)
+	menus.setup(self, UI.make_theme())
 	ui = UI.new()
 	add_child(ui)
 	ui.setup(brush, ruins, weather, self)
@@ -134,7 +159,6 @@ func _ready() -> void:
 	# Snabbläge: from the command line, as chosen on this computer before, or
 	# left to the warm-up to judge. Test and film runs keep to their arguments
 	# and remember nothing.
-	var testing := args.has("snapshot") or args.has("record")
 	post.remember = not testing
 	var chosen := testing
 	if args.has("fast"):
@@ -147,14 +171,42 @@ func _ready() -> void:
 		if not chosen and MeshUtil.web():
 			post.fast = true
 			chosen = true
-	ui.sync_graphics()
+	menus.sync_graphics()
 	if not testing or args.has("warmup"):
 		warmup = Warmup.new()
 		add_child(warmup)
 		warmup.run(self, chosen and not args.has("warmup"), args.get("gpu", "") == "weak")
 
+	# the island as it first appears is what Ny ö goes back to; then the one
+	# that was open last time, if it is still there
+	_fresh = IslandFile.capture(self)
 	if args.has("open"):
 		IslandFile.open(self, args["open"])
+	elif not testing:
+		var last := String(Settings.get_value("general", "last_island", ""))
+		if last != "" and FileAccess.file_exists(last) and IslandFile.open(self, last) == OK:
+			island_path = last
+			island_name = IslandFile.header(last).name
+			rebuild_ui()
+	# a run by hand starts on the title screen; tests go straight to building
+	if not testing or args.has("title"):
+		get_tree().auto_accept_quit = testing
+		brush.process_mode = Node.PROCESS_MODE_DISABLED
+		brush.visible = false
+		ui.visible = false
+		if warmup != null:
+			warmup.revealed.connect(menus.show_title)
+		else:
+			menus.show_title()
+	else:
+		playing = true
+	match String(args.get("menu", "")):
+		"pause":
+			menus.open_pause()
+		"settings":
+			menus.open_settings()
+		"gallery":
+			menus.open_gallery()
 	if args.has("record"):
 		_record(float(args["record"]), args.has("loop"))
 	elif args.has("snapshot"):
@@ -186,11 +238,14 @@ func _record(seconds: float, loop: bool) -> void:
 func rebuild_ui() -> void:
 	var tab: int = ui.tabs.current_tab
 	var folded: bool = ui.collapsed
+	var shown: bool = ui.visible
+	remove_child(ui)
 	ui.queue_free()
 	ui = UI.new()
 	add_child(ui)
 	ui.setup(brush, ruins, weather, self)
 	ui.tabs.current_tab = tab
+	ui.visible = shown
 	if folded:
 		ui.set_collapsed(true)
 
@@ -252,3 +307,107 @@ func _snapshot(path: String, frames: int) -> void:
 	img.save_png(path)
 	print("snapshot saved: ", path, "  (", Engine.get_frames_per_second(), " fps)")
 	get_tree().quit()
+
+
+# ---------------------------------------------------------------- the island being built
+
+## From the title (or a menu) to building: the panel slides in and the
+## brush wakes. An island that has no place in the gallery yet gets one.
+func start_play() -> void:
+	if island_path == "":
+		island_name = IslandFile.fresh_name(tr("Ö"))
+		island_path = IslandFile.fresh_path(island_name)
+	playing = true
+	_autosave_wait = AUTOSAVE_EVERY
+	brush.process_mode = Node.PROCESS_MODE_INHERIT
+	brush.visible = true
+	ui.present(true)
+
+
+## Back to the title screen; the island is saved on the way.
+func enter_title() -> void:
+	if playing:
+		await save_island()
+	playing = false
+	brush.process_mode = Node.PROCESS_MODE_DISABLED
+	brush.visible = false
+	ui.present(false)
+	menus.show_title()
+
+
+## Save the island into its place in the gallery, with a fresh picture.
+func save_island() -> Error:
+	if island_path == "" or _saving:
+		return OK
+	_saving = true
+	var thumb: Image = await IslandFile.thumbnail(self)
+	var err := IslandFile.save(self, island_path, island_name, thumb)
+	_saving = false
+	_autosave_wait = AUTOSAVE_EVERY
+	if err == OK:
+		Settings.set_value("general", "last_island", island_path)
+	return err
+
+
+## Ctrl+S: save now, and say so.
+func save_now() -> void:
+	var err: Error = await save_island()
+	menus.toast(tr("Sparad") if err == OK else tr("Kunde inte spara (%s)") % error_string(err))
+
+
+## Start on a new island (the one being built is saved first).
+func new_island() -> void:
+	if playing:
+		await save_island()
+	IslandFile.apply(self, _fresh)
+	island_name = IslandFile.fresh_name(tr("Ö"))
+	island_path = IslandFile.fresh_path(island_name)
+	rebuild_ui()
+
+
+## Open an island. One from the gallery's folder is opened in place; a file
+## from anywhere else becomes a new island in the gallery, and the file is
+## left alone.
+func open_island(path: String) -> Error:
+	if playing and path != island_path:
+		await save_island()
+	var err := IslandFile.open(self, path)
+	if err != OK:
+		return err
+	var head := IslandFile.header(path)
+	if path.get_base_dir().simplify_path() == IslandFile.folder().simplify_path():
+		island_path = path
+		island_name = head.name
+		Settings.set_value("general", "last_island", path)
+		rebuild_ui()
+	else:
+		adopt_opened(head.name)
+	return OK
+
+
+## The island just read from outside the gallery gets a place in it.
+func adopt_opened(name: String) -> void:
+	island_name = name if name != "" else IslandFile.fresh_name(tr("Ö"))
+	island_path = IslandFile.fresh_path(island_name)
+	rebuild_ui()
+
+
+func quit_game() -> void:
+	if playing:
+		await save_island()
+	get_tree().quit()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and not get_tree().auto_accept_quit:
+		quit_game()
+
+
+func _process(delta: float) -> void:
+	# the island saves itself every few minutes while it is being built,
+	# but never in the middle of a stroke
+	if not playing or testing:
+		return
+	_autosave_wait -= delta
+	if _autosave_wait <= 0.0 and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not menus.is_open():
+		save_island()

@@ -10,6 +10,43 @@ const Catalog := preload("res://scripts/prop_catalog.gd")
 static func run(main: Node, name: String) -> void:
 	await _frames(main, 20)
 	match name:
+		"library":
+			# the gallery of islands, in a folder of its own: build on one, start
+			# another, then rename, copy, remove and open through the same calls
+			# the gallery's cards make; the picture shows the gallery
+			var F = main.IslandFile
+			F.root = "user://test_library"
+			for old in DirAccess.get_files_at(F.folder()):
+				DirAccess.remove_absolute(F.folder().path_join(old))
+			main.playing = false
+			main.start_play()
+			await _frames(main, 30)
+			print("  first island: ", main.island_name, " -> ", main.island_path.get_file())
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 2
+			for k in 5:
+				main.props.add("gran", -3.0 + k * 1.4, 2.0, rng)
+			var before: int = main.props.records.size()
+			var t0 := Time.get_ticks_msec()
+			print("  save: ", error_string(await main.save_island()), " in ", Time.get_ticks_msec() - t0, " ms, ", FileAccess.get_file_as_bytes(main.island_path).size() / 1024, " kB")
+			var first: String = main.island_path
+			await main.new_island()
+			main.weather.hour = 19.3
+			await _frames(main, 30)
+			print("  second island: ", main.island_name, ", things on it ", main.props.records.size(), " (the first had ", before, ")")
+			await main.save_island()
+			var names := func() -> Array:
+				return F.library().map(func(i: Dictionary) -> String: return "%s%s" % [i.name, "" if i.thumb != null else " (no picture)"])
+			print("  library: ", names.call())
+			main.menus._rename(F.header(first), "Granudden")
+			F.copy(main.island_path, "Kvällsön")
+			print("  after rename and copy: ", names.call())
+			var renamed: String = F.folder().path_join("Granudden.island")
+			print("  open the first again: ", error_string(await main.open_island(renamed)), ", things on it ", main.props.records.size(), ", name ", main.island_name)
+			await main.menus._remove(F.header(F.folder().path_join("Kvällsön.island")))
+			print("  after removing the copy: ", names.call())
+			await main.menus.open_gallery()
+			await _frames(main, 20)
 
 
 		"bench":
@@ -1883,24 +1920,24 @@ static func run(main: Node, name: String) -> void:
 				main.props.add("lovtrad" if k % 3 else "gran", cos(ang) * minf(rr, 6.0), sin(ang) * minf(rr, 6.0), rng)
 			await _frames(main, 30)
 		"graphics_tab":
-			# the Grafik page: soft leaves on and off through its button, the
+			# the settings sheet: soft leaves on and off through its button, the
 			# frame counter on; the picture shows the page
 			await run(main, "forest")
-			main.ui.tabs.current_tab = 9
-			await _frames(main, 3)
+			main.menus.open_settings()
+			await _frames(main, 20)
 			var TB = main.post.TreeBuilder
 			print("  leaves: ", TB._leaf_mat.shader.resource_path.get_file())
-			await _click(main, main.ui.buttons["Mjuka bladkanter"])
+			await _click(main, main.menus.buttons["Mjuka bladkanter"])
 			await _frames(main, 2)
 			print("  soft on: ", TB._leaf_mat.shader.resource_path.get_file(), ", saved setting ", main.post.soft_leaves)
-			await _click(main, main.ui.buttons["Snabbläge"])
+			await _click(main, main.menus.buttons["Snabbläge"])
 			await _frames(main, 2)
-			print("  Snabbläge on: ", TB._leaf_mat.shader.resource_path.get_file(), ", soft button greyed ", main.ui.buttons["Mjuka bladkanter"].disabled)
-			await _click(main, main.ui.buttons["Snabbläge"])
-			await _click(main, main.ui.buttons["Mjuka bladkanter"])
+			print("  Snabbläge on: ", TB._leaf_mat.shader.resource_path.get_file(), ", soft button greyed ", main.menus.buttons["Mjuka bladkanter"].disabled)
+			await _click(main, main.menus.buttons["Snabbläge"])
+			await _click(main, main.menus.buttons["Mjuka bladkanter"])
 			await _frames(main, 2)
 			print("  both off: ", TB._leaf_mat.shader.resource_path.get_file())
-			await _click(main, main.ui.buttons["Visa bildfrekvens"])
+			await _click(main, main.menus.buttons["Visa bildfrekvens"])
 			await _frames(main, 40)
 		"warmup_screen":
 			# the loading screen itself, half way
@@ -1909,8 +1946,8 @@ static func run(main: Node, name: String) -> void:
 			# GPU time with Snabbläge off and on, switched through its button
 			var vp: RID = main.get_viewport().get_viewport_rid()
 			RenderingServer.viewport_set_measure_render_time(vp, true)
-			main.ui.tabs.current_tab = 9
-			await _frames(main, 3)
+			main.menus.open_settings()
+			await _frames(main, 20)
 			var measure := func(label: String) -> void:
 				await _frames(main, 20)
 				var sum := 0.0
@@ -1919,7 +1956,7 @@ static func run(main: Node, name: String) -> void:
 					sum += RenderingServer.viewport_get_measured_render_time_gpu(vp)
 				print("  %-12s %5.2f ms" % [label, sum / 60.0])
 			await measure.call("full")
-			await _click(main, main.ui.buttons["Snabbläge"])
+			await _click(main, main.menus.buttons["Snabbläge"])
 			await measure.call("Snabbläge")
 			print("  fast: %s, msaa %d, ssil %s" % [main.post.fast, main.get_viewport().msaa_3d, main.weather.env.ssil_enabled])
 		"paint_over":
