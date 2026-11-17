@@ -1463,9 +1463,9 @@ static func make_theme() -> Theme:
 	th.set_type_variation("Tagline", "Label")
 	th.set_font("font", "Tagline", italic)
 
-	th.set_stylebox("panel", "PanelContainer", _art("panel", 64, 34))
+	th.set_stylebox("panel", "PanelContainer", _art("panel", 64, 30))
 	(th.get_stylebox("panel", "PanelContainer") as StyleBoxTexture).content_margin_top = 26
-	th.set_stylebox("panel", "Sheet", _art("sheet", 64, 46))
+	th.set_stylebox("panel", "Sheet", _art("sheet", 64, 38))
 	var tip_art := _art("chip", 16, 8)
 	tip_art.content_margin_left = 16
 	tip_art.content_margin_right = 16
