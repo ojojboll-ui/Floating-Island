@@ -10,6 +10,33 @@ const Catalog := preload("res://scripts/prop_catalog.gd")
 static func run(main: Node, name: String) -> void:
 	await _frames(main, 20)
 	match name:
+		"slope_water":
+			# water drawn from the top of a hill down its side toward the edge:
+			# it should run down the slope as a stream, not dig walls
+			var d = main.data
+			var on := func(x: float, z: float) -> Vector3: return Vector3(x, d.sample_height(x, z), z)
+			main.props.remove_near(0.0, 0.0, 9.0)
+			for k in 30:
+				d.edit_height(Vector2(1.0, 1.0), 4.5, 0.05)
+			main.brush._flush()
+			main.ui.tabs.current_tab = 0
+			await _frames(main, 3)
+			await _click(main, main.ui.buttons["Vatten"])
+			main.brush.radius = 1.0
+			await _drag(main, [on.call(1.0, 1.0), on.call(2.5, 2.6), on.call(4.0, 4.2), on.call(5.4, 5.6), on.call(6.4, 6.7)], 110)
+			main.rig.goal_yaw = deg_to_rad(20.0)
+			main.rig.goal_pitch = deg_to_rad(28.0)
+			main.rig.goal_distance = 20.0
+			main.rig.goal_target = Vector3(1.5, 0.5, 2.0)
+			main.ui.set_collapsed(true)
+			await _frames(main, 40)
+			var hmax := 0.0
+			for z in range(-6, 8):
+				for x in range(-6, 8):
+					var a: float = d.sample_height(x * 0.5, z * 0.5)
+					var b: float = d.sample_height(x * 0.5 + 0.1, z * 0.5)
+					hmax = maxf(hmax, absf(a - b))
+			print("  steepest step over 10 cm: %.2f m" % hmax)
 		"tips":
 			# the first-steps card, on its first hint
 			main.tips.begin()
@@ -1533,7 +1560,7 @@ static func run(main: Node, name: String) -> void:
 			var measure := func(label: String) -> void:
 				await _frames(main, 20)
 				var sum := 0.0
-				for k in 60:
+				for k in 30:
 					await _frames(main, 1)
 					sum += RenderingServer.viewport_get_measured_render_time_gpu(vp)
 				print("  %-26s %5.2f ms  (render cpu %.2f, scripts %.2f ms, fps %d)" % [label, sum / 60.0, RenderingServer.viewport_get_measured_render_time_cpu(vp), Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Engine.get_frames_per_second()])
@@ -1602,7 +1629,7 @@ static func run(main: Node, name: String) -> void:
 			var measure := func(label: String) -> void:
 				await _frames(main, 20)
 				var sum := 0.0
-				for k in 60:
+				for k in 30:
 					await _frames(main, 1)
 					sum += RenderingServer.viewport_get_measured_render_time_gpu(vp)
 				print("  %-26s %5.2f ms" % [label, sum / 60.0])
@@ -1625,7 +1652,7 @@ static func run(main: Node, name: String) -> void:
 			var avg := func() -> float:
 				await _frames(main, 10)
 				var sum := 0.0
-				for k in 60:
+				for k in 30:
 					await _frames(main, 1)
 					sum += Performance.get_monitor(Performance.TIME_PROCESS)
 				return sum / 60.0 * 1000.0
@@ -1648,7 +1675,7 @@ static func run(main: Node, name: String) -> void:
 					main.rig.goal_target = Vector3(5.5, 0.2, -1.7)
 			main.rig.aperture = 0.0
 			main.rig.goal_target = Vector3(2.6, 0.3, -1.1)
-			main.rig.goal_distance = 9.0
+			main.rig.goal_distance = 20.0
 			if "--stream" in OS.get_cmdline_user_args():
 				main.rig.goal_target = Vector3(5.5, 0.2, -1.7)
 				main.rig.goal_distance = 6.0
@@ -1764,7 +1791,7 @@ static func run(main: Node, name: String) -> void:
 			# its own processing off, so nothing runs twice
 			await _frames(main, 30)
 			var whole := 0.0
-			for k in 60:
+			for k in 30:
 				await _frames(main, 1)
 				whole += Performance.get_monitor(Performance.TIME_PROCESS)
 			print("  whole frame's processing %.2f ms" % (whole / 60.0 * 1000.0))
@@ -1794,7 +1821,7 @@ static func run(main: Node, name: String) -> void:
 			var gpu := func() -> float:
 				await _frames(main, 15)
 				var sum := 0.0
-				for k in 60:
+				for k in 30:
 					await _frames(main, 1)
 					sum += RenderingServer.viewport_get_measured_render_time_gpu(vp)
 				return sum / 60.0
@@ -2009,7 +2036,7 @@ static func run(main: Node, name: String) -> void:
 			var measure := func(label: String) -> void:
 				await _frames(main, 20)
 				var sum := 0.0
-				for k in 60:
+				for k in 30:
 					await _frames(main, 1)
 					sum += RenderingServer.viewport_get_measured_render_time_gpu(vp)
 				print("  %-12s %5.2f ms" % [label, sum / 60.0])

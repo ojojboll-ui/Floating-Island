@@ -21,6 +21,11 @@ const POND_DEPTH := 0.5               # how deep the brush digs under the waterl
 const WATERLINE := 0.16              # new water sits this far below the ground it fills
 const BANK_RISE := 0.7               # how high the bank climbs toward the brush edge
 const MAX_BANK := 0.2                # the most a bank is ever heaped up
+## Ground falling more steeply than this (metres a metre) carries water
+## as a stream running down it, not as a pond: nothing is dug or banked.
+const RUN_SLOPE := 0.22
+## How deep running water lies on the ground it runs down.
+const RUN_FILM := 0.06
 
 var sdf := PackedFloat32Array()       # meters to the coast, positive on land
 var height := PackedFloat32Array()    # ground height before the rim roll
@@ -356,6 +361,13 @@ func edit_land(center: Vector2, radius: float, add: bool) -> void:
 func edit_water(center: Vector2, radius: float, level: float, amount: float, add: bool) -> void:
 	var apply := func(k: int, w: float) -> void:
 		var step := clampf(w * amount, 0.0, 1.0)
+		if add and _slope(k) > RUN_SLOPE:
+			# on a slope the water runs down it in a thin sheet, the ground
+			# left as it is: digging a bowl and banking it there made
+			# terraces of puddles and walls along the downhill side
+			water[k] = maxf(water[k], lerpf(water[k], w, clampf(amount, 0.0, 1.0)))
+			wlevel[k] = height[k] + RUN_FILM
+			return
 		if add:
 			# new water takes the stroke's level, but never stands more than a
 			# low bank's height above the ground it lands on: on falling ground
@@ -386,6 +398,20 @@ func edit_water(center: Vector2, radius: float, level: float, amount: float, add
 		_relax_water(_cell_range(center, radius * 1.4).grow(1), 2)
 
 
+## How steeply the ground falls at `k`, in metres a metre (the steepest
+## of its four neighbours).
+func _slope(k: int) -> float:
+	var i := k % RES
+	var j := k / RES
+	if i < 1 or j < 1 or i > RES - 2 or j > RES - 2:
+		return 0.0
+	var h := height[k]
+	var most := 0.0
+	for nk in [k - 1, k + 1, k - RES, k + RES]:
+		most = maxf(most, absf(h - height[nk]))
+	return most / CELL
+
+
 ## Even out the water surface: a stream then slopes smoothly from level to
 ## level instead of stepping. A pond, already flat, is left as it is.
 func _relax_water(r: Rect2i, passes: int) -> void:
@@ -405,6 +431,8 @@ func _relax_water(r: Rect2i, passes: int) -> void:
 						count += 1
 				if count > 0:
 					wlevel[k] = lerpf(before[k], sum / count, 0.5)
+					if _slope(k) > RUN_SLOPE:
+						wlevel[k] = clampf(wlevel[k], height[k] + RUN_FILM * 0.5, height[k] + RUN_FILM * 2.0)
 
 
 ## Paint ground materials: the splat toward `target`, loose stones toward
